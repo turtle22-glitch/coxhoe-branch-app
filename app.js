@@ -33,13 +33,13 @@ const APP_STATE = {
     { name: 'Bowburn Cooperage (13:45)', isOuter: false }
   ],
 
-  // Membership Subs Roster
+  // Full Membership Roster with Safeguarding & Guardian Links
   members: [
-    { id: 'user_gary', name: 'Gary Miller', role: 'member', duesPaid: true, idCode: 'COX-8204', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 },
-    { id: 'user_dave', name: 'Dave Henderson', role: 'member', duesPaid: true, idCode: 'COX-5120', defaultPickup: 'Kelloe Club (13:25)', strikes: 0 },
-    { id: 'user_graham', name: 'Graham Wright', role: 'admin', duesPaid: true, idCode: 'COX-0001', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 },
-    { id: 'user_billy', name: 'Billy Lapsed', role: 'member', duesPaid: false, idCode: 'COX-9102', defaultPickup: 'Coxhoe Avenue (13:30)', strikes: 1 },
-    { id: 'user_phoebe', name: 'Phoebe Turton', role: 'junior', duesPaid: true, idCode: 'COX-1601', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 }
+    { id: 'user_gary', name: 'Gary Miller', role: 'member', isJunior: false, duesPaid: true, idCode: 'COX-8204', phone: '07700 900123', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 },
+    { id: 'user_dave', name: 'Dave Henderson', role: 'member', isJunior: false, duesPaid: true, idCode: 'COX-5120', phone: '07700 900456', defaultPickup: 'Kelloe Club (13:25)', strikes: 0 },
+    { id: 'user_graham', name: 'Graham Wright', role: 'admin', isJunior: false, duesPaid: true, idCode: 'COX-0001', phone: '07700 900001', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 },
+    { id: 'user_billy', name: 'Billy Lapsed', role: 'member', isJunior: false, duesPaid: false, idCode: 'COX-9102', phone: '07700 900789', defaultPickup: 'Coxhoe Avenue (13:30)', strikes: 1 },
+    { id: 'user_phoebe', name: 'Phoebe Turton', role: 'junior', isJunior: true, duesPaid: true, idCode: 'COX-1601', guardianId: 'user_gary', emergencyContact: '07700 900999', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 }
   ],
 
   // Season Fixtures
@@ -50,21 +50,55 @@ const APP_STATE = {
     { id: 104, opponent: 'West Bromwich Albion', venue: 'HOME', date: 'Sat 5 Dec 2026', time: '15:00', bookingStatus: 'closed' }
   ],
 
-  // Passenger Bookings & Door Check-Ins
+  // Away Ticket Ballots
+  ballots: [
+    {
+      id: 201,
+      fixture: 'Leeds United (Away)',
+      venue: 'Elland Road',
+      date: 'Tue 24 Nov 2026',
+      totalTickets: 12,
+      status: 'OPEN', // OPEN or DRAWN
+      entrants: ['user_gary', 'user_dave'],
+      winners: []
+    }
+  ],
+
+  // Passenger Manifest & Check-Ins
   bookings: [
-    { matchId: 101, userId: 'user_dave', pickup: 'Kelloe Club (13:25)', isOuter: true, status: 'requested', busId: null, seatNumber: null, boarded: false },
-    { matchId: 101, userId: 'user_phoebe', pickup: 'Coxhoe Red Lion (13:35)', isOuter: false, status: 'requested', busId: null, seatNumber: null, boarded: false }
+    { matchId: 101, userId: 'user_dave', pickup: 'Kelloe Club (13:25)', isOuter: true, status: 'requested', busId: null, seatNumber: null, boarded: false, paidAmount: 10 },
+    { matchId: 101, userId: 'user_phoebe', pickup: 'Coxhoe Red Lion (13:35)', isOuter: false, status: 'requested', busId: null, seatNumber: null, boarded: false, paidAmount: 10 }
+  ],
+
+  // Official Branch Announcements Feed
+  news: [
+    {
+      id: 1,
+      title: 'Southampton (H) Coach Bookings Open',
+      body: 'Priority booking for outer villages (Cassop, Quarrington Hill, Kelloe) is active until 24 hours before kick-off. Remaining seats will open to general sale.',
+      author: 'Graham Wright (Secretary)',
+      date: 'Today, 14:20',
+      badge: 'TRAVEL'
+    },
+    {
+      id: 2,
+      title: 'Branch Subs 2026/27 Due (£10)',
+      body: 'Annual membership dues must be paid to enable coach travel reservations and away ballot participation.',
+      author: 'Committee',
+      date: '1 Nov 2026',
+      badge: 'MEMBERSHIP'
+    }
   ],
 
   // Bus Chat Messages
   chatMessages: [
-    { sender: 'Graham Wright (Admin)', text: 'Reminder: Bus 1 departs Kelloe at 13:25 sharp. Don’t be late.', time: '11:15', isSelf: false },
+    { sender: 'Graham Wright (Admin)', text: 'Reminder: Bus 1 departs Kelloe at 13:25 sharp. Have your digital passes ready.', time: '11:15', isSelf: false },
     { sender: 'Dave Henderson', text: 'Spot on, see you at the Club.', time: '11:32', isSelf: false }
   ],
 
   // Disciplinary Board Log
   disciplinaryLog: [
-    { id: 1, userId: 'user_billy', memberName: 'Billy Lapsed', reason: 'Abusive language flagged in bus chat', date: '28 Oct 2026', status: 'Warning Issued' }
+    { id: 1, userId: 'user_billy', memberName: 'Billy Lapsed', reason: 'Safeguarding: Abusive language flagged in bus chat', date: '28 Oct 2026', status: 'Warning Issued' }
   ],
 
   // Broadcast Alert Banners
@@ -122,7 +156,7 @@ function logoutUser() {
   renderApp();
 }
 
-// --- RENDER APP ---
+// --- RENDER ROUTING ---
 function renderApp() {
   const user = APP_STATE.currentUser;
   const authStatus = document.getElementById('auth-status');
@@ -151,14 +185,16 @@ function renderApp() {
 
   renderNotifications();
   renderHUD();
+  renderNewsFeed();
   renderTravelView();
   renderChatMessages();
   renderCalendar();
   renderDigitalPass();
+  renderMemberBallots();
   switchTab(APP_STATE.activeTab);
 }
 
-// --- NOTIFICATIONS ---
+// --- NOTIFICATIONS & NEWS ---
 function renderNotifications() {
   const banner = document.getElementById('notification-banner');
   const activeAlert = APP_STATE.notifications.find(n => n.active);
@@ -170,7 +206,56 @@ function renderNotifications() {
   }
 }
 
-// --- HUD / NEXT GAME ---
+function renderNewsFeed() {
+  const container = document.getElementById('hud-news-feed');
+  if (!container) return;
+  container.innerHTML = '';
+
+  APP_STATE.news.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'news-card';
+    card.innerHTML = `
+      <div class="news-card-header">
+        <span class="badge badge-gold">${item.badge}</span>
+        <span>${item.date} • ${item.author}</span>
+      </div>
+      <div class="news-card-title">${item.title}</div>
+      <div class="news-card-body">${item.body}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function adminPostAnnouncement() {
+  const title = document.getElementById('admin-news-title').value.trim();
+  const body = document.getElementById('admin-news-body').value.trim();
+  if (!title || !body) {
+    alert('Please enter a headline and body for the notice.');
+    return;
+  }
+
+  APP_STATE.news.unshift({
+    id: Date.now(),
+    title,
+    body,
+    author: `${APP_STATE.currentUser.name} (Admin)`,
+    date: 'Just now',
+    badge: 'NOTICE'
+  });
+
+  APP_STATE.notifications = [
+    { id: Date.now(), text: `📢 ${title}`, active: true }
+  ];
+
+  document.getElementById('admin-news-title').value = '';
+  document.getElementById('admin-news-body').value = '';
+
+  alert('Notice broadcasted to all member feeds!');
+  renderNewsFeed();
+  renderNotifications();
+}
+
+// --- HOME HUD & NEXT GAME ---
 function renderHUD() {
   const nextGame = APP_STATE.fixtures.find(f => f.venue === 'HOME');
   if (nextGame) {
@@ -188,7 +273,7 @@ function renderHUD() {
       <div class="flex-between">
         <div>
           <strong>Bus Travel: ${isPriority ? 'Priority Open' : 'General Sale'}</strong>
-          <div class="text-xs text-muted">${isPriority ? 'Closes 24h before KO for outer route balancing' : 'First-come, first-served'}</div>
+          <div class="text-xs text-muted">${isPriority ? 'Closes 24h before KO for route balancing' : 'First-come, first-served'}</div>
         </div>
         <button class="btn btn-sm btn-red" onclick="switchTab('travel')">Book Seat (£10)</button>
       </div>
@@ -204,6 +289,10 @@ function renderHUD() {
         <div class="text-xs text-muted" style="margin-top:2px;">
           ${userBooking.isOuter ? 'Guaranteed on Bus 1 (Outer Circuit). ' : ''}Seat & bus confirmed at 24h cutoff.
         </div>
+        <div class="booking-actions-row">
+          <span class="text-xs text-muted">Paid: £10.00</span>
+          <button class="btn btn-sm btn-outline-danger" onclick="cancelMemberBooking(${nextGame.id})">Cancel & Refund</button>
+        </div>
       </div>
     `;
   } else if (userBooking.status === 'allocated') {
@@ -213,12 +302,36 @@ function renderHUD() {
         <div class="header-text">✓ SEAT ALLOCATED & CONFIRMED</div>
         <div style="font-size:14px; font-weight:800; color:#fff;">${bus.name} (Seat #${userBooking.seatNumber})</div>
         <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">📍 Pick-up: ${userBooking.pickup}</div>
+        <div class="booking-actions-row">
+          <span class="text-xs text-muted">Paid: £10.00</span>
+          <button class="btn btn-sm btn-outline-danger" onclick="cancelMemberBooking(${nextGame.id})">Cancel & Refund</button>
+        </div>
       </div>
     `;
   }
 }
 
-// --- TRAVEL VIEW & ALLOCATION STAGES ---
+// --- CANCELLATION & REFUND ---
+function cancelMemberBooking(matchId) {
+  const user = APP_STATE.currentUser;
+  const bookingIndex = APP_STATE.bookings.findIndex(b => b.userId === user.id && b.matchId === matchId);
+  if (bookingIndex === -1) return;
+
+  const match = APP_STATE.fixtures.find(f => f.id === matchId);
+  if (confirm(`Cancel coach booking for ${match ? match.opponent : 'this fixture'}?\n\nA full refund of £10.00 will be credited back.`)) {
+    APP_STATE.bookings.splice(bookingIndex, 1);
+    alert('✓ Booking cancelled. £10.00 refund credited.');
+    renderHUD();
+    renderTravelView();
+    renderDigitalPass();
+    if (user.role === 'admin') {
+      renderAdminManifest();
+      renderAdminTreasury();
+    }
+  }
+}
+
+// --- TRAVEL VIEW ---
 function renderTravelView() {
   const matchSelect = document.getElementById('travel-match-select');
   matchSelect.innerHTML = '';
@@ -254,6 +367,10 @@ function handleMatchChange() {
         <p class="text-xs text-muted mt-2">Status: <b>${existingBooking.status.toUpperCase()}</b></p>
         <p class="text-xs text-muted">Pick-up: ${existingBooking.pickup}</p>
         ${existingBooking.busId ? `<p class="text-xs" style="color:var(--success); font-weight:700; margin-top:4px;">Allocated to Bus ${existingBooking.busId} (Seat #${existingBooking.seatNumber})</p>` : ''}
+        
+        <div style="margin-top:14px; border-top:1px solid #334155; padding-top:10px;">
+          <button class="btn btn-outline-danger btn-block btn-sm" onclick="cancelMemberBooking(${match.id})">Cancel Booking & Refund £10</button>
+        </div>
       </div>
     `;
     return;
@@ -361,10 +478,11 @@ function submitPriorityRequest() {
     status: 'requested',
     busId: null,
     seatNumber: null,
-    boarded: false
+    boarded: false,
+    paidAmount: 10
   });
 
-  alert(`Seat Request Logged! ${pickup.isOuter ? 'Priority outer seat protected on Bus 1.' : 'Standard seat request pooled.'}`);
+  alert(`Seat Request Logged (£10 Paid)! ${pickup.isOuter ? 'Priority outer seat protected on Bus 1.' : 'Standard seat request pooled.'}`);
   renderHUD();
   renderDigitalPass();
   switchTab('hud');
@@ -373,7 +491,7 @@ function submitPriorityRequest() {
 function submitGeneralSaleBooking() {
   const user = APP_STATE.currentUser;
   if (!user.duesPaid) {
-    alert('Access Denied: Annual branch subs are unpaid.');
+    alert('Access Denied: Annual branch subs unpaid.');
     return;
   }
 
@@ -397,10 +515,11 @@ function submitGeneralSaleBooking() {
     status: 'allocated',
     busId,
     seatNumber,
-    boarded: false
+    boarded: false,
+    paidAmount: 10
   });
 
-  alert(`Seat Confirmed! Assigned to ${bus.name}, Seat #${seatNumber}`);
+  alert(`Seat Confirmed (£10 Paid)! Assigned to ${bus.name}, Seat #${seatNumber}`);
   renderHUD();
   renderDigitalPass();
   switchTab('hud');
@@ -433,7 +552,6 @@ function sendChatMessage() {
   const lower = text.toLowerCase();
   const bannedKeywords = ['shut up', 'idiot', 'moron', 'crap', 'bastard', 'fuck', 'shit'];
 
-  // Safeguarding engine moderation check
   const violation = bannedKeywords.find(word => lower.includes(word));
   if (violation) {
     user.strikes = (user.strikes || 0) + 1;
@@ -462,7 +580,7 @@ function sendChatMessage() {
   renderChatMessages();
 }
 
-// --- AUTOMATED 24-HOUR ALLOCATION ENGINE ---
+// --- 24-HOUR ALLOCATION ENGINE ---
 function adminRunAllocation() {
   const nextGame = APP_STATE.fixtures.find(f => f.venue === 'HOME');
   if (!nextGame) return;
@@ -473,7 +591,7 @@ function adminRunAllocation() {
   const bus1 = APP_STATE.buses.find(b => b.id === 1);
   const bus2 = APP_STATE.buses.find(b => b.id === 2);
 
-  const bus1Usable = bus1.capacity - bus1.spareBuffer; // e.g., 49 - 3 = 46
+  const bus1Usable = bus1.capacity - bus1.spareBuffer;
   const bus2Usable = bus2.capacity - bus2.spareBuffer;
 
   let bus1Count = 0;
@@ -517,6 +635,7 @@ function adminRunAllocation() {
   renderApp();
   renderAdminFleet();
   renderAdminManifest();
+  renderAdminTreasury();
 }
 
 // --- SEASON CALENDAR ---
@@ -585,12 +704,77 @@ function renderDigitalPass() {
   }
 }
 
-// --- ADMIN CONTROLS MODAL ---
+// --- AWAY BALLOTS (MEMBER VIEW) ---
+function renderMemberBallots() {
+  const container = document.getElementById('member-ballots-list');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const user = APP_STATE.currentUser;
+
+  APP_STATE.ballots.forEach(ballot => {
+    const card = document.createElement('div');
+    card.className = 'ballot-card';
+
+    const hasEntered = ballot.entrants.includes(user.id);
+    const hasWon = ballot.winners.includes(user.id);
+
+    let statusBtn = '';
+    if (ballot.status === 'DRAWN') {
+      statusBtn = hasWon
+        ? `<span class="badge badge-gold">🎉 WON TICKET</span>`
+        : `<span class="text-xs text-muted">Ballot Drawn (Unsuccessful)</span>`;
+    } else {
+      statusBtn = hasEntered
+        ? `<button class="btn btn-sm btn-outline" onclick="leaveBallot(${ballot.id})">Withdraw Entry</button>`
+        : `<button class="btn btn-sm btn-gold" onclick="enterBallot(${ballot.id})">Enter Ballot</button>`;
+    }
+
+    card.innerHTML = `
+      <div>
+        <strong>${ballot.fixture}</strong>
+        <div class="text-xs text-muted">${ballot.venue} • ${ballot.date}</div>
+        <div class="text-xs text-muted" style="margin-top:2px;">Allocation: ${ballot.totalTickets} tickets • ${ballot.entrants.length} entered</div>
+      </div>
+      <div>${statusBtn}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function enterBallot(ballotId) {
+  const user = APP_STATE.currentUser;
+  if (!user.duesPaid) {
+    alert('Annual subs must be paid to enter away ticket ballots.');
+    return;
+  }
+  const ballot = APP_STATE.ballots.find(b => b.id === ballotId);
+  if (ballot && !ballot.entrants.includes(user.id)) {
+    ballot.entrants.push(user.id);
+    alert('✓ Ballot entry registered under your membership ID!');
+    renderMemberBallots();
+  }
+}
+
+function leaveBallot(ballotId) {
+  const user = APP_STATE.currentUser;
+  const ballot = APP_STATE.ballots.find(b => b.id === ballotId);
+  if (ballot) {
+    ballot.entrants = ballot.entrants.filter(id => id !== user.id);
+    alert('Entry withdrawn from ballot.');
+    renderMemberBallots();
+  }
+}
+
+// --- ADMIN SECRETARY HUD (ALL 11 CONTROLS) ---
 function openAdminDrawer() {
+  renderAdminTreasury();
   renderAdminFleet();
   renderAdminFixtures();
   renderAdminManifest();
+  renderAdminBallots();
   renderAdminSubs();
+  renderAdminSafeguarding();
   renderAdminDisciplinary();
   document.getElementById('admin-drawer').classList.remove('hidden');
 }
@@ -599,6 +783,36 @@ function closeAdminDrawer() {
   document.getElementById('admin-drawer').classList.add('hidden');
 }
 
+// 1. Treasury
+function renderAdminTreasury() {
+  const container = document.getElementById('admin-treasury-stats');
+  const nextHome = APP_STATE.fixtures.find(f => f.venue === 'HOME');
+  const matchBookings = APP_STATE.bookings.filter(b => b.matchId === nextHome.id);
+  const busRevenue = matchBookings.length * 10;
+  const paidMembers = APP_STATE.members.filter(m => m.duesPaid).length;
+  const subsRevenue = paidMembers * 10;
+
+  container.innerHTML = `
+    <div class="treasury-card">
+      <div class="value">£${busRevenue}</div>
+      <div class="label">Next Game Fare Revenue</div>
+    </div>
+    <div class="treasury-card">
+      <div class="value">£${subsRevenue}</div>
+      <div class="label">26/27 Subs Pool</div>
+    </div>
+    <div class="treasury-card">
+      <div class="value">${matchBookings.length}</div>
+      <div class="label">Seats Reserved</div>
+    </div>
+    <div class="treasury-card">
+      <div class="value">${paidMembers} / ${APP_STATE.members.length}</div>
+      <div class="label">Active Subs Paid</div>
+    </div>
+  `;
+}
+
+// 4. Fleet
 function renderAdminFleet() {
   const container = document.getElementById('admin-bus-list');
   container.innerHTML = '';
@@ -650,6 +864,7 @@ function adminAddBus() {
   renderTravelView();
 }
 
+// 5. Fixtures
 function renderAdminFixtures() {
   const container = document.getElementById('admin-fixtures-list');
   container.innerHTML = '';
@@ -687,6 +902,7 @@ function toggleFixtureBookingStatus(fixtureId) {
   renderAdminFixtures();
 }
 
+// 6. Manifest
 function renderAdminManifest() {
   const container = document.getElementById('admin-manifest-summary');
   const nextHome = APP_STATE.fixtures.find(f => f.venue === 'HOME');
@@ -709,7 +925,7 @@ function renderAdminManifest() {
             <div class="manifest-passenger-item ${b.boarded ? 'boarded' : ''}" onclick="toggleBoarding('${b.userId}')">
               <div>
                 <strong>${m ? m.name : 'Unknown'} (Seat #${b.seatNumber})</strong>
-                <div class="text-xs text-muted">${b.pickup}</div>
+                <div class="text-xs text-muted">${b.pickup} • Paid £${b.paidAmount || 10}</div>
               </div>
               <button class="btn btn-sm ${b.boarded ? 'btn-gold' : 'btn-outline'}">${b.boarded ? '✓ Boarded' : 'Check In'}</button>
             </div>
@@ -744,6 +960,110 @@ function toggleBoarding(userId) {
   }
 }
 
+// 7. Driver Sheet Export
+function openDriverSheetModal() {
+  const nextHome = APP_STATE.fixtures.find(f => f.venue === 'HOME');
+  const bookings = APP_STATE.bookings.filter(b => b.matchId === nextHome.id);
+
+  let text = `========================================\n`;
+  text += ` COXHOE BRANCH SAFC - COACH RUN SHEET\n`;
+  text += ` FIXTURE: Sunderland vs ${nextHome.opponent} (${nextHome.date})\n`;
+  text += `========================================\n\n`;
+
+  APP_STATE.buses.forEach(bus => {
+    text += `[${bus.name.toUpperCase()}]\n`;
+    text += `Capacity: ${bus.capacity} | Reserved Spares: ${bus.spareBuffer}\n`;
+    text += `Stops: ${[...bus.outerPickups, ...bus.localPickups].join(' -> ')}\n`;
+    text += `----------------------------------------\n`;
+
+    const busPassengers = bookings.filter(b => b.busId === bus.id);
+    if (busPassengers.length === 0) {
+      text += `No passengers allocated.\n\n`;
+      return;
+    }
+
+    busPassengers.forEach((p, idx) => {
+      const mem = APP_STATE.members.find(m => m.id === p.userId);
+      text += `${idx + 1}. [Seat ${p.seatNumber}] ${mem ? mem.name : 'Member'} | Stop: ${p.pickup} | Phone: ${mem ? mem.phone : 'N/A'}\n`;
+      if (mem && mem.isJunior) {
+        const g = APP_STATE.members.find(gm => gm.id === mem.guardianId);
+        text += `   ↳ JUNIOR: Guardian: ${g ? g.name : 'N/A'} (Emergency: ${mem.emergencyContact})\n`;
+      }
+    });
+    text += `\n`;
+  });
+
+  document.getElementById('driver-manifest-text').textContent = text;
+  document.getElementById('driver-modal').classList.remove('hidden');
+}
+
+function closeDriverSheetModal() {
+  document.getElementById('driver-modal').classList.add('hidden');
+}
+
+function copyDriverManifest() {
+  const text = document.getElementById('driver-manifest-text').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('✓ Run sheet copied to clipboard! You can paste this into WhatsApp or print it.');
+  });
+}
+
+// 8. Ballots Admin
+function renderAdminBallots() {
+  const container = document.getElementById('admin-ballots-list');
+  container.innerHTML = '';
+
+  APP_STATE.ballots.forEach(ballot => {
+    const div = document.createElement('div');
+    div.className = 'admin-fixture-item';
+    div.innerHTML = `
+      <div>
+        <strong>${ballot.fixture}</strong>
+        <div class="text-xs text-muted">${ballot.entrants.length} Entrants • ${ballot.totalTickets} Tickets • Status: ${ballot.status}</div>
+        ${ballot.winners.length ? `<div class="text-xs" style="color:var(--success)">Winners: ${ballot.winners.map(wId => {
+          const m = APP_STATE.members.find(mem => mem.id === wId);
+          return m ? m.name : wId;
+        }).join(', ')}</div>` : ''}
+      </div>
+      <div>
+        ${ballot.status === 'OPEN' ? `
+          <button class="btn btn-sm btn-gold" onclick="adminRunBallotDraw(${ballot.id})">Run Draw</button>
+        ` : `
+          <span class="badge badge-gold">DRAWN</span>
+        `}
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function adminRunBallotDraw(ballotId) {
+  const ballot = APP_STATE.ballots.find(b => b.id === ballotId);
+  if (!ballot || ballot.entrants.length === 0) {
+    alert('No entrants registered for this ballot.');
+    return;
+  }
+
+  // Shuffle entrants randomly
+  const shuffled = [...ballot.entrants].sort(() => 0.5 - Math.random());
+  ballot.winners = shuffled.slice(0, ballot.totalTickets);
+  ballot.status = 'DRAWN';
+
+  APP_STATE.notifications = [
+    { id: Date.now(), text: `🎉 Away ballot drawn for ${ballot.fixture}! Check your ballots tab.`, active: true }
+  ];
+
+  alert(`Ballot Draw Finished!\n\n${ballot.winners.length} winners drawn:\n` + ballot.winners.map(id => {
+    const m = APP_STATE.members.find(mem => mem.id === id);
+    return `• ${m ? m.name : id}`;
+  }).join('\n'));
+
+  renderAdminBallots();
+  renderMemberBallots();
+  renderNotifications();
+}
+
+// 9. Subs Roster
 function renderAdminSubs() {
   const container = document.getElementById('admin-subs-roster');
   container.innerHTML = '';
@@ -769,10 +1089,41 @@ function toggleMemberSubs(memberId) {
   if (member) {
     member.duesPaid = !member.duesPaid;
     renderAdminSubs();
+    renderAdminTreasury();
     renderDigitalPass();
   }
 }
 
+// 10. Junior Safeguarding Register
+function renderAdminSafeguarding() {
+  const container = document.getElementById('admin-safeguarding-register');
+  container.innerHTML = '';
+
+  const juniors = APP_STATE.members.filter(m => m.isJunior);
+  if (juniors.length === 0) {
+    container.innerHTML = '<p class="text-xs text-muted">No junior members currently registered.</p>';
+    return;
+  }
+
+  juniors.forEach(j => {
+    const guardian = APP_STATE.members.find(m => m.id === j.guardianId);
+    const div = document.createElement('div');
+    div.className = 'admin-member-row';
+    div.innerHTML = `
+      <div>
+        <strong>${j.name} (Under-16)</strong>
+        <div class="text-xs text-muted">ID: ${j.idCode} • Contact: ${j.emergencyContact}</div>
+        <div class="text-xs" style="color:var(--safc-gold); margin-top:2px;">
+          Linked Guardian: <b>${guardian ? guardian.name : 'UNASSIGNED'}</b>
+        </div>
+      </div>
+      <span class="badge ${guardian ? 'badge-gold' : 'badge-danger'}">${guardian ? '✓ Verified' : 'Action Req'}</span>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// 11. Disciplinary Board
 function renderAdminDisciplinary() {
   const container = document.getElementById('admin-disciplinary-board');
   container.innerHTML = '';

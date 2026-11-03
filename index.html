@@ -9,21 +9,12 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js');
-      });
-    }
-    <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then((reg) => {
-          // Check for updates on every app launch
           reg.update();
-
           reg.onupdatefound = () => {
-            const installingWorker = reg.installing;
-            installingWorker.onstatechange = () => {
-              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New update installed: reload seamlessly in the background
+            const installing = reg.installing;
+            installing.onstatechange = () => {
+              if (installing.state === 'installed' && navigator.serviceWorker.controller) {
                 window.location.reload();
               }
             };
@@ -47,7 +38,7 @@
       <div id="auth-status" class="header-right"></div>
     </header>
 
-    <!-- Admin Status Banner -->
+    <!-- Admin Status Bar -->
     <div id="admin-bar" class="admin-bar hidden">
       <span>🛡️ COMMITTEE SECRETARY ACTIVE</span>
       <button id="open-admin-btn" class="btn-sm btn-gold">Admin Controls</button>
@@ -56,7 +47,7 @@
     <!-- Broadcast Notification Banner -->
     <div id="notification-banner" class="notification-banner hidden"></div>
 
-    <!-- Main Dynamic Content Views -->
+    <!-- Main Dynamic Views -->
     <main id="main-content">
       <!-- 1. AUTH / SIGN IN -->
       <section id="view-auth" class="card">
@@ -75,17 +66,18 @@
         <div class="test-identities">
           <p class="text-xs text-muted">QUICK TESTING IDENTITIES:</p>
           <div class="button-grid">
-            <button class="btn-test" onclick="quickLogin('gary')">Gary (Coxhoe)</button>
+            <button class="btn-test" onclick="quickLogin('gary')">Gary (Coxhoe Adult)</button>
             <button class="btn-test" onclick="quickLogin('dave')">Dave (Kelloe - Bus 1 Only)</button>
-            <button class="btn-test" onclick="quickLogin('graham')">Graham (Admin)</button>
+            <button class="btn-test" onclick="quickLogin('graham')">Graham (Admin / Secretary)</button>
             <button class="btn-test text-danger" onclick="quickLogin('billy')">Billy (Lapsed Subs)</button>
-            <button class="btn-test" onclick="quickLogin('phoebe')">Phoebe (Junior)</button>
+            <button class="btn-test" onclick="quickLogin('phoebe')">Phoebe (Junior Member)</button>
           </div>
         </div>
       </section>
 
       <!-- 2. HOME HUD -->
       <section id="view-hud" class="view hidden">
+        <!-- Next Match Card -->
         <div class="card next-game-card">
           <div class="card-tag">NEXT HOME FIXTURE</div>
           <div class="fixture-banner">
@@ -108,24 +100,13 @@
           <div id="hud-booking-status" class="booking-hud-box"></div>
         </div>
 
-        <!-- Quick Nav Grid -->
-        <div class="quick-nav-grid">
-          <button class="quick-nav-btn" onclick="switchTab('travel')">
-            <span class="icon">🚌</span>
-            <span>Book Travel</span>
-          </button>
-          <button class="quick-nav-btn" onclick="switchTab('comms')">
-            <span class="icon">💬</span>
-            <span>Bus Chat</span>
-          </button>
-          <button class="quick-nav-btn" onclick="switchTab('calendar')">
-            <span class="icon">📅</span>
-            <span>Fixtures</span>
-          </button>
-          <button class="quick-nav-btn" onclick="switchTab('pass')">
-            <span class="icon">🎟️</span>
-            <span>Digital Pass</span>
-          </button>
+        <!-- Branch News & Notices Feed -->
+        <div class="card">
+          <div class="flex-between">
+            <h3>Branch News & Notices</h3>
+            <span class="badge badge-gold">UPDATES</span>
+          </div>
+          <div id="hud-news-feed" class="news-feed-container"></div>
         </div>
       </section>
 
@@ -141,9 +122,7 @@
               <select id="travel-match-select" onchange="handleMatchChange()"></select>
             </div>
 
-            <div id="booking-stage-content">
-              <!-- Dynamically rendered based on priority window vs general sale -->
-            </div>
+            <div id="booking-stage-content"></div>
           </div>
         </div>
       </section>
@@ -160,7 +139,7 @@
           <div id="chat-messages" class="chat-box"></div>
 
           <div class="chat-input-row">
-            <input type="text" id="chat-input" placeholder="Type a message (e.g. coach arrival query)..." />
+            <input type="text" id="chat-input" placeholder="Type a message (e.g. pickup query)..." />
             <button class="btn btn-red btn-sm" onclick="sendChatMessage()">Send</button>
           </div>
         </div>
@@ -204,53 +183,72 @@
       <section id="view-ballots" class="view hidden">
         <div class="card">
           <h2>Away Match Ballots</h2>
-          <div class="ballot-item">
-            <div>
-              <strong>Leeds United (Away)</strong>
-              <div class="text-xs text-muted">Elland Road • Tue 24 Nov 2026</div>
-            </div>
-            <button class="btn btn-sm btn-gold" onclick="alert('Ballot entry registered under your membership number!')">Enter Ballot</button>
-          </div>
+          <p class="text-muted text-xs">Branch ticket allocations drawn via transparent lottery.</p>
+          <div id="member-ballots-list"></div>
         </div>
       </section>
     </main>
 
-    <!-- ADMIN DRAWER (COMPLETE HUD FOR COMMITTEE) -->
+    <!-- ADMIN DRAWER (COMPLETE 11-CONTROL COMMITTEE SECRETARY HUD) -->
     <div id="admin-drawer" class="admin-drawer hidden">
       <div class="drawer-header">
         <h3>Branch Secretary HUD</h3>
         <button class="btn-close" onclick="closeAdminDrawer()">✕</button>
       </div>
       <div class="drawer-content">
-        <!-- 1. 24h Allocation Engine -->
+
+        <!-- 1. Matchday Treasury & Financial Summary -->
         <div class="admin-section highlight-box">
+          <h4>💰 Matchday Financials & Subs Ledger</h4>
+          <div class="treasury-grid mt-2" id="admin-treasury-stats"></div>
+        </div>
+
+        <hr />
+
+        <!-- 2. Post Announcement / News -->
+        <div class="admin-section">
+          <h4>📢 Broadcast Notice / News Item</h4>
+          <p class="text-xs text-muted">Publishes directly to member home feeds & alert banners.</p>
+          <div class="form-group mt-2">
+            <input type="text" id="admin-news-title" placeholder="Notice Headline (e.g. Coach Timing Update)" />
+          </div>
+          <div class="form-group">
+            <textarea id="admin-news-body" rows="2" placeholder="Announcement details..."></textarea>
+          </div>
+          <button class="btn btn-gold btn-block btn-sm" onclick="adminPostAnnouncement()">Broadcast Notice</button>
+        </div>
+
+        <hr />
+
+        <!-- 3. 24h Allocation Engine -->
+        <div class="admin-section">
           <h4>⚡ 24-Hour Cutoff Allocation</h4>
-          <p class="text-xs text-muted">Locks outer village members to Bus 1, assigns local Coxhoe/Bowburn members, holds deliberate spare buffers, and triggers General Sale.</p>
+          <p class="text-xs text-muted">Locks outer villages to Bus 1, balances Coxhoe/Bowburn, preserves spare buffers, and triggers General Sale.</p>
           <button class="btn btn-gold btn-block mt-2" onclick="adminRunAllocation()">Run 24h Allocation Now</button>
         </div>
 
         <hr />
 
-        <!-- 2. Fleet & Seat Cushions -->
+        <!-- 4. Fleet & Route Capacity Controls -->
         <div class="admin-section">
-          <h4>🚌 Fleet & Seat Cushions</h4>
-          <p class="text-xs text-muted">Configure coach capacities and reserved emergency buffers.</p>
+          <h4>🚌 Fleet, Routes & Seat Cushions</h4>
+          <p class="text-xs text-muted">Configure coach sizes, pickup stops, and emergency buffers.</p>
           <div id="admin-bus-list"></div>
           <button class="btn btn-sm btn-outline mt-2" onclick="adminAddBus()">+ Add Auxiliary Coach</button>
         </div>
 
         <hr />
 
-        <!-- 3. Match Booking Access -->
+        <!-- 5. Season Fixture Travel Controls -->
         <div class="admin-section">
-          <h4>📅 Season Match Booking Controls</h4>
-          <p class="text-xs text-muted">Toggle booking phases to broadcast notifications to member HUDs.</p>
+          <h4>📅 Season Fixture Booking Controls</h4>
+          <p class="text-xs text-muted">Open or close booking phases to broadcast alerts to member HUDs.</p>
           <div id="admin-fixtures-list"></div>
         </div>
 
         <hr />
 
-        <!-- 4. Boarding Manifest & Check-In -->
+        <!-- 6. Passenger Manifest & Door Check-In -->
         <div class="admin-section">
           <h4>📋 Passenger Manifest & Bus Door Check-In</h4>
           <p class="text-xs text-muted">Tap passenger to toggle them as boarded onto the coach.</p>
@@ -259,25 +257,66 @@
 
         <hr />
 
-        <!-- 5. Membership Subs Roster -->
+        <!-- 7. Printable Driver Manifest Sheet -->
+        <div class="admin-section">
+          <h4>📄 Coach Driver Run Sheet (Print / Export)</h4>
+          <p class="text-xs text-muted">Formatted text manifest with pickup times and headcounts to hand to the coach drivers.</p>
+          <button class="btn btn-outline btn-block btn-sm mt-2" onclick="openDriverSheetModal()">Generate Driver Manifests</button>
+        </div>
+
+        <hr />
+
+        <!-- 8. Away Ticket Ballot Manager & Lottery Draw -->
+        <div class="admin-section">
+          <h4>🎟️ Away Ticket Ballot Manager & Draw</h4>
+          <p class="text-xs text-muted">Manage allocations and run automated random draws for branch tickets.</p>
+          <div id="admin-ballots-list"></div>
+        </div>
+
+        <hr />
+
+        <!-- 9. Membership Subs Roster -->
         <div class="admin-section">
           <h4>💳 Membership Subs Roster (2026/27)</h4>
-          <p class="text-xs text-muted">Toggle payment status to permit or restrict coach bookings.</p>
+          <p class="text-xs text-muted">Toggle annual dues (£10) to permit or lock travel booking rights.</p>
           <div id="admin-subs-roster"></div>
         </div>
 
         <hr />
 
-        <!-- 6. Safeguarding Disciplinary Board -->
+        <!-- 10. Junior Safeguarding & Guardian Linking -->
         <div class="admin-section">
-          <h4>⚖️ Disciplinary & Safeguarding Board</h4>
-          <p class="text-xs text-muted">Monitors automated strike flags from chat and member conduct.</p>
+          <h4>🛡️ Junior Safeguarding & Guardian Register</h4>
+          <p class="text-xs text-muted">Tracks all Under-16s (like Phoebe) ensuring a named responsible adult is present on their coach.</p>
+          <div id="admin-safeguarding-register"></div>
+        </div>
+
+        <hr />
+
+        <!-- 11. Disciplinary Board & Chat Moderation -->
+        <div class="admin-section">
+          <h4>⚖️ Disciplinary Board & Conduct Logs</h4>
+          <p class="text-xs text-muted">Monitors automated strike flags from chat and member behavior.</p>
           <div id="admin-disciplinary-board"></div>
         </div>
+
       </div>
     </div>
 
-    <!-- Bottom Navigation -->
+    <!-- DRIVER SHEET MODAL -->
+    <div id="driver-modal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <div class="flex-between">
+          <h3>Coach Driver Run Sheets</h3>
+          <button class="btn-close" onclick="closeDriverSheetModal()">✕</button>
+        </div>
+        <p class="text-xs text-muted">Copy or print this text to hand directly to the bus drivers.</p>
+        <pre id="driver-manifest-text" class="driver-manifest-pre"></pre>
+        <button class="btn btn-gold btn-block btn-sm mt-2" onclick="copyDriverManifest()">Copy to Clipboard</button>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
     <nav class="bottom-nav">
       <button class="nav-tab active" onclick="switchTab('hud')">
         <span class="nav-icon">🏠</span>
