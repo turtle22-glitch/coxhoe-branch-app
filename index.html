@@ -3,344 +3,529 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Coxhoe Branch - SAFC</title>
-  <link rel="manifest" href="manifest.json" />
+  <title>Coxhoe Branch - Sunderland AFC</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json" />
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then((reg) => {
-          reg.update();
-          reg.onupdatefound = () => {
-            const installing = reg.installing;
-            installing.onstatechange = () => {
-              if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-                window.location.reload();
-              }
-            };
-          };
-        });
+        navigator.serviceWorker.register('./sw.js');
       });
     }
   </script>
 </head>
 <body>
-  <div id="app">
-    <!-- Top Header -->
-    <header class="app-header">
-      <div class="header-left">
+
+<div class="app-container">
+  <!-- Top Header -->
+  <header>
+    <div class="header-content">
+      <div class="brand">
         <div class="crest-badge">SAFC</div>
         <div>
-          <h1>Coxhoe Branch</h1>
-          <span class="sub-header">SUPPORTERS CLUB</span>
+          <div class="brand-title">Coxhoe Branch</div>
+          <div class="brand-sub">Supporters Club</div>
         </div>
       </div>
-      <div id="auth-status" class="header-right"></div>
-    </header>
-
-    <!-- Admin Status Bar -->
-    <div id="admin-bar" class="admin-bar hidden">
-      <span>🛡️ COMMITTEE SECRETARY ACTIVE</span>
-      <button id="open-admin-btn" class="btn-sm btn-gold">Admin Controls</button>
-    </div>
-
-    <!-- Broadcast Notification Banner -->
-    <div id="notification-banner" class="notification-banner hidden"></div>
-
-    <!-- Main Dynamic Views -->
-    <main id="main-content">
-      <!-- 1. AUTH / SIGN IN -->
-      <section id="view-auth" class="card">
-        <h2>Sign In to Branch Portal</h2>
-        <p class="text-muted">Matchday HUD, travel, ballots, dues & digital pass.</p>
-        <div class="form-group">
-          <label>Full Name</label>
-          <input type="text" id="login-name" value="Gary Miller" />
-        </div>
-        <div class="form-group">
-          <label>PIN / Password</label>
-          <input type="password" id="login-pass" value="••••••••" />
-        </div>
-        <button id="login-btn" class="btn btn-red btn-block">Sign In</button>
-
-        <div class="test-identities">
-          <p class="text-xs text-muted">QUICK TESTING IDENTITIES:</p>
-          <div class="button-grid">
-            <button class="btn-test" onclick="quickLogin('gary')">Gary (Coxhoe Adult)</button>
-            <button class="btn-test" onclick="quickLogin('dave')">Dave (Kelloe - Bus 1 Only)</button>
-            <button class="btn-test" onclick="quickLogin('graham')">Graham (Admin / Secretary)</button>
-            <button class="btn-test text-danger" onclick="quickLogin('billy')">Billy (Lapsed Subs)</button>
-            <button class="btn-test" onclick="quickLogin('phoebe')">Phoebe (Junior Member)</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 2. HOME HUD -->
-      <section id="view-hud" class="view hidden">
-        <!-- Next Match Card -->
-        <div class="card next-game-card">
-          <div class="card-tag">NEXT HOME FIXTURE</div>
-          <div class="fixture-banner">
-            <div class="team team-home">
-              <span class="team-name">Sunderland</span>
-              <span class="venue-badge">SOL</span>
-            </div>
-            <div class="fixture-vs">VS</div>
-            <div class="team team-away">
-              <span id="next-fixture-opponent" class="team-name">Southampton</span>
-              <span class="comp-badge">Championship</span>
-            </div>
-          </div>
-          <div class="fixture-meta">
-            <span id="next-fixture-date">📅 Saturday 7 Nov 2026</span>
-            <span id="next-fixture-time">⏱️ 15:00 KO</span>
-          </div>
-
-          <!-- Dynamic Member Booking Status Box -->
-          <div id="hud-booking-status" class="booking-hud-box"></div>
-        </div>
-
-        <!-- Branch News & Notices Feed -->
-        <div class="card">
-          <div class="flex-between">
-            <h3>Branch News & Notices</h3>
-            <span class="badge badge-gold">UPDATES</span>
-          </div>
-          <div id="hud-news-feed" class="news-feed-container"></div>
-        </div>
-      </section>
-
-      <!-- 3. TRAVEL & BUS BOOKING VIEW -->
-      <section id="view-travel" class="view hidden">
-        <div class="card">
-          <h2>Matchday Coach Travel</h2>
-          <p class="text-muted" id="travel-phase-desc">Priority Pick-Up Booking Window</p>
-
-          <div id="booking-container">
-            <div class="form-group">
-              <label>Select Match</label>
-              <select id="travel-match-select" onchange="handleMatchChange()"></select>
-            </div>
-
-            <div id="booking-stage-content"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 4. BUS CHAT & COMMS (WITH SAFEGUARDING ENGINE) -->
-      <section id="view-comms" class="view hidden">
-        <div class="card">
-          <div class="flex-between">
-            <h2>Branch Bus Chat</h2>
-            <span class="badge badge-gold">MODERATED</span>
-          </div>
-          <p class="text-muted text-xs">Family safe room. Safeguarding engine monitors all messages.</p>
-
-          <div id="chat-messages" class="chat-box"></div>
-
-          <div class="chat-input-row">
-            <input type="text" id="chat-input" placeholder="Type a message (e.g. pickup query)..." />
-            <button class="btn btn-red btn-sm" onclick="sendChatMessage()">Send</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 5. SEASON CALENDAR -->
-      <section id="view-calendar" class="view hidden">
-        <div class="card">
-          <div class="flex-between">
-            <h2>Season Schedule 2026/27</h2>
-            <span class="badge badge-gold">Championship</span>
-          </div>
-          <p class="text-muted">Coach booking status for the full campaign.</p>
-          <div id="calendar-list" class="calendar-list"></div>
-        </div>
-      </section>
-
-      <!-- 6. DIGITAL PASS -->
-      <section id="view-pass" class="view hidden">
-        <div class="card pass-card">
-          <div class="pass-header">
-            <span class="pass-title">SAFC COXHOE BRANCH</span>
-            <span id="pass-type-badge" class="badge badge-gold">MEMBER</span>
-          </div>
-          <div class="pass-body">
-            <h3 id="pass-name">Gary Miller</h3>
-            <p class="text-muted" id="pass-number">ID: COX-8204</p>
-            <div class="pass-status-pill active" id="pass-subs-status">SUBS PAID (2026/27)</div>
-            
-            <div class="qr-box">
-              <div class="qr-placeholder"><div class="qr-matrix"></div></div>
-              <span class="text-xs text-muted">Scan at Coach Boarding</span>
-            </div>
-
-            <div id="pass-bus-allocation" class="pass-bus-box"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 7. AWAY BALLOTS -->
-      <section id="view-ballots" class="view hidden">
-        <div class="card">
-          <h2>Away Match Ballots</h2>
-          <p class="text-muted text-xs">Branch ticket allocations drawn via transparent lottery.</p>
-          <div id="member-ballots-list"></div>
-        </div>
-      </section>
-    </main>
-
-    <!-- ADMIN DRAWER (COMPLETE 11-CONTROL COMMITTEE SECRETARY HUD) -->
-    <div id="admin-drawer" class="admin-drawer hidden">
-      <div class="drawer-header">
-        <h3>Branch Secretary HUD</h3>
-        <button class="btn-close" onclick="closeAdminDrawer()">✕</button>
-      </div>
-      <div class="drawer-content">
-
-        <!-- 1. Matchday Treasury & Financial Summary -->
-        <div class="admin-section highlight-box">
-          <h4>💰 Matchday Financials & Subs Ledger</h4>
-          <div class="treasury-grid mt-2" id="admin-treasury-stats"></div>
-        </div>
-
-        <hr />
-
-        <!-- 2. Post Announcement / News -->
-        <div class="admin-section">
-          <h4>📢 Broadcast Notice / News Item</h4>
-          <p class="text-xs text-muted">Publishes directly to member home feeds & alert banners.</p>
-          <div class="form-group mt-2">
-            <input type="text" id="admin-news-title" placeholder="Notice Headline (e.g. Coach Timing Update)" />
-          </div>
-          <div class="form-group">
-            <textarea id="admin-news-body" rows="2" placeholder="Announcement details..."></textarea>
-          </div>
-          <button class="btn btn-gold btn-block btn-sm" onclick="adminPostAnnouncement()">Broadcast Notice</button>
-        </div>
-
-        <hr />
-
-        <!-- 3. 24h Allocation Engine -->
-        <div class="admin-section">
-          <h4>⚡ 24-Hour Cutoff Allocation</h4>
-          <p class="text-xs text-muted">Locks outer villages to Bus 1, balances Coxhoe/Bowburn, preserves spare buffers, and triggers General Sale.</p>
-          <button class="btn btn-gold btn-block mt-2" onclick="adminRunAllocation()">Run 24h Allocation Now</button>
-        </div>
-
-        <hr />
-
-        <!-- 4. Fleet & Route Capacity Controls -->
-        <div class="admin-section">
-          <h4>🚌 Fleet, Routes & Seat Cushions</h4>
-          <p class="text-xs text-muted">Configure coach sizes, pickup stops, and emergency buffers.</p>
-          <div id="admin-bus-list"></div>
-          <button class="btn btn-sm btn-outline mt-2" onclick="adminAddBus()">+ Add Auxiliary Coach</button>
-        </div>
-
-        <hr />
-
-        <!-- 5. Season Fixture Travel Controls -->
-        <div class="admin-section">
-          <h4>📅 Season Fixture Booking Controls</h4>
-          <p class="text-xs text-muted">Open or close booking phases to broadcast alerts to member HUDs.</p>
-          <div id="admin-fixtures-list"></div>
-        </div>
-
-        <hr />
-
-        <!-- 6. Passenger Manifest & Door Check-In -->
-        <div class="admin-section">
-          <h4>📋 Passenger Manifest & Bus Door Check-In</h4>
-          <p class="text-xs text-muted">Tap passenger to toggle them as boarded onto the coach.</p>
-          <div id="admin-manifest-summary"></div>
-        </div>
-
-        <hr />
-
-        <!-- 7. Printable Driver Manifest Sheet -->
-        <div class="admin-section">
-          <h4>📄 Coach Driver Run Sheet (Print / Export)</h4>
-          <p class="text-xs text-muted">Formatted text manifest with pickup times and headcounts to hand to the coach drivers.</p>
-          <button class="btn btn-outline btn-block btn-sm mt-2" onclick="openDriverSheetModal()">Generate Driver Manifests</button>
-        </div>
-
-        <hr />
-
-        <!-- 8. Away Ticket Ballot Manager & Lottery Draw -->
-        <div class="admin-section">
-          <h4>🎟️ Away Ticket Ballot Manager & Draw</h4>
-          <p class="text-xs text-muted">Manage allocations and run automated random draws for branch tickets.</p>
-          <div id="admin-ballots-list"></div>
-        </div>
-
-        <hr />
-
-        <!-- 9. Membership Subs Roster -->
-        <div class="admin-section">
-          <h4>💳 Membership Subs Roster (2026/27)</h4>
-          <p class="text-xs text-muted">Toggle annual dues (£10) to permit or lock travel booking rights.</p>
-          <div id="admin-subs-roster"></div>
-        </div>
-
-        <hr />
-
-        <!-- 10. Junior Safeguarding & Guardian Linking -->
-        <div class="admin-section">
-          <h4>🛡️ Junior Safeguarding & Guardian Register</h4>
-          <p class="text-xs text-muted">Tracks all Under-16s (like Phoebe) ensuring a named responsible adult is present on their coach.</p>
-          <div id="admin-safeguarding-register"></div>
-        </div>
-
-        <hr />
-
-        <!-- 11. Disciplinary Board & Chat Moderation -->
-        <div class="admin-section">
-          <h4>⚖️ Disciplinary Board & Conduct Logs</h4>
-          <p class="text-xs text-muted">Monitors automated strike flags from chat and member behavior.</p>
-          <div id="admin-disciplinary-board"></div>
-        </div>
-
+      <div id="user-header-info" style="display: none; text-align: right;">
+        <div id="display-name" style="font-size: 13px; font-weight: 700;">Member</div>
+        <div id="display-balance" style="font-size: 11px; color: var(--safc-gold); font-weight: 600;">£35.00</div>
       </div>
     </div>
+  </header>
 
-    <!-- DRIVER SHEET MODAL -->
-    <div id="driver-modal" class="modal-overlay hidden">
-      <div class="modal-box">
-        <div class="flex-between">
-          <h3>Coach Driver Run Sheets</h3>
-          <button class="btn-close" onclick="closeDriverSheetModal()">✕</button>
-        </div>
-        <p class="text-xs text-muted">Copy or print this text to hand directly to the bus drivers.</p>
-        <pre id="driver-manifest-text" class="driver-manifest-pre"></pre>
-        <button class="btn btn-gold btn-block btn-sm mt-2" onclick="copyDriverManifest()">Copy to Clipboard</button>
-      </div>
-    </div>
-
-    <!-- Bottom Navigation Bar -->
-    <nav class="bottom-nav">
-      <button class="nav-tab active" onclick="switchTab('hud')">
-        <span class="nav-icon">🏠</span>
-        <span class="nav-label">Home</span>
-      </button>
-      <button class="nav-tab" onclick="switchTab('travel')">
-        <span class="nav-icon">🚌</span>
-        <span class="nav-label">Travel</span>
-      </button>
-      <button class="nav-tab" onclick="switchTab('comms')">
-        <span class="nav-icon">💬</span>
-        <span class="nav-label">Comms</span>
-      </button>
-      <button class="nav-tab" onclick="switchTab('calendar')">
-        <span class="nav-icon">📅</span>
-        <span class="nav-label">Fixtures</span>
-      </button>
-      <button class="nav-tab" onclick="switchTab('pass')">
-        <span class="nav-icon">🎟️</span>
-        <span class="nav-label">Pass</span>
-      </button>
-    </nav>
+  <!-- Admin Quick Bar -->
+  <div id="admin-bar" class="admin-bar">
+    <span>🛡️ COMMITTEE SECRETARY ACTIVE</span>
+    <button class="admin-btn-pill" onclick="openAdminModal()">
+      <span>⚙️ Admin Panel</span>
+      <span id="admin-panel-badge" class="badge-count" style="display: none;">0</span>
+    </button>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Child Safeguarding Lockout Guard -->
+  <div id="child-deactivated-guard" style="display: none; background: #991b1b; color: #fff; padding: 12px; font-size: 11px; line-height: 1.5; border-bottom: 2px solid #f87171;">
+    <strong>⚠️ SAFEGUARDING LOCKOUT:</strong>
+    <div id="deact-msg"></div>
+  </div>
+
+  <!-- 1. SIGN IN SCREEN -->
+  <section id="view-login" class="tab-view active">
+    <div class="card" style="margin-top: 10px;">
+      <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">Sign In to Branch Portal</h2>
+      <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Matchday HUD, travel, ballots, dues & pass.</p>
+
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="login-username" class="form-input" value="Gary Miller" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="login-password" class="form-input" value="password123" />
+      </div>
+
+      <button class="btn btn-red" onclick="handleLogin()" style="margin-bottom: 8px;">Sign In</button>
+
+      <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
+        <div style="font-size: 9px; color: var(--text-muted); margin-bottom: 6px;">QUICK TESTING IDENTITIES:</div>
+        <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="quickLogin('Gary Miller', 'member', 'COX-084')">Gary (Active)</button>
+          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="quickLogin('Graham (Secretary)', 'admin', 'ADMIN-01')">Graham (Admin)</button>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-outline btn-sm" style="flex:1; border-color:#ef4444; color:#f87171;" onclick="quickLogin('Billy Thompson', 'member', 'COX-099')">Billy (Lapsed Subs)</button>
+          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="quickLogin('Phoebe Miller', 'member', 'COX-085')">Phoebe (Child)</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. HOME MATCHDAY HUD -->
+  <section id="view-hud" class="tab-view">
+    <div id="hud-urgent-banner" style="display:none; background:#7f1d1d; border:1px solid #ef4444; color:#fff; padding:10px; border-radius:8px; font-size:11px; margin-bottom:10px; line-height:1.4;"></div>
+
+    <div class="card" style="border-top:3px solid var(--safc-red);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">NEXT MATCH</span>
+        <span style="font-size:11px; color:var(--text-muted);">Sat 21 Nov • 15:00</span>
+      </div>
+      <h3 style="font-size:17px; font-weight:800; margin-bottom:2px;">Sunderland vs Coventry City</h3>
+      <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Stadium of Light • Home League Match</p>
+      <div id="hud-travel-card-status" style="background:#0f172a; padding:8px 10px; border-radius:8px; font-size:11px; line-height:1.5;"></div>
+    </div>
+
+    <div id="hud-actions-box" class="card" style="display:none; border-left:3px solid var(--safc-gold);">
+      <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:6px;">⚡ ACTION REQUIRED</strong>
+      <div id="hud-actions-list" style="font-size:11px; line-height:1.5;"></div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <strong style="font-size:12px;">Branch Announcements</strong>
+      <span style="font-size:10px; color:var(--text-muted);">Official Feed</span>
+    </div>
+    <div id="hud-news-feed"></div>
+  </section>
+
+  <!-- 3. TRAVEL -->
+  <section id="view-travel" class="tab-view">
+    <div class="card">
+      <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">HOME COACH BOOKING</span>
+      <h3 style="font-size:16px; font-weight:800; margin-top:6px;">Sunderland vs Coventry City</h3>
+      <div style="background:#0f172a; padding:8px; border-radius:6px; margin:8px 0; font-size:11px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Capacity: 53 Seats</span>
+          <span id="seats-status" style="color:var(--green);">42 / 53 Booked</span>
+        </div>
+        <div style="height:4px; background:#334155; border-radius:2px;"><div id="seats-bar" style="width:79%; height:100%; background:var(--safc-red);"></div></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pickup Point</label>
+        <select id="booking-stop" class="form-select"></select>
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:10px;">
+        <div style="flex:1;">
+          <label class="form-label">Adults (£12)</label>
+          <input type="number" id="adult-count" class="form-input" value="1" min="0" max="6" />
+        </div>
+        <div style="flex:1;">
+          <label class="form-label">Junior U16 (£8)</label>
+          <input type="number" id="junior-count" class="form-input" value="0" min="0" max="6" />
+        </div>
+      </div>
+      <button class="btn btn-red btn-sm" onclick="openBookingModal()">Book Coach Seat (£12)</button>
+    </div>
+
+    <div class="card">
+      <span style="background:#4338ca; color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">AWAY TICKET BALLOT</span>
+      <h3 style="font-size:16px; font-weight:800; margin-top:6px;">Leeds United (A)</h3>
+      <div class="form-group" style="margin-top:8px;">
+        <label class="form-label">Traveling Party (Friends & Family)</label>
+        <div id="away-party-checklist"></div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="submitAwayBallotInterest()">Submit Ballot Request</button>
+    </div>
+  </section>
+
+  <!-- 4. FUNDRAISER -->
+  <section id="view-fundraising" class="tab-view">
+    <div class="card">
+      <div class="card-title">
+        <span id="card-teams-count-label">⚽ 40-Team Football Card</span>
+        <span id="card-prize-label" style="color:var(--safc-gold); font-size:12px;">£50 Prize</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-bottom:8px;">
+        <span id="card-price-label">£2.00/sq</span>
+        <span id="card-sold-summary" style="color:var(--safc-gold); font-weight:700;">0 Sold</span>
+      </div>
+      <div id="football-grid" class="grid-40"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <span>🎱 Bonus Ball Registry (1–59)</span>
+        <span style="color:var(--green); font-size:12px;">£30 Weekly</span>
+      </div>
+      <div id="bonus-grid" class="grid-bonus"></div>
+    </div>
+  </section>
+
+  <!-- 5. COMMS -->
+  <section id="view-comms" class="tab-view">
+    <div style="display:flex; gap:4px; margin-bottom:12px;">
+      <button id="btn-sub-bus" class="btn btn-gold btn-sm" style="flex:1; position:relative;" onclick="switchCommsSubTab('bus')">
+        <span>🚌 Bus Chat</span>
+        <span id="sub-bus-badge" class="badge-red" style="display:none; margin-left:4px;">0</span>
+      </button>
+      <button id="btn-sub-dm" class="btn btn-outline btn-sm" style="flex:1;" onclick="switchCommsSubTab('dm')">💬 Private DMs</button>
+      <button id="btn-sub-desk" class="btn btn-outline btn-sm" style="flex:1; position:relative;" onclick="switchCommsSubTab('desk')">
+        <span>🛡️ Helpdesk</span>
+        <span id="sub-helpdesk-badge" style="display:none; font-size:9px; margin-left:4px; font-weight:800;"></span>
+      </button>
+    </div>
+
+    <div id="comms-sub-bus" class="card" style="padding:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <strong style="font-size:12px;">Coventry City (H) Bus Chat</strong>
+        <span style="font-size:9px; color:var(--safc-gold); font-weight:700;">EPHEMERAL • PASSENGERS ONLY</span>
+      </div>
+      <div id="bus-chat-status-notice" style="margin-bottom:6px;"></div>
+      <div id="bus-chat-messages" style="background:#0f172a; padding:10px; border-radius:8px; height:180px; overflow-y:auto; margin-bottom:8px;"></div>
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="bus-chat-input" class="form-input" placeholder="Message coach passengers..." autocomplete="off" />
+        <button id="bus-chat-send-btn" class="btn btn-red btn-sm" onclick="sendMatchdayBusMessage()">Send</button>
+      </div>
+    </div>
+
+    <div id="comms-sub-dm" class="card" style="display:none; padding:10px;">
+      <strong style="font-size:12px; display:block; margin-bottom:6px;">Direct Member Messaging</strong>
+      <div id="dm-threads-container"></div>
+    </div>
+
+    <div id="comms-sub-desk" class="card" style="display:none; padding:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <strong style="font-size:12px;">Branch Helpdesk & Mailbox</strong>
+        <span style="font-size:9px; color:var(--text-muted);">Threaded History</span>
+      </div>
+      <div id="helpdesk-threads-list" style="margin-bottom:12px;"></div>
+      <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
+        <strong style="font-size:11px; display:block; margin-bottom:6px;">Contact the Committee</strong>
+        <div class="form-group">
+          <label class="form-label">Query Category</label>
+          <select id="helpdesk-topic" class="form-select">
+            <option value="Travel">Coach Travel & Stops</option>
+            <option value="Tickets">Match Tickets & Ballots</option>
+            <option value="Finance">Membership & Wallet Funds</option>
+            <option value="General">General Inquiries</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Your Message</label>
+          <textarea id="helpdesk-query" class="form-input" style="height:60px;" placeholder="Message on-call committee volunteers..."></textarea>
+        </div>
+        <button class="btn btn-red btn-sm" onclick="submitMemberHelpdeskTicket()">Submit Query to Committee</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. MY PASS & STATEMENT -->
+  <section id="view-profile" class="tab-view">
+    <div class="card" style="border-top:3px solid var(--safc-gold);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div>
+          <span style="font-size:9px; font-weight:800; color:var(--safc-gold);">BRANCH MEMBERSHIP PASS</span>
+          <h2 id="card-name" style="font-size:16px; font-weight:800;">Gary Miller</h2>
+          <div id="card-no" style="font-size:11px; color:var(--text-muted);">Member #COX-084</div>
+        </div>
+        <div style="background:#fff; padding:4px; border-radius:4px;"><svg width="36" height="36" viewBox="0 0 25 25"><path fill="#000" d="M0 0h7v7H0zm1 1v5h5V1zm1 1h3v3H2zm7-2h2v2H9zm3 0h2v4h-2zm3 0h7v7h-7zm1 1v5h5V1zm1 1h3v3h-3zm-8 4h2v2H8zm-8 5h7v7H0zm1 1v5h5v-5zm1 1h3v3H2zm7-2h2v2H9zm5 0h2v2h-2zm3 0h4v2h-4zm-8 3h2v2H9zm3 0h4v2h-4zm-4 3h2v2H8zm3 0h2v2h-2zm3 0h4v2h-4z"/></svg></div>
+      </div>
+      
+      <div id="pass-membership-status" style="background:#0f172a; padding:8px 10px; border-radius:6px; font-size:11px; margin-bottom:10px;"></div>
+      <button id="pass-renew-btn" class="btn btn-gold btn-sm" style="display:none; width:100%; margin-bottom:8px;" onclick="window.promptPayMembershipDues()">Renew Season Pass</button>
+
+      <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="width:100%;">Log Out</button>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong style="font-size:12px;">Friends & Family Network</strong>
+        <span style="font-size:10px; color:var(--safc-gold);">Parental Verification</span>
+      </div>
+      <div id="fnf-manager-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span id="wallet-statement-title">💳 Wallet Statement</span>
+        <button class="btn btn-outline btn-sm" onclick="var u=getCurrentUserRecord(); u.balance+=20.00; logForensicTransaction(u.name, 'Member', u.name, 'TOPUP', 'Debit Card Deposit', 0, 20.00, 0); window.updateBalanceDisplay(); alert('£20.00 added to wallet!');">+ Top Up</button>
+      </div>
+
+      <div style="background:#0f172a; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #334155;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+          <div>
+            <label class="form-label" style="font-size:9px;">Category</label>
+            <select id="filter-statement-category" class="form-select" style="padding:5px; font-size:11px;" onchange="renderWalletStatement()">
+              <option value="ALL">All Categories</option>
+              <option value="SUBS">Membership Subs / Dues</option>
+              <option value="TOPUP">Deposits / Top-ups</option>
+              <option value="WITHDRAWAL">Withdrawals / Payouts</option>
+              <option value="BUS">Coach Travel (Buses)</option>
+              <option value="CARD">Football Card</option>
+              <option value="BONUS">Bonus Ball</option>
+              <option value="PRIZE">Winnings & Prizes</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:9px;">Movements</label>
+            <select id="filter-statement-direction" class="form-select" style="padding:5px; font-size:11px;" onchange="renderWalletStatement()">
+              <option value="ALL">All Movements</option>
+              <option value="IN">Money In (+Credit)</option>
+              <option value="OUT">Money Out (-Debit)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+          <div>
+            <label class="form-label" style="font-size:9px;">Timeframe</label>
+            <select id="filter-statement-time" class="form-select" style="padding:5px; font-size:11px;" onchange="handleStatementTimeframeChange(this.value)">
+              <option value="ALL">All Time</option>
+              <option value="7D">Past 7 Days (Week)</option>
+              <option value="30D">Past 30 Days (Month)</option>
+              <option value="YEAR">This Year (365 Days)</option>
+              <option value="CUSTOM">Custom Date Range...</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:9px;">Search Description</label>
+            <input type="text" id="filter-statement-search" class="form-input" placeholder="e.g. Subs, Bus, Coventry..." style="padding:5px; font-size:11px;" oninput="renderWalletStatement()" />
+          </div>
+        </div>
+
+        <div id="statement-custom-date-box" style="display:none; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px; background:#1e293b; padding:8px; border-radius:6px;">
+          <div>
+            <label class="form-label" style="font-size:9px;">Start Date</label>
+            <input type="date" id="filter-statement-start-date" class="form-input" style="padding:5px; font-size:11px;" onchange="renderWalletStatement()" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:9px;">End Date</label>
+            <input type="date" id="filter-statement-end-date" class="form-input" style="padding:5px; font-size:11px;" onchange="renderWalletStatement()" />
+          </div>
+        </div>
+
+        <div id="statement-filtered-summary" style="display:flex; justify-content:space-between; font-size:10px; border-top:1px solid #1e293b; padding-top:6px;"></div>
+      </div>
+
+      <div id="wallet-statement-list"></div>
+    </div>
+  </section>
+
+  <!-- BOTTOM BAR -->
+  <nav id="bottom-bar" class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('view-hud', this)">
+      <span class="nav-icon">🏠</span>
+      <span>Home</span>
+    </button>
+    <button id="nav-travel" class="nav-item" onclick="switchTab('view-travel', this)">
+      <span class="nav-icon">🚌</span>
+      <span>Travel</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('view-fundraising', this)">
+      <span class="nav-icon">🎯</span>
+      <span>Fundraiser</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('view-comms', this)">
+      <span class="nav-icon">💬</span>
+      <span>Comms</span>
+      <div class="nav-badges-wrap">
+        <span id="nav-comms-badge-red" class="badge-red" style="display:none;">0</span>
+        <span id="nav-comms-badge-gold" class="badge-gold" style="display:none;">0</span>
+      </div>
+    </button>
+    <button class="nav-item" onclick="switchTab('view-profile', this)">
+      <span class="nav-icon">🪪</span>
+      <span>My Pass</span>
+    </button>
+  </nav>
+
+  <!-- MODALS -->
+  <div id="modal-confirm" class="modal-backdrop">
+    <div class="modal-sheet">
+      <h3 id="modal-title" style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">Confirm Order</h3>
+      <div id="modal-details" style="background:#0f172a; padding:10px; border-radius:8px; margin-bottom:14px; font-size:12px; line-height: 1.5;"></div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeConfirmModal()">Cancel</button>
+        <button class="btn btn-red" style="flex:1;" onclick="executeConfirmModal()">Confirm & Pay</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-ticket-thread" class="modal-backdrop">
+    <div class="modal-sheet">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 id="mailbox-thread-title" style="font-size:14px; font-weight:800;">Mailbox Thread</h3>
+        <button class="btn btn-outline btn-sm" onclick="closeMailboxThreadModal()">✕ Close</button>
+      </div>
+      <div id="mailbox-thread-body"></div>
+    </div>
+  </div>
+
+  <div id="modal-transcript" class="modal-backdrop">
+    <div class="modal-sheet">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size:15px; font-weight:800;">Full Incident Transcript Context</h3>
+        <button class="btn btn-outline btn-sm" onclick="closeTranscriptModal()">Close</button>
+      </div>
+      <div id="transcript-body" style="margin-bottom:14px;"></div>
+    </div>
+  </div>
+
+  <!-- ADMIN MANAGEMENT DRAWER -->
+  <div id="admin-drawer" class="modal-backdrop">
+    <div class="modal-sheet" style="border-top-color:var(--safc-gold);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="font-size:15px; font-weight:800;">Committee Secretary Tools</h3>
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal()">Close</button>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:4px;">My Committee On-Call Availability</strong>
+        <button id="admin-oncall-toggle-btn" class="btn btn-outline btn-sm" style="width:100%;" onclick="toggleMyOnCallStatus()">🟢 On-Call</button>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px; border-left:3px solid var(--safc-gold);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <strong style="font-size:12px;">Membership Dues & Subs Manager</strong>
+          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="exportDuesCSV()">📥 Export Subs CSV</button>
+        </div>
+        <div id="dues-metrics-box" style="background:#0f172a; padding:6px; border-radius:6px; font-size:10px; margin-bottom:8px;"></div>
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-bottom:6px;">
+          <div>
+            <label class="form-label" style="font-size:8px;">Season</label>
+            <input type="text" id="cfg-season-name" class="form-input" style="padding:4px; font-size:10px;" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:8px;">Adult Subs (£)</label>
+            <input type="number" id="cfg-adult-fee" class="form-input" style="padding:4px; font-size:10px;" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:8px;">Junior Subs (£)</label>
+            <input type="number" id="cfg-junior-fee" class="form-input" style="padding:4px; font-size:10px;" />
+          </div>
+        </div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#f87171; margin-bottom:6px; cursor:pointer;">
+          <input type="checkbox" id="cfg-enforce-gate" />
+          <span>Strict Gate: Lock coach & ballots if subs lapsed</span>
+        </label>
+        <button class="btn btn-outline btn-sm" style="width:100%; margin-bottom:8px; font-size:10px;" onclick="saveMembershipConfig()">Save Pricing & Policy</button>
+
+        <strong style="font-size:10px; display:block; margin-bottom:4px;">Member Subs Status Roster:</strong>
+        <div id="admin-dues-roster-list" style="max-height:100px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:6px;">📢 Broadcast Announcement to Branch</strong>
+        <div class="form-group">
+          <input type="text" id="admin-post-title" class="form-input" placeholder="Headline..." style="padding:5px; font-size:11px;" />
+        </div>
+        <div class="form-group">
+          <textarea id="admin-post-content" class="form-input" style="height:40px; font-size:11px;" placeholder="Message details..."></textarea>
+        </div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#f87171; margin-bottom:6px; cursor:pointer;">
+          <input type="checkbox" id="admin-post-urgent" />
+          <span>🚨 Mark as Tier 1 URGENT Notice</span>
+        </label>
+        <button class="btn btn-gold btn-sm" style="width:100%;" onclick="publishAdminAnnouncement()">Publish Official Announcement</button>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:4px;">Disciplinary Board (Multi-Vote Quorum)</strong>
+        <div id="admin-disciplinary-board"></div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:4px;">Under-18 Accounts Compliance (7-Day Parent Link)</strong>
+        <div id="admin-child-compliance-list"></div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:4px;">Pending Non-App Member Links</strong>
+        <div id="admin-pending-auth-box"></div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:4px;">Member Network & Link Rectifier</strong>
+        <div style="margin-bottom:6px;">
+          <select id="admin-rectifier-member-select" class="form-select" style="padding:4px; font-size:10px;" onchange="renderAdminLinkRectifier()"></select>
+        </div>
+        <div id="admin-link-rectifier-list" style="max-height:80px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:4px;">Manual Balance & Payment Rectifier</strong>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:4px;">
+          <select id="admin-override-user" class="form-select" style="padding:4px; font-size:10px;">
+            <option value="Gary Miller">Gary Miller</option>
+            <option value="Dave Kelly">Dave Kelly</option>
+            <option value="Sarah Taylor">Sarah Taylor</option>
+            <option value="Billy Thompson">Billy Thompson</option>
+          </select>
+          <input type="number" id="admin-override-amount" class="form-input" placeholder="Amount (+/- £)" style="padding:4px; font-size:10px;" />
+        </div>
+        <input type="text" id="admin-override-reason" class="form-input" placeholder="Reason (e.g. Bus fare refund)" style="padding:4px; font-size:10px; margin-bottom:4px;" />
+        <button class="btn btn-outline btn-sm" style="width:100%; color:var(--safc-gold); border-color:var(--safc-gold);" onclick="adminManualBalanceOverride()">Apply Balance Adjustment</button>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <strong style="font-size:11px;">Coach Manifest Roll-Call</strong>
+          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="exportManifestCSV()">Export CSV</button>
+        </div>
+        <div id="manifest-list" style="max-height:80px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <strong style="font-size:11px; display:block; margin-bottom:4px;">Football Card Setup & Payout (Max 100)</strong>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:4px;">
+          <select id="admin-card-size" class="form-select" style="padding:4px; font-size:10px;">
+            <option value="10">10 Teams</option>
+            <option value="20">20 Teams</option>
+            <option value="30">30 Teams</option>
+            <option value="40">40 Teams</option>
+            <option value="50">50 Teams</option>
+          </select>
+          <input type="number" id="admin-card-price" class="form-input" style="padding:4px; font-size:10px;" value="2.00" />
+        </div>
+        <select id="admin-prize-mode" class="form-select" style="padding:4px; font-size:10px; margin-bottom:6px;">
+          <option value="percentage">50% Winner Split</option>
+          <option value="fixed">Fixed £50 Pot</option>
+        </select>
+        <div id="admin-card-financial-breakdown" style="background:#0f172a; padding:6px; border-radius:4px; font-size:10px; margin-bottom:6px;"></div>
+        <div style="display:flex; gap:4px;">
+          <button class="btn btn-outline btn-sm" style="flex:1; padding:3px;" onclick="saveCardSettings()">Save Config</button>
+          <button class="btn btn-gold btn-sm" style="flex:1; padding:3px;" onclick="drawCardWinner()">🏆 Draw / Payout</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <strong style="font-size:11px;">Pickup Stops & Times</strong>
+          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="addNewStop()">+ Add</button>
+        </div>
+        <div id="admin-stops-editor"></div>
+      </div>
+
+      <div class="card" style="padding:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <strong style="font-size:11px;">Forensic Audit Log</strong>
+          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="exportMasterAuditCSV()">📥 Export CSV</button>
+        </div>
+        <div id="admin-audit-log-list" style="max-height:80px; overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
