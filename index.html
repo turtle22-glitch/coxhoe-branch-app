@@ -31,13 +31,13 @@
     <!-- Admin Status Banner -->
     <div id="admin-bar" class="admin-bar hidden">
       <span>🛡️ COMMITTEE SECRETARY ACTIVE</span>
-      <button id="open-admin-btn" class="btn-sm btn-gold">Fleet & Match Controls</button>
+      <button id="open-admin-btn" class="btn-sm btn-gold">Admin Controls</button>
     </div>
 
     <!-- Broadcast Notification Banner -->
     <div id="notification-banner" class="notification-banner hidden"></div>
 
-    <!-- Main Views -->
+    <!-- Main Dynamic Content Views -->
     <main id="main-content">
       <!-- 1. AUTH / SIGN IN -->
       <section id="view-auth" class="card">
@@ -57,9 +57,10 @@
           <p class="text-xs text-muted">QUICK TESTING IDENTITIES:</p>
           <div class="button-grid">
             <button class="btn-test" onclick="quickLogin('gary')">Gary (Coxhoe)</button>
-            <button class="btn-test" onclick="quickLogin('kelloe_member')">Dave (Kelloe - Bus 1 Only)</button>
+            <button class="btn-test" onclick="quickLogin('dave')">Dave (Kelloe - Bus 1 Only)</button>
             <button class="btn-test" onclick="quickLogin('graham')">Graham (Admin)</button>
             <button class="btn-test text-danger" onclick="quickLogin('billy')">Billy (Lapsed Subs)</button>
+            <button class="btn-test" onclick="quickLogin('phoebe')">Phoebe (Junior)</button>
           </div>
         </div>
       </section>
@@ -94,17 +95,17 @@
             <span class="icon">🚌</span>
             <span>Book Travel</span>
           </button>
+          <button class="quick-nav-btn" onclick="switchTab('comms')">
+            <span class="icon">💬</span>
+            <span>Bus Chat</span>
+          </button>
           <button class="quick-nav-btn" onclick="switchTab('calendar')">
             <span class="icon">📅</span>
-            <span>Fixtures & Buses</span>
+            <span>Fixtures</span>
           </button>
           <button class="quick-nav-btn" onclick="switchTab('pass')">
             <span class="icon">🎟️</span>
             <span>Digital Pass</span>
-          </button>
-          <button class="quick-nav-btn" onclick="switchTab('ballots')">
-            <span class="icon">🎟️</span>
-            <span>Away Ballots</span>
           </button>
         </div>
       </section>
@@ -113,7 +114,7 @@
       <section id="view-travel" class="view hidden">
         <div class="card">
           <h2>Matchday Coach Travel</h2>
-          <p class="text-muted" id="travel-phase-desc">Phase 1: Priority Pick-Up Booking Window</p>
+          <p class="text-muted" id="travel-phase-desc">Priority Pick-Up Booking Window</p>
 
           <div id="booking-container">
             <div class="form-group">
@@ -122,25 +123,43 @@
             </div>
 
             <div id="booking-stage-content">
-              <!-- Populated dynamically based on priority window vs general sale -->
+              <!-- Dynamically rendered based on priority window vs general sale -->
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 4. SEASON CALENDAR -->
+      <!-- 4. BUS CHAT & COMMS (WITH SAFEGUARDING ENGINE) -->
+      <section id="view-comms" class="view hidden">
+        <div class="card">
+          <div class="flex-between">
+            <h2>Branch Bus Chat</h2>
+            <span class="badge badge-gold">MODERATED</span>
+          </div>
+          <p class="text-muted text-xs">Family safe room. Safeguarding engine monitors all messages.</p>
+
+          <div id="chat-messages" class="chat-box"></div>
+
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Type a message (e.g. coach arrival query)..." />
+            <button class="btn btn-red btn-sm" onclick="sendChatMessage()">Send</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. SEASON CALENDAR -->
       <section id="view-calendar" class="view hidden">
         <div class="card">
           <div class="flex-between">
             <h2>Season Schedule 2026/27</h2>
             <span class="badge badge-gold">Championship</span>
           </div>
-          <p class="text-muted">Coach booking status for upcoming league fixtures.</p>
+          <p class="text-muted">Coach booking status for the full campaign.</p>
           <div id="calendar-list" class="calendar-list"></div>
         </div>
       </section>
 
-      <!-- 5. DIGITAL PASS -->
+      <!-- 6. DIGITAL PASS -->
       <section id="view-pass" class="view hidden">
         <div class="card pass-card">
           <div class="pass-header">
@@ -154,7 +173,7 @@
             
             <div class="qr-box">
               <div class="qr-placeholder"><div class="qr-matrix"></div></div>
-              <span class="text-xs text-muted">Scan at Bus Boarding</span>
+              <span class="text-xs text-muted">Scan at Coach Boarding</span>
             </div>
 
             <div id="pass-bus-allocation" class="pass-bus-box"></div>
@@ -162,58 +181,79 @@
         </div>
       </section>
 
-      <!-- 6. AWAY BALLOTS -->
+      <!-- 7. AWAY BALLOTS -->
       <section id="view-ballots" class="view hidden">
         <div class="card">
-          <h2>Away Ticket Ballots</h2>
+          <h2>Away Match Ballots</h2>
           <div class="ballot-item">
             <div>
               <strong>Leeds United (Away)</strong>
               <div class="text-xs text-muted">Elland Road • Tue 24 Nov 2026</div>
             </div>
-            <button class="btn btn-sm btn-gold">Enter Ballot</button>
+            <button class="btn btn-sm btn-gold" onclick="alert('Ballot entry registered under your membership number!')">Enter Ballot</button>
           </div>
         </div>
       </section>
     </main>
 
-    <!-- ADMIN DRAWER -->
+    <!-- ADMIN DRAWER (COMPLETE HUD FOR COMMITTEE) -->
     <div id="admin-drawer" class="admin-drawer hidden">
       <div class="drawer-header">
         <h3>Branch Secretary HUD</h3>
         <button class="btn-close" onclick="closeAdminDrawer()">✕</button>
       </div>
       <div class="drawer-content">
-        <!-- 24h Allocation Testing Trigger -->
+        <!-- 1. 24h Allocation Engine -->
         <div class="admin-section highlight-box">
           <h4>⚡ 24-Hour Cutoff Allocation</h4>
-          <p class="text-xs text-muted">Run the automated allocator to assign Bus 1 to outer villages, fill Bus 2, hold spare seats, and unlock General Sale.</p>
-          <button id="run-allocation-btn" class="btn btn-gold btn-block mt-2" onclick="adminRunAllocation()">Run 24h Allocation Now</button>
+          <p class="text-xs text-muted">Locks outer village members to Bus 1, assigns local Coxhoe/Bowburn members, holds deliberate spare buffers, and triggers General Sale.</p>
+          <button class="btn btn-gold btn-block mt-2" onclick="adminRunAllocation()">Run 24h Allocation Now</button>
         </div>
 
         <hr />
 
-        <!-- Fleet & Cushion Controls -->
+        <!-- 2. Fleet & Seat Cushions -->
         <div class="admin-section">
           <h4>🚌 Fleet & Seat Cushions</h4>
-          <p class="text-xs text-muted">Set coach sizes and reserve buffers for late needs.</p>
+          <p class="text-xs text-muted">Configure coach capacities and reserved emergency buffers.</p>
           <div id="admin-bus-list"></div>
+          <button class="btn btn-sm btn-outline mt-2" onclick="adminAddBus()">+ Add Auxiliary Coach</button>
         </div>
 
         <hr />
 
-        <!-- Match Booking Controls -->
+        <!-- 3. Match Booking Access -->
         <div class="admin-section">
-          <h4>📅 Season Bus Bookings & Notifications</h4>
+          <h4>📅 Season Match Booking Controls</h4>
+          <p class="text-xs text-muted">Toggle booking phases to broadcast notifications to member HUDs.</p>
           <div id="admin-fixtures-list"></div>
         </div>
 
         <hr />
 
-        <!-- Live Manifest -->
+        <!-- 4. Boarding Manifest & Check-In -->
         <div class="admin-section">
-          <h4>📋 Current Passenger Allocations</h4>
+          <h4>📋 Passenger Manifest & Bus Door Check-In</h4>
+          <p class="text-xs text-muted">Tap passenger to toggle them as boarded onto the coach.</p>
           <div id="admin-manifest-summary"></div>
+        </div>
+
+        <hr />
+
+        <!-- 5. Membership Subs Roster -->
+        <div class="admin-section">
+          <h4>💳 Membership Subs Roster (2026/27)</h4>
+          <p class="text-xs text-muted">Toggle payment status to permit or restrict coach bookings.</p>
+          <div id="admin-subs-roster"></div>
+        </div>
+
+        <hr />
+
+        <!-- 6. Safeguarding Disciplinary Board -->
+        <div class="admin-section">
+          <h4>⚖️ Disciplinary & Safeguarding Board</h4>
+          <p class="text-xs text-muted">Monitors automated strike flags from chat and member conduct.</p>
+          <div id="admin-disciplinary-board"></div>
         </div>
       </div>
     </div>
@@ -227,6 +267,10 @@
       <button class="nav-tab" onclick="switchTab('travel')">
         <span class="nav-icon">🚌</span>
         <span class="nav-label">Travel</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('comms')">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">Comms</span>
       </button>
       <button class="nav-tab" onclick="switchTab('calendar')">
         <span class="nav-icon">📅</span>

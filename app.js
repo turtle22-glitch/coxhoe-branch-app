@@ -1,11 +1,9 @@
-// --- STATE MANAGEMENT ---
+// --- MASTER APP STATE ---
 const APP_STATE = {
   currentUser: null,
   activeTab: 'hud',
 
-  // Fleet Definition
-  // Bus 1: Routes through Cassop, Quarrington Hill, Kelloe, then Coxhoe
-  // Bus 2: Coxhoe Dedicated + Bowburn
+  // Fleet Setup: Bus 1 runs outer circuit; Bus 2 runs Coxhoe dedicated
   buses: [
     {
       id: 1,
@@ -25,99 +23,54 @@ const APP_STATE = {
     }
   ],
 
-  // Pick-up Reference
+  // Pick-up Locations
   pickups: [
-    { name: 'Cassop Community (13:10)', isOuter: true, busRestriction: 1 },
-    { name: 'Quarrington Hill (13:18)', isOuter: true, busRestriction: 1 },
-    { name: 'Kelloe Club (13:25)', isOuter: true, busRestriction: 1 },
-    { name: 'Coxhoe Avenue (13:30)', isOuter: false, busRestriction: null },
-    { name: 'Coxhoe Red Lion (13:35)', isOuter: false, busRestriction: null },
-    { name: 'Bowburn Cooperage (13:45)', isOuter: false, busRestriction: null }
+    { name: 'Cassop Community (13:10)', isOuter: true },
+    { name: 'Quarrington Hill (13:18)', isOuter: true },
+    { name: 'Kelloe Club (13:25)', isOuter: true },
+    { name: 'Coxhoe Avenue (13:30)', isOuter: false },
+    { name: 'Coxhoe Red Lion (13:35)', isOuter: false },
+    { name: 'Bowburn Cooperage (13:45)', isOuter: false }
+  ],
+
+  // Membership Subs Roster
+  members: [
+    { id: 'user_gary', name: 'Gary Miller', role: 'member', duesPaid: true, idCode: 'COX-8204', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 },
+    { id: 'user_dave', name: 'Dave Henderson', role: 'member', duesPaid: true, idCode: 'COX-5120', defaultPickup: 'Kelloe Club (13:25)', strikes: 0 },
+    { id: 'user_graham', name: 'Graham Wright', role: 'admin', duesPaid: true, idCode: 'COX-0001', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 },
+    { id: 'user_billy', name: 'Billy Lapsed', role: 'member', duesPaid: false, idCode: 'COX-9102', defaultPickup: 'Coxhoe Avenue (13:30)', strikes: 1 },
+    { id: 'user_phoebe', name: 'Phoebe Turton', role: 'junior', duesPaid: true, idCode: 'COX-1601', defaultPickup: 'Coxhoe Red Lion (13:35)', strikes: 0 }
   ],
 
   // Season Fixtures
   fixtures: [
-    {
-      id: 101,
-      opponent: 'Southampton',
-      venue: 'HOME',
-      date: 'Sat 7 Nov 2026',
-      time: '15:00',
-      bookingStatus: 'priority', // 'priority' (pre-24h), 'general' (post-24h), or 'closed'
-      allocationRun: false
-    },
-    {
-      id: 102,
-      opponent: 'Leeds United',
-      venue: 'AWAY',
-      date: 'Tue 24 Nov 2026',
-      time: '19:45',
-      bookingStatus: 'closed',
-      allocationRun: false
-    },
-    {
-      id: 103,
-      opponent: 'Middlesbrough',
-      venue: 'HOME',
-      date: 'Sat 28 Nov 2026',
-      time: '12:30',
-      bookingStatus: 'closed',
-      allocationRun: false
-    },
-    {
-      id: 104,
-      opponent: 'West Bromwich Albion',
-      venue: 'HOME',
-      date: 'Sat 5 Dec 2026',
-      time: '15:00',
-      bookingStatus: 'closed',
-      allocationRun: false
-    }
+    { id: 101, opponent: 'Southampton', venue: 'HOME', date: 'Sat 7 Nov 2026', time: '15:00', bookingStatus: 'priority' },
+    { id: 102, opponent: 'Leeds United', venue: 'AWAY', date: 'Tue 24 Nov 2026', time: '19:45', bookingStatus: 'closed' },
+    { id: 103, opponent: 'Middlesbrough', venue: 'HOME', date: 'Sat 28 Nov 2026', time: '12:30', bookingStatus: 'closed' },
+    { id: 104, opponent: 'West Bromwich Albion', venue: 'HOME', date: 'Sat 5 Dec 2026', time: '15:00', bookingStatus: 'closed' }
   ],
 
-  // Active Seat Requests & Confirmed Allocations
-  // status: 'requested' (during priority window) or 'allocated' (after 24h run or during general sale)
+  // Passenger Bookings & Door Check-Ins
   bookings: [
-    {
-      matchId: 101,
-      userId: 'user_kelloe',
-      pickup: 'Kelloe Club (13:25)',
-      isOuter: true,
-      status: 'requested',
-      busId: null,
-      seatNumber: null
-    },
-    {
-      matchId: 101,
-      userId: 'user_dummy1',
-      pickup: 'Cassop Community (13:10)',
-      isOuter: true,
-      status: 'requested',
-      busId: null,
-      seatNumber: null
-    },
-    {
-      matchId: 101,
-      userId: 'user_dummy2',
-      pickup: 'Coxhoe Red Lion (13:35)',
-      isOuter: false,
-      status: 'requested',
-      busId: null,
-      seatNumber: null
-    }
+    { matchId: 101, userId: 'user_dave', pickup: 'Kelloe Club (13:25)', isOuter: true, status: 'requested', busId: null, seatNumber: null, boarded: false },
+    { matchId: 101, userId: 'user_phoebe', pickup: 'Coxhoe Red Lion (13:35)', isOuter: false, status: 'requested', busId: null, seatNumber: null, boarded: false }
   ],
 
-  notifications: [
-    { id: 1, text: '🚌 Priority coach booking open for Southampton (H). Closes 24h before KO!', active: true }
-  ]
-};
+  // Bus Chat Messages
+  chatMessages: [
+    { sender: 'Graham Wright (Admin)', text: 'Reminder: Bus 1 departs Kelloe at 13:25 sharp. Don’t be late.', time: '11:15', isSelf: false },
+    { sender: 'Dave Henderson', text: 'Spot on, see you at the Club.', time: '11:32', isSelf: false }
+  ],
 
-// Test Identities
-const IDENTITIES = {
-  gary: { id: 'user_gary', name: 'Gary Miller', role: 'member', duesPaid: true, idCode: 'COX-8204', defaultPickup: 'Coxhoe Red Lion (13:35)' },
-  kelloe_member: { id: 'user_kelloe', name: 'Dave Henderson', role: 'member', duesPaid: true, idCode: 'COX-5120', defaultPickup: 'Kelloe Club (13:25)' },
-  graham: { id: 'user_graham', name: 'Graham Wright', role: 'admin', duesPaid: true, idCode: 'COX-0001', defaultPickup: 'Coxhoe Red Lion (13:35)' },
-  billy: { id: 'user_billy', name: 'Billy Lapsed', role: 'member', duesPaid: false, idCode: 'COX-9102', defaultPickup: 'Coxhoe Avenue (13:30)' }
+  // Disciplinary Board Log
+  disciplinaryLog: [
+    { id: 1, userId: 'user_billy', memberName: 'Billy Lapsed', reason: 'Abusive language flagged in bus chat', date: '28 Oct 2026', status: 'Warning Issued' }
+  ],
+
+  // Broadcast Alert Banners
+  notifications: [
+    { id: 1, text: '🚌 Priority bus booking open for Southampton (H). Closes 24h before KO!', active: true }
+  ]
 };
 
 // --- INITIALIZATION ---
@@ -129,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initListeners() {
   document.getElementById('login-btn').addEventListener('click', () => {
-    loginUser(IDENTITIES.gary);
+    loginUser(APP_STATE.members.find(m => m.id === 'user_gary'));
   });
 
   document.getElementById('open-admin-btn').addEventListener('click', () => {
@@ -138,25 +91,34 @@ function initListeners() {
 }
 
 function checkSession() {
-  const saved = localStorage.getItem('coxhoe_session');
-  if (saved && IDENTITIES[saved]) {
-    APP_STATE.currentUser = IDENTITIES[saved];
+  const savedId = localStorage.getItem('coxhoe_session_id');
+  if (savedId) {
+    const found = APP_STATE.members.find(m => m.id === savedId);
+    if (found) APP_STATE.currentUser = found;
   }
 }
 
 function quickLogin(key) {
-  if (IDENTITIES[key]) loginUser(IDENTITIES[key]);
+  const map = {
+    gary: 'user_gary',
+    dave: 'user_dave',
+    graham: 'user_graham',
+    billy: 'user_billy',
+    phoebe: 'user_phoebe'
+  };
+  const member = APP_STATE.members.find(m => m.id === map[key]);
+  if (member) loginUser(member);
 }
 
 function loginUser(user) {
   APP_STATE.currentUser = user;
-  localStorage.setItem('coxhoe_session', Object.keys(IDENTITIES).find(k => IDENTITIES[k].id === user.id));
+  localStorage.setItem('coxhoe_session_id', user.id);
   renderApp();
 }
 
 function logoutUser() {
   APP_STATE.currentUser = null;
-  localStorage.removeItem('coxhoe_session');
+  localStorage.removeItem('coxhoe_session_id');
   renderApp();
 }
 
@@ -177,7 +139,7 @@ function renderApp() {
 
   viewAuth.classList.add('hidden');
   authStatus.innerHTML = `
-    <span class="text-xs" style="margin-right:8px">${user.name.split(' ')[0]}</span>
+    <span class="text-xs" style="margin-right:8px">${user.name.split(' ')[0]} (${user.role.toUpperCase()})</span>
     <button class="btn-test text-xs" onclick="logoutUser()">Log Out</button>
   `;
 
@@ -190,6 +152,7 @@ function renderApp() {
   renderNotifications();
   renderHUD();
   renderTravelView();
+  renderChatMessages();
   renderCalendar();
   renderDigitalPass();
   switchTab(APP_STATE.activeTab);
@@ -207,7 +170,7 @@ function renderNotifications() {
   }
 }
 
-// --- HOME HUD ---
+// --- HUD / NEXT GAME ---
 function renderHUD() {
   const nextGame = APP_STATE.fixtures.find(f => f.venue === 'HOME');
   if (nextGame) {
@@ -225,7 +188,7 @@ function renderHUD() {
       <div class="flex-between">
         <div>
           <strong>Bus Travel: ${isPriority ? 'Priority Open' : 'General Sale'}</strong>
-          <div class="text-xs text-muted">${isPriority ? 'Closes 24h before KO for route balancing' : 'First-come, first-served'}</div>
+          <div class="text-xs text-muted">${isPriority ? 'Closes 24h before KO for outer route balancing' : 'First-come, first-served'}</div>
         </div>
         <button class="btn btn-sm btn-red" onclick="switchTab('travel')">Book Seat (£10)</button>
       </div>
@@ -239,7 +202,7 @@ function renderHUD() {
         <div class="header-text">⏳ SEAT REQUEST LOGGED (${userBooking.isOuter ? 'PRIORITY VILLAGE PROTECTED' : 'STANDARD POOL'})</div>
         <div style="font-size:13px; font-weight:700; color:#fff; margin-top:2px;">Pick-up: ${userBooking.pickup}</div>
         <div class="text-xs text-muted" style="margin-top:2px;">
-          ${userBooking.isOuter ? 'Guaranteed on Bus 1 (Outer Circuit). ' : ''}Final bus and seat number confirmed at 24h cutoff.
+          ${userBooking.isOuter ? 'Guaranteed on Bus 1 (Outer Circuit). ' : ''}Seat & bus confirmed at 24h cutoff.
         </div>
       </div>
     `;
@@ -247,7 +210,7 @@ function renderHUD() {
     const bus = APP_STATE.buses.find(b => b.id === userBooking.busId);
     hudStatus.innerHTML = `
       <div class="confirmed-seat-box">
-        <div class="header-text">✓ SEAT CONFIRMED & ALLOCATED</div>
+        <div class="header-text">✓ SEAT ALLOCATED & CONFIRMED</div>
         <div style="font-size:14px; font-weight:800; color:#fff;">${bus.name} (Seat #${userBooking.seatNumber})</div>
         <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">📍 Pick-up: ${userBooking.pickup}</div>
       </div>
@@ -255,7 +218,7 @@ function renderHUD() {
   }
 }
 
-// --- TRAVEL VIEW (PRIORITY VS GENERAL SALE) ---
+// --- TRAVEL VIEW & ALLOCATION STAGES ---
 function renderTravelView() {
   const matchSelect = document.getElementById('travel-match-select');
   matchSelect.innerHTML = '';
@@ -272,61 +235,54 @@ function renderTravelView() {
 }
 
 function handleMatchChange() {
-  const matchId = parseInt(document.getElementById('travel-match-select').value);
+  const matchSelect = document.getElementById('travel-match-select');
+  if (!matchSelect || !matchSelect.value) return;
+
+  const matchId = parseInt(matchSelect.value);
   const match = APP_STATE.fixtures.find(f => f.id === matchId);
   const container = document.getElementById('booking-stage-content');
   const user = APP_STATE.currentUser;
 
-  if (!match) {
-    container.innerHTML = '<p class="text-muted">No open bus bookings for this fixture.</p>';
-    return;
-  }
+  if (!match) return;
 
   const existingBooking = APP_STATE.bookings.find(b => b.userId === user.id && b.matchId === match.id);
 
   if (existingBooking) {
     container.innerHTML = `
       <div class="assignment-preview-card">
-        <strong>You have an active booking for this game.</strong>
+        <strong>You have a seat reserved for this match.</strong>
         <p class="text-xs text-muted mt-2">Status: <b>${existingBooking.status.toUpperCase()}</b></p>
         <p class="text-xs text-muted">Pick-up: ${existingBooking.pickup}</p>
-        ${existingBooking.busId ? `<p class="text-xs" style="color:var(--success)">Allocated to Bus ${existingBooking.busId} (Seat #${existingBooking.seatNumber})</p>` : ''}
+        ${existingBooking.busId ? `<p class="text-xs" style="color:var(--success); font-weight:700; margin-top:4px;">Allocated to Bus ${existingBooking.busId} (Seat #${existingBooking.seatNumber})</p>` : ''}
       </div>
     `;
     return;
   }
 
   if (match.bookingStatus === 'priority') {
-    // PHASE 1: Priority Request Window
     document.getElementById('travel-phase-desc').textContent = 'Phase 1: Priority Pick-Up Booking Window (Closes 24h before KO)';
     container.innerHTML = `
       <div class="form-group">
         <label>Select Your Pick-Up Location</label>
         <select id="pickup-selection" onchange="updatePriorityPreview()">
-          ${APP_STATE.pickups.map(p => `<option value="${p.name}">${p.name} ${p.isOuter ? '★ (Outer Village)' : ''}</option>`).join('')}
+          ${APP_STATE.pickups.map(p => `<option value="${p.name}">${p.name} ${p.isOuter ? '★ (Outer Village - Bus 1 Only)' : ''}</option>`).join('')}
         </select>
       </div>
 
-      <div id="priority-preview-card" class="assignment-preview-card">
-        <!-- Dynamic preview based on outer vs local -->
-      </div>
+      <div id="priority-preview-card" class="assignment-preview-card"></div>
 
       <button class="btn btn-red btn-block mt-3" onclick="submitPriorityRequest()">Submit Seat Request (£10)</button>
     `;
     updatePriorityPreview();
   } else if (match.bookingStatus === 'general') {
-    // PHASE 2: General Sale Window
-    document.getElementById('travel-phase-desc').textContent = 'Phase 2: General Sale (Final 24 Hours - First-Come, First-Served)';
+    document.getElementById('travel-phase-desc').textContent = 'Phase 2: General Sale (Final 24h - First-Come, First-Served)';
     
-    // Calculate remaining seats on each bus
     const bus1Booked = APP_STATE.bookings.filter(b => b.matchId === match.id && b.busId === 1).length;
     const bus2Booked = APP_STATE.bookings.filter(b => b.matchId === match.id && b.busId === 2).length;
     const bus1Left = APP_STATE.buses[0].capacity - bus1Booked;
     const bus2Left = APP_STATE.buses[1].capacity - bus2Booked;
 
     container.innerHTML = `
-      <p class="text-xs text-muted mb-2">Automated allocation has finished. You may choose any coach with available seats.</p>
-      
       <div class="form-group">
         <label>Select Available Bus</label>
         <select id="general-bus-selection" onchange="updateGeneralPickupOptions()">
@@ -336,7 +292,7 @@ function handleMatchChange() {
       </div>
 
       <div class="form-group">
-        <label>Select Pick-Up Along That Route</label>
+        <label>Select Boarding Stop</label>
         <select id="general-pickup-selection"></select>
       </div>
 
@@ -356,7 +312,7 @@ function updatePriorityPreview() {
       <div style="color:var(--safc-gold); font-weight:800; font-size:12px;">★ OUTER VILLAGE ROUTE PROTECTED</div>
       <div style="font-size:13px; font-weight:700; color:#fff; margin-top:2px;">Route Priority: Bus 1 Guaranteed</div>
       <div class="text-xs text-muted mt-2">
-        Because you board at ${pickup.name}, the system reserves your seat against Bus 1's dedicated outer circuit to ensure you are never stranded.
+        Because you board at ${pickup.name}, the system reserves your seat against Bus 1's dedicated outer circuit to ensure outer-village members are never stranded.
       </div>
       <span class="badge-village">Bus 1 Protected</span>
     `;
@@ -365,7 +321,7 @@ function updatePriorityPreview() {
       <div style="color:#fff; font-weight:700; font-size:12px;">STANDARD LOCAL PICK-UP</div>
       <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">Route Assignment: Bus 1 or Bus 2</div>
       <div class="text-xs text-muted mt-2">
-        Coxhoe and Bowburn pick-ups are serviced by both coaches. The engine balances seats across the fleet at the 24-hour cutoff while leaving spare cushions.
+        Coxhoe and Bowburn stops are serviced by both coaches. The engine balances seats across the fleet at the 24-hour cutoff while holding back spare cushions.
       </div>
     `;
   }
@@ -389,7 +345,7 @@ function updateGeneralPickupOptions() {
 function submitPriorityRequest() {
   const user = APP_STATE.currentUser;
   if (!user.duesPaid) {
-    alert('Access Denied: Annual subs unpaid. Please settle dues before booking travel.');
+    alert('Access Denied: Annual branch subs are unpaid. Please settle dues before booking travel.');
     return;
   }
 
@@ -404,10 +360,11 @@ function submitPriorityRequest() {
     isOuter: pickup.isOuter,
     status: 'requested',
     busId: null,
-    seatNumber: null
+    seatNumber: null,
+    boarded: false
   });
 
-  alert(`Seat Request Logged! ${pickup.isOuter ? 'Priority outer seat protected on Bus 1.' : 'Standard seat pooled.'}`);
+  alert(`Seat Request Logged! ${pickup.isOuter ? 'Priority outer seat protected on Bus 1.' : 'Standard seat request pooled.'}`);
   renderHUD();
   renderDigitalPass();
   switchTab('hud');
@@ -416,7 +373,7 @@ function submitPriorityRequest() {
 function submitGeneralSaleBooking() {
   const user = APP_STATE.currentUser;
   if (!user.duesPaid) {
-    alert('Access Denied: Annual subs unpaid.');
+    alert('Access Denied: Annual branch subs are unpaid.');
     return;
   }
 
@@ -427,7 +384,7 @@ function submitGeneralSaleBooking() {
 
   const busBookings = APP_STATE.bookings.filter(b => b.matchId === matchId && b.busId === busId);
   if (busBookings.length >= bus.capacity) {
-    alert(`Sorry, Bus ${busId} is at 100% full capacity.`);
+    alert(`Sorry, Bus ${busId} is fully booked.`);
     return;
   }
 
@@ -439,13 +396,70 @@ function submitGeneralSaleBooking() {
     isOuter: false,
     status: 'allocated',
     busId,
-    seatNumber
+    seatNumber,
+    boarded: false
   });
 
-  alert(`Seat Confirmed! You are on ${bus.name}, Seat #${seatNumber}`);
+  alert(`Seat Confirmed! Assigned to ${bus.name}, Seat #${seatNumber}`);
   renderHUD();
   renderDigitalPass();
   switchTab('hud');
+}
+
+// --- COMMS & SAFEGUARDING BUS CHAT ---
+function renderChatMessages() {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  container.innerHTML = '';
+
+  APP_STATE.chatMessages.forEach(msg => {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${msg.isSelf ? 'own' : ''}`;
+    bubble.innerHTML = `
+      <div class="chat-author">${msg.sender} • ${msg.time}</div>
+      <div>${msg.text}</div>
+    `;
+    container.appendChild(bubble);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const user = APP_STATE.currentUser;
+  const lower = text.toLowerCase();
+  const bannedKeywords = ['shut up', 'idiot', 'moron', 'crap', 'bastard', 'fuck', 'shit'];
+
+  // Safeguarding engine moderation check
+  const violation = bannedKeywords.find(word => lower.includes(word));
+  if (violation) {
+    user.strikes = (user.strikes || 0) + 1;
+    APP_STATE.disciplinaryLog.push({
+      id: Date.now(),
+      userId: user.id,
+      memberName: user.name,
+      reason: `Safeguarding violation (Used '${violation}' in chat)`,
+      date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      status: `Strike ${user.strikes} Logged`
+    });
+
+    alert(`⚠️ SAFEGUARDING WARNING: Language policy violation ('${violation}'). This has been logged to the Committee Disciplinary Board.`);
+    input.value = '';
+    return;
+  }
+
+  APP_STATE.chatMessages.push({
+    sender: user.name,
+    text,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    isSelf: true
+  });
+
+  input.value = '';
+  renderChatMessages();
 }
 
 // --- AUTOMATED 24-HOUR ALLOCATION ENGINE ---
@@ -459,50 +473,46 @@ function adminRunAllocation() {
   const bus1 = APP_STATE.buses.find(b => b.id === 1);
   const bus2 = APP_STATE.buses.find(b => b.id === 2);
 
-  // Usable seats during allocation (capacity minus deliberate spare cushions)
-  const bus1UsableSeats = bus1.capacity - bus1.spareBuffer; // e.g. 49 - 3 = 46
-  const bus2UsableSeats = bus2.capacity - bus2.spareBuffer;
+  const bus1Usable = bus1.capacity - bus1.spareBuffer; // e.g., 49 - 3 = 46
+  const bus2Usable = bus2.capacity - bus2.spareBuffer;
 
-  let bus1AssignedCount = 0;
-  let bus2AssignedCount = 0;
+  let bus1Count = 0;
+  let bus2Count = 0;
 
-  // Step 1: Assign all Outer Village members to Bus 1 first
-  const outerRequests = requests.filter(r => r.isOuter);
-  outerRequests.forEach(req => {
-    bus1AssignedCount++;
+  // 1. Assign outer village requests to Bus 1
+  const outer = requests.filter(r => r.isOuter);
+  outer.forEach(req => {
+    bus1Count++;
     req.status = 'allocated';
     req.busId = 1;
-    req.seatNumber = bus1AssignedCount;
+    req.seatNumber = bus1Count;
   });
 
-  // Step 2: Assign Coxhoe / Bowburn members to Bus 2 first, spilling over to Bus 1
-  const localRequests = requests.filter(r => !r.isOuter);
-  localRequests.forEach(req => {
-    if (bus2AssignedCount < bus2UsableSeats) {
-      bus2AssignedCount++;
+  // 2. Assign local Coxhoe/Bowburn requests to Bus 2 first, overflowing to Bus 1
+  const locals = requests.filter(r => !r.isOuter);
+  locals.forEach(req => {
+    if (bus2Count < bus2Usable) {
+      bus2Count++;
       req.status = 'allocated';
       req.busId = 2;
-      req.seatNumber = bus2AssignedCount;
-    } else if (bus1AssignedCount < bus1UsableSeats) {
-      bus1AssignedCount++;
+      req.seatNumber = bus2Count;
+    } else if (bus1Count < bus1Usable) {
+      bus1Count++;
       req.status = 'allocated';
       req.busId = 1;
-      req.seatNumber = bus1AssignedCount;
+      req.seatNumber = bus1Count;
     } else {
-      // Over-capacity waitlist safeguard
       req.status = 'waitlisted';
     }
   });
 
-  // Step 3: Transition match to General Sale
   nextGame.bookingStatus = 'general';
-  nextGame.allocationRun = true;
 
   APP_STATE.notifications = [
-    { id: Date.now(), text: `📢 24h Allocation Complete for ${nextGame.opponent}! Check your HUD for your confirmed bus.`, active: true }
+    { id: Date.now(), text: `📢 24h Allocation Complete for ${nextGame.opponent}! Check your HUD for your confirmed coach.`, active: true }
   ];
 
-  alert(`Allocation Complete!\n• ${outerRequests.length} Outer Village members locked to Bus 1.\n• Bus 1: ${bus1AssignedCount} seats filled (${bus1.spareBuffer} spares held).\n• Bus 2: ${bus2AssignedCount} seats filled (${bus2.spareBuffer} spares held).\n• General Sale is now OPEN!`);
+  alert(`Allocation Succeeded!\n• ${outer.length} Outer Village members secured on Bus 1.\n• Bus 1: ${bus1Count} booked (${bus1.spareBuffer} spares held).\n• Bus 2: ${bus2Count} booked (${bus2.spareBuffer} spares held).\n• General Sale is now ACTIVE.`);
 
   renderApp();
   renderAdminFleet();
@@ -512,6 +522,7 @@ function adminRunAllocation() {
 // --- SEASON CALENDAR ---
 function renderCalendar() {
   const container = document.getElementById('calendar-list');
+  if (!container) return;
   container.innerHTML = '';
 
   APP_STATE.fixtures.forEach(fixture => {
@@ -544,6 +555,15 @@ function renderDigitalPass() {
   document.getElementById('pass-name').textContent = user.name;
   document.getElementById('pass-number').textContent = `ID: ${user.idCode}`;
 
+  const subsPill = document.getElementById('pass-subs-status');
+  if (user.duesPaid) {
+    subsPill.textContent = 'SUBS PAID (2026/27)';
+    subsPill.className = 'pass-status-pill active';
+  } else {
+    subsPill.textContent = 'SUBS LAPSED (ACTION REQUIRED)';
+    subsPill.className = 'pass-status-pill text-danger';
+  }
+
   const nextHome = APP_STATE.fixtures.find(f => f.venue === 'HOME');
   const userBooking = APP_STATE.bookings.find(b => b.userId === user.id && b.matchId === nextHome.id);
   const busBox = document.getElementById('pass-bus-allocation');
@@ -565,11 +585,13 @@ function renderDigitalPass() {
   }
 }
 
-// --- ADMIN DRAWER & CONFIG ---
+// --- ADMIN CONTROLS MODAL ---
 function openAdminDrawer() {
   renderAdminFleet();
   renderAdminFixtures();
   renderAdminManifest();
+  renderAdminSubs();
+  renderAdminDisciplinary();
   document.getElementById('admin-drawer').classList.remove('hidden');
 }
 
@@ -587,9 +609,9 @@ function renderAdminFleet() {
     div.innerHTML = `
       <div>
         <strong>${bus.name}</strong>
-        <div class="text-xs text-muted">${bus.outerPickups.length ? 'Outer: ' + bus.outerPickups.join(', ') : 'Local Coxhoe Only'}</div>
+        <div class="text-xs text-muted">${bus.outerPickups.length ? 'Outer: ' + bus.outerPickups.join(', ') : 'Coxhoe & Bowburn'}</div>
       </div>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:6px; align-items:center;">
         <div>
           <label class="text-xs" style="margin:0">Seats:</label>
           <input type="number" value="${bus.capacity}" style="width:55px; padding:3px;" onchange="updateBusCapacity(${bus.id}, this.value)" />
@@ -614,6 +636,20 @@ function updateBusSpares(busId, val) {
   if (bus) bus.spareBuffer = parseInt(val) || 3;
 }
 
+function adminAddBus() {
+  const nextId = APP_STATE.buses.length + 1;
+  APP_STATE.buses.push({
+    id: nextId,
+    name: `Bus ${nextId} (Auxiliary Coach)`,
+    capacity: 49,
+    spareBuffer: 2,
+    outerPickups: [],
+    localPickups: ['Coxhoe Red Lion (13:35)', 'Bowburn Cooperage (13:45)']
+  });
+  renderAdminFleet();
+  renderTravelView();
+}
+
 function renderAdminFixtures() {
   const container = document.getElementById('admin-fixtures-list');
   container.innerHTML = '';
@@ -635,16 +671,16 @@ function renderAdminFixtures() {
 }
 
 function toggleFixtureBookingStatus(fixtureId) {
-  const fixture = APP_STATE.fixtures.find(f => f.id === fixtureId);
-  if (!fixture) return;
+  const f = APP_STATE.fixtures.find(fix => fix.id === fixtureId);
+  if (!f) return;
 
-  if (fixture.bookingStatus === 'closed') {
-    fixture.bookingStatus = 'priority';
+  if (f.bookingStatus === 'closed') {
+    f.bookingStatus = 'priority';
     APP_STATE.notifications = [
-      { id: Date.now(), text: `🚌 Bus booking is now OPEN for ${fixture.opponent} (${fixture.venue})!`, active: true }
+      { id: Date.now(), text: `🚌 Bus booking is now OPEN for ${f.opponent} (${f.venue})!`, active: true }
     ];
   } else {
-    fixture.bookingStatus = 'closed';
+    f.bookingStatus = 'closed';
   }
 
   renderApp();
@@ -656,19 +692,114 @@ function renderAdminManifest() {
   const nextHome = APP_STATE.fixtures.find(f => f.venue === 'HOME');
   const bookings = APP_STATE.bookings.filter(b => b.matchId === nextHome.id);
 
-  const bus1Allocated = bookings.filter(b => b.busId === 1);
-  const bus2Allocated = bookings.filter(b => b.busId === 2);
-  const pendingRequests = bookings.filter(b => b.status === 'requested');
+  let html = `<div class="text-xs text-muted mb-2">Total Confirmed / Requested: ${bookings.length} passengers</div>`;
 
-  container.innerHTML = `
-    <div class="text-xs text-muted mb-2">Total In Pool: ${bookings.length} (${pendingRequests.length} pending allocation)</div>
-    <div style="font-size:12px; margin-top:4px;">
-      <strong>Bus 1:</strong> ${bus1Allocated.length} / ${APP_STATE.buses[0].capacity} allocated (${APP_STATE.buses[0].spareBuffer} spares reserved)
-    </div>
-    <div style="font-size:12px; margin-top:2px;">
-      <strong>Bus 2:</strong> ${bus2Allocated.length} / ${APP_STATE.buses[1].capacity} allocated (${APP_STATE.buses[1].spareBuffer} spares reserved)
-    </div>
-  `;
+  APP_STATE.buses.forEach(bus => {
+    const busBookings = bookings.filter(b => b.busId === bus.id);
+    html += `
+      <div style="margin-top:10px;">
+        <div class="flex-between">
+          <strong style="font-size:13px; color:var(--safc-gold);">${bus.name}</strong>
+          <span class="text-xs text-muted">${busBookings.length} / ${bus.capacity} seats (${bus.spareBuffer} spare)</span>
+        </div>
+        ${busBookings.length === 0 ? '<p class="text-xs text-muted" style="margin-top:4px;">No passengers allocated yet.</p>' : ''}
+        ${busBookings.map(b => {
+          const m = APP_STATE.members.find(mem => mem.id === b.userId);
+          return `
+            <div class="manifest-passenger-item ${b.boarded ? 'boarded' : ''}" onclick="toggleBoarding('${b.userId}')">
+              <div>
+                <strong>${m ? m.name : 'Unknown'} (Seat #${b.seatNumber})</strong>
+                <div class="text-xs text-muted">${b.pickup}</div>
+              </div>
+              <button class="btn btn-sm ${b.boarded ? 'btn-gold' : 'btn-outline'}">${b.boarded ? '✓ Boarded' : 'Check In'}</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  });
+
+  const unassigned = bookings.filter(b => b.status === 'requested');
+  if (unassigned.length > 0) {
+    html += `
+      <div style="margin-top:12px; border-top:1px dashed #334155; padding-top:8px;">
+        <strong style="color:var(--warning); font-size:12px;">⏳ Pending 24h Allocation (${unassigned.length} requests):</strong>
+        ${unassigned.map(b => {
+          const m = APP_STATE.members.find(mem => mem.id === b.userId);
+          return `<div class="text-xs text-muted mt-2">• ${m ? m.name : 'Unknown'} - ${b.pickup} (${b.isOuter ? 'Outer Protected' : 'Pooled'})</div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
+function toggleBoarding(userId) {
+  const nextHome = APP_STATE.fixtures.find(f => f.venue === 'HOME');
+  const b = APP_STATE.bookings.find(bk => bk.userId === userId && bk.matchId === nextHome.id);
+  if (b) {
+    b.boarded = !b.boarded;
+    renderAdminManifest();
+  }
+}
+
+function renderAdminSubs() {
+  const container = document.getElementById('admin-subs-roster');
+  container.innerHTML = '';
+
+  APP_STATE.members.forEach(member => {
+    const div = document.createElement('div');
+    div.className = 'admin-member-row';
+    div.innerHTML = `
+      <div>
+        <strong>${member.name}</strong>
+        <div class="text-xs text-muted">${member.idCode} • ${member.role.toUpperCase()}</div>
+      </div>
+      <button class="btn btn-sm ${member.duesPaid ? 'btn-gold' : 'btn-red'}" onclick="toggleMemberSubs('${member.id}')">
+        ${member.duesPaid ? '✓ Paid (£10)' : '⚠️ Lapsed'}
+      </button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function toggleMemberSubs(memberId) {
+  const member = APP_STATE.members.find(m => m.id === memberId);
+  if (member) {
+    member.duesPaid = !member.duesPaid;
+    renderAdminSubs();
+    renderDigitalPass();
+  }
+}
+
+function renderAdminDisciplinary() {
+  const container = document.getElementById('admin-disciplinary-board');
+  container.innerHTML = '';
+
+  if (APP_STATE.disciplinaryLog.length === 0) {
+    container.innerHTML = '<p class="text-xs text-muted">No disciplinary records or safeguarding flags.</p>';
+    return;
+  }
+
+  APP_STATE.disciplinaryLog.forEach(log => {
+    const div = document.createElement('div');
+    div.className = 'admin-disc-item';
+    div.innerHTML = `
+      <div>
+        <strong>${log.memberName}</strong>
+        <div class="text-xs text-danger">${log.reason}</div>
+        <div class="text-xs text-muted">${log.date} • ${log.status}</div>
+      </div>
+      <button class="btn btn-sm btn-outline" onclick="clearDisciplinary(${log.id})">Clear Flag</button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function clearDisciplinary(logId) {
+  APP_STATE.disciplinaryLog = APP_STATE.disciplinaryLog.filter(l => l.id !== logId);
+  renderAdminDisciplinary();
 }
 
 // --- TAB SWITCHING ---
@@ -680,7 +811,7 @@ function switchTab(tabId) {
   const activeView = document.getElementById(`view-${tabId}`);
   if (activeView) activeView.classList.remove('hidden');
 
-  const tabs = { hud: 0, travel: 1, calendar: 2, pass: 3 };
+  const tabs = { hud: 0, travel: 1, comms: 2, calendar: 3, pass: 4 };
   const navTabs = document.querySelectorAll('.bottom-nav .nav-tab');
   if (navTabs[tabs[tabId]]) {
     navTabs[tabs[tabId]].classList.add('active');
