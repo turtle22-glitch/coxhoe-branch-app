@@ -35,9 +35,9 @@
   </header>
 
   <!-- Admin Quick Bar -->
-  <div id="admin-bar" class="admin-bar">
+  <div id="admin-bar" class="admin-bar" style="display: none;">
     <span>🛡️ COMMITTEE SECRETARY ACTIVE</span>
-    <button class="admin-btn-pill" onclick="openAdminModal()">
+    <button class="admin-btn-pill" onclick="openAdminDrawer()">
       <span>⚙️ Admin Panel</span>
       <span id="admin-panel-badge" class="badge-count" style="display: none;">0</span>
     </button>
@@ -53,7 +53,7 @@
   <section id="view-login" class="tab-view active">
     <div class="card" style="margin-top: 10px;">
       <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">Sign In to Branch Portal</h2>
-      <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Matchday HUD, travel, ballots, dues & pass.</p>
+      <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Matchday HUD, travel, away tickets, dues & pass.</p>
 
       <div class="form-group">
         <label class="form-label">Full Name</label>
@@ -87,16 +87,16 @@
 
     <div class="card" style="border-top:3px solid var(--safc-red);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">NEXT MATCH</span>
-        <span style="font-size:11px; color:var(--text-muted);">Sat 21 Nov • 15:00</span>
+        <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">NEXT HOME MATCH</span>
+        <span id="hud-next-match-date" style="font-size:11px; color:var(--text-muted);">Sat 21 Nov • 15:00</span>
       </div>
-      <h3 style="font-size:17px; font-weight:800; margin-bottom:2px;">Sunderland vs Coventry City</h3>
+      <h3 id="hud-next-match-title" style="font-size:17px; font-weight:800; margin-bottom:2px;">Sunderland vs Coventry City</h3>
       <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Stadium of Light • Home League Match</p>
       <div id="hud-travel-card-status" style="background:#0f172a; padding:8px 10px; border-radius:8px; font-size:11px; line-height:1.5;"></div>
     </div>
 
     <div id="hud-actions-box" class="card" style="display:none; border-left:3px solid var(--safc-gold);">
-      <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:6px;">⚡ ACTION REQUIRED</strong>
+      <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:6px;">⚡ ACTION REQUIRED / NOTIFICATIONS</strong>
       <div id="hud-actions-list" style="font-size:11px; line-height:1.5;"></div>
     </div>
 
@@ -107,43 +107,65 @@
     <div id="hud-news-feed"></div>
   </section>
 
-  <!-- 3. TRAVEL -->
+  <!-- 3. TRAVEL & AWAY TICKETS -->
   <section id="view-travel" class="tab-view">
+    <!-- Home Coach Booking Card -->
     <div class="card">
-      <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">HOME COACH BOOKING</span>
-      <h3 style="font-size:16px; font-weight:800; margin-top:6px;">Sunderland vs Coventry City</h3>
+      <div class="flex-between">
+        <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">HOME COACH BOOKING</span>
+        <span id="travel-coach-price-pill" class="badge-gold">£12.00 Adult • £8.00 Junior</span>
+      </div>
+      <h3 id="travel-coach-title" style="font-size:16px; font-weight:800; margin-top:6px;">Sunderland vs Coventry City</h3>
+      <p id="travel-coach-subtitle" class="text-xs text-muted">Official Branch Travel • Stadium of Light</p>
+
       <div style="background:#0f172a; padding:8px; border-radius:6px; margin:8px 0; font-size:11px;">
         <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-          <span>Capacity: 53 Seats</span>
+          <span id="travel-bus-count-label">Fleet: 1 Coach</span>
           <span id="seats-status" style="color:var(--green);">42 / 53 Booked</span>
         </div>
         <div style="height:4px; background:#334155; border-radius:2px;"><div id="seats-bar" style="width:79%; height:100%; background:var(--safc-red);"></div></div>
       </div>
+
+      <!-- Coach Selector if Multiple Buses are Provisioned -->
+      <div id="booking-bus-selector-group" class="form-group" style="display:none;">
+        <label class="form-label">Select Coach</label>
+        <select id="booking-bus-select" class="form-select" onchange="window.updateBookingCoachUI()"></select>
+      </div>
+
       <div class="form-group">
         <label class="form-label">Pickup Point</label>
         <select id="booking-stop" class="form-select"></select>
       </div>
       <div style="display:flex; gap:6px; margin-bottom:10px;">
         <div style="flex:1;">
-          <label class="form-label">Adults (£12)</label>
+          <label id="label-adult-fare" class="form-label">Adults (£12)</label>
           <input type="number" id="adult-count" class="form-input" value="1" min="0" max="6" />
         </div>
         <div style="flex:1;">
-          <label class="form-label">Junior U16 (£8)</label>
+          <label id="label-junior-fare" class="form-label">Junior U16 (£8)</label>
           <input type="number" id="junior-count" class="form-input" value="0" min="0" max="6" />
         </div>
       </div>
-      <button class="btn btn-red btn-sm" onclick="openBookingModal()">Book Coach Seat (£12)</button>
+      <div id="booking-action-container">
+        <button id="btn-book-seat" class="btn btn-red btn-sm" onclick="openBookingModal()">Book Coach Seat</button>
+      </div>
     </div>
 
+    <!-- Away Match Ticket Application & Season Selector Card -->
     <div class="card">
-      <span style="background:#4338ca; color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">AWAY TICKET BALLOT</span>
-      <h3 style="font-size:16px; font-weight:800; margin-top:6px;">Leeds United (A)</h3>
-      <div class="form-group" style="margin-top:8px;">
-        <label class="form-label">Traveling Party (Friends & Family)</label>
-        <div id="away-party-checklist"></div>
+      <div class="flex-between">
+        <span style="background:#4338ca; color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">AWAY MATCH TICKETS</span>
+        <span class="text-xs text-muted">Committee Allocation</span>
       </div>
-      <button class="btn btn-outline btn-sm" onclick="submitAwayBallotInterest()">Submit Ballot Request</button>
+      <h3 style="font-size:16px; font-weight:800; margin-top:6px;">Season Away Fixture Selector</h3>
+      <p class="text-xs text-muted mb-2">Register interest for branch away allocations. Committee assigns tickets manually once club quota is confirmed.</p>
+      
+      <div class="form-group">
+        <label class="form-label">Select Away Fixture</label>
+        <select id="member-away-game-select" class="form-select" onchange="renderMemberAwayView()"></select>
+      </div>
+
+      <div id="member-away-status-card" class="admin-card mt-2"></div>
     </div>
   </section>
 
@@ -213,7 +235,7 @@
           <label class="form-label">Query Category</label>
           <select id="helpdesk-topic" class="form-select">
             <option value="Travel">Coach Travel & Stops</option>
-            <option value="Tickets">Match Tickets & Ballots</option>
+            <option value="Tickets">Match Tickets & Away Games</option>
             <option value="Finance">Membership & Wallet Funds</option>
             <option value="General">General Inquiries</option>
           </select>
@@ -245,14 +267,31 @@
       <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="width:100%;">Log Out</button>
     </div>
 
+    <!-- Friends & Family Network with Member Unlink Ability -->
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div class="flex-between" style="margin-bottom:8px;">
         <strong style="font-size:12px;">Friends & Family Network</strong>
-        <span style="font-size:10px; color:var(--safc-gold);">Parental Verification</span>
+        <span style="font-size:10px; color:var(--safc-gold);">Verified Connections</span>
       </div>
+      <p class="text-xs text-muted mb-2">Linked accounts can be booked for coach travel and away tickets. Children under 18 must be linked to a guardian.</p>
+      
       <div id="fnf-manager-list"></div>
+
+      <div style="border-top:1px solid #334155; padding-top:8px; margin-top:8px;">
+        <label class="form-label">Link Another Branch Member</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="fnf-search-input" class="form-input" placeholder="Type member name or number..." style="flex:2; font-size:11px;" />
+          <select id="fnf-relation-select" class="form-select" style="flex:1; font-size:11px;">
+            <option value="Friend">Friend</option>
+            <option value="Family">Family</option>
+            <option value="Child">Child (U18)</option>
+          </select>
+        </div>
+        <button class="btn btn-outline btn-sm mt-2" style="width:100%;" onclick="window.requestMemberLink()">+ Send Link Request</button>
+      </div>
     </div>
 
+    <!-- Financial Statement & Ledger -->
     <div class="card">
       <div class="card-title">
         <span id="wallet-statement-title">💳 Wallet Statement</span>
@@ -270,6 +309,7 @@
               <option value="WITHDRAWAL">Withdrawals / Payouts</option>
               <option value="BUS">Coach Travel (Buses)</option>
               <option value="CARD">Football Card</option>
+              <option value="AWAY">Away Match Tickets</option>
               <option value="BONUS">Bonus Ball</option>
               <option value="PRIZE">Winnings & Prizes</option>
             </select>
@@ -296,8 +336,8 @@
             </select>
           </div>
           <div>
-            <label class="form-label" style="font-size:9px;">Search Description</label>
-            <input type="text" id="filter-statement-search" class="form-input" placeholder="e.g. Subs, Bus, Coventry..." style="padding:5px; font-size:11px;" oninput="renderWalletStatement()" />
+            <label class="form-label" style="font-size:9px;">Search</label>
+            <input type="text" id="filter-statement-search" class="form-input" placeholder="Search description..." style="padding:5px; font-size:11px;" oninput="renderWalletStatement()" />
           </div>
         </div>
 
@@ -313,6 +353,7 @@
         </div>
 
         <div id="statement-filtered-summary" style="display:flex; justify-content:space-between; font-size:10px; border-top:1px solid #1e293b; padding-top:6px;"></div>
+        <button class="btn btn-outline btn-sm mt-2" style="width:100%; font-size:10px;" onclick="window.exportMyStatementCSV()">📥 Extract My Full Statement (CSV)</button>
       </div>
 
       <div id="wallet-statement-list"></div>
@@ -379,151 +420,176 @@
     </div>
   </div>
 
-  <!-- ADMIN MANAGEMENT DRAWER -->
-  <div id="admin-drawer" class="modal-backdrop">
-    <div class="modal-sheet" style="border-top-color:var(--safc-gold);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h3 style="font-size:15px; font-weight:800;">Committee Secretary Tools</h3>
-        <button class="btn btn-outline btn-sm" onclick="closeAdminModal()">Close</button>
+  <!-- ADMIN DRAWER (DROPDOWN-DRIVEN COMMITTEE HUD) -->
+  <div id="admin-drawer" class="admin-drawer hidden">
+    <div class="drawer-header">
+      <div>
+        <h3>Branch Secretary HUD</h3>
+        <span class="text-xs text-muted">Committee Management Suite</span>
       </div>
+      <button class="btn-close" onclick="closeAdminDrawer()">✕</button>
+    </div>
 
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:4px;">My Committee On-Call Availability</strong>
-        <button id="admin-oncall-toggle-btn" class="btn btn-outline btn-sm" style="width:100%;" onclick="toggleMyOnCallStatus()">🟢 On-Call</button>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px; border-left:3px solid var(--safc-gold);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <strong style="font-size:12px;">Membership Dues & Subs Manager</strong>
-          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="exportDuesCSV()">📥 Export Subs CSV</button>
-        </div>
-        <div id="dues-metrics-box" style="background:#0f172a; padding:6px; border-radius:6px; font-size:10px; margin-bottom:8px;"></div>
-        
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-bottom:6px;">
-          <div>
-            <label class="form-label" style="font-size:8px;">Season</label>
-            <input type="text" id="cfg-season-name" class="form-input" style="padding:4px; font-size:10px;" />
-          </div>
-          <div>
-            <label class="form-label" style="font-size:8px;">Adult Subs (£)</label>
-            <input type="number" id="cfg-adult-fee" class="form-input" style="padding:4px; font-size:10px;" />
-          </div>
-          <div>
-            <label class="form-label" style="font-size:8px;">Junior Subs (£)</label>
-            <input type="number" id="cfg-junior-fee" class="form-input" style="padding:4px; font-size:10px;" />
-          </div>
-        </div>
-        <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#f87171; margin-bottom:6px; cursor:pointer;">
-          <input type="checkbox" id="cfg-enforce-gate" />
-          <span>Strict Gate: Lock coach & ballots if subs lapsed</span>
-        </label>
-        <button class="btn btn-outline btn-sm" style="width:100%; margin-bottom:8px; font-size:10px;" onclick="saveMembershipConfig()">Save Pricing & Policy</button>
-
-        <strong style="font-size:10px; display:block; margin-bottom:4px;">Member Subs Status Roster:</strong>
-        <div id="admin-dues-roster-list" style="max-height:100px; overflow-y:auto;"></div>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:6px;">📢 Broadcast Announcement to Branch</strong>
-        <div class="form-group">
-          <input type="text" id="admin-post-title" class="form-input" placeholder="Headline..." style="padding:5px; font-size:11px;" />
-        </div>
-        <div class="form-group">
-          <textarea id="admin-post-content" class="form-input" style="height:40px; font-size:11px;" placeholder="Message details..."></textarea>
-        </div>
-        <label style="display:flex; align-items:center; gap:6px; font-size:10px; color:#f87171; margin-bottom:6px; cursor:pointer;">
-          <input type="checkbox" id="admin-post-urgent" />
-          <span>🚨 Mark as Tier 1 URGENT Notice</span>
-        </label>
-        <button class="btn btn-gold btn-sm" style="width:100%;" onclick="publishAdminAnnouncement()">Publish Official Announcement</button>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:4px;">Disciplinary Board (Multi-Vote Quorum)</strong>
-        <div id="admin-disciplinary-board"></div>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:4px;">Under-18 Accounts Compliance (7-Day Parent Link)</strong>
-        <div id="admin-child-compliance-list"></div>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:4px;">Pending Non-App Member Links</strong>
-        <div id="admin-pending-auth-box"></div>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:4px;">Member Network & Link Rectifier</strong>
-        <div style="margin-bottom:6px;">
-          <select id="admin-rectifier-member-select" class="form-select" style="padding:4px; font-size:10px;" onchange="renderAdminLinkRectifier()"></select>
-        </div>
-        <div id="admin-link-rectifier-list" style="max-height:80px; overflow-y:auto;"></div>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:4px;">Manual Balance & Payment Rectifier</strong>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:4px;">
-          <select id="admin-override-user" class="form-select" style="padding:4px; font-size:10px;">
-            <option value="Gary Miller">Gary Miller</option>
-            <option value="Dave Kelly">Dave Kelly</option>
-            <option value="Sarah Taylor">Sarah Taylor</option>
-            <option value="Billy Thompson">Billy Thompson</option>
-          </select>
-          <input type="number" id="admin-override-amount" class="form-input" placeholder="Amount (+/- £)" style="padding:4px; font-size:10px;" />
-        </div>
-        <input type="text" id="admin-override-reason" class="form-input" placeholder="Reason (e.g. Bus fare refund)" style="padding:4px; font-size:10px; margin-bottom:4px;" />
-        <button class="btn btn-outline btn-sm" style="width:100%; color:var(--safc-gold); border-color:var(--safc-gold);" onclick="adminManualBalanceOverride()">Apply Balance Adjustment</button>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <strong style="font-size:11px;">Coach Manifest Roll-Call</strong>
-          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="exportManifestCSV()">Export CSV</button>
-        </div>
-        <div id="manifest-list" style="max-height:80px; overflow-y:auto;"></div>
-      </div>
-
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <strong style="font-size:11px; display:block; margin-bottom:4px;">Football Card Setup & Payout (Max 100)</strong>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:4px;">
-          <select id="admin-card-size" class="form-select" style="padding:4px; font-size:10px;">
-            <option value="10">10 Teams</option>
-            <option value="20">20 Teams</option>
-            <option value="30">30 Teams</option>
-            <option value="40">40 Teams</option>
-            <option value="50">50 Teams</option>
-          </select>
-          <input type="number" id="admin-card-price" class="form-input" style="padding:4px; font-size:10px;" value="2.00" />
-        </div>
-        <select id="admin-prize-mode" class="form-select" style="padding:4px; font-size:10px; margin-bottom:6px;">
-          <option value="percentage">50% Winner Split</option>
-          <option value="fixed">Fixed £50 Pot</option>
+    <div class="drawer-content">
+      <!-- Master Admin Tool Dropdown Picker -->
+      <div class="admin-tool-picker-card">
+        <label class="tool-picker-label">🛠️ SELECT COMMITTEE TOOL</label>
+        <select id="admin-tool-select" onchange="switchAdminTool(this.value)">
+          <option value="buses">🚌 Buses (Fleet, Routes, Allocation & Manifest)</option>
+          <option value="subs">💳 Membership Subs Roster</option>
+          <option value="approvals">👨‍👧 Friends & Family / Child Approval Queue</option>
+          <option value="treasury">💰 Financial Statement & Fare Ledger</option>
+          <option value="awaytickets">🎟️ Away Match Ticket Allocations</option>
+          <option value="news">📢 Broadcast Notice / Branch News</option>
+          <option value="footballcard">⚽ Football Card Fundraiser</option>
+          <option value="disciplinary">⚖️ Safeguarding & Disciplinary Board</option>
         </select>
-        <div id="admin-card-financial-breakdown" style="background:#0f172a; padding:6px; border-radius:4px; font-size:10px; margin-bottom:6px;"></div>
-        <div style="display:flex; gap:4px;">
-          <button class="btn btn-outline btn-sm" style="flex:1; padding:3px;" onclick="saveCardSettings()">Save Config</button>
-          <button class="btn btn-gold btn-sm" style="flex:1; padding:3px;" onclick="drawCardWinner()">🏆 Draw / Payout</button>
+      </div>
+
+      <!-- PANE 1: CONSOLIDATED BUSES SUITE -->
+      <div id="admin-pane-buses" class="admin-pane">
+        <h4>🚌 Matchday Buses & Route Operations</h4>
+        <p class="text-xs text-muted">Configure buses per home match, set independent capacities, fares, and village stops, manage allocation buffers, and board passengers.</p>
+
+        <!-- Home Match Selector -->
+        <div class="form-group mt-2">
+          <label class="form-label">Select Home Match</label>
+          <select id="admin-bus-match-select" class="form-select" onchange="window.renderAdminBusesTool()"></select>
+        </div>
+
+        <!-- Dynamic List of Configured Buses for this Match (Each Bus includes its own Timetable Editor) -->
+        <div id="admin-match-buses-container" class="mt-2"></div>
+
+        <button class="btn btn-gold btn-block mt-2" onclick="window.adminAddBusToSelectedMatch()">+ Add Bus</button>
+
+        <!-- 24-Hour Allocation Engine Section for this Match -->
+        <div class="highlight-box mt-3">
+          <h4>⚡ 24-Hour Cutoff Allocation Engine</h4>
+          <p class="text-xs text-muted">Buses automatically balance and allocate 24 hours prior to scheduled kick-off. Use the override button below only as a manual backup.</p>
+          <div id="admin-allocation-status-summary" class="admin-card mt-2"></div>
+          <button class="btn btn-gold btn-block mt-2" onclick="window.adminRunAllocationBackup()">⚡ Run Early Allocation Cutoff (Backup Override)</button>
+        </div>
+
+        <!-- Passenger Door Manifest for this Match -->
+        <div class="admin-card mt-3">
+          <div class="flex-between">
+            <strong style="font-size:12px;">📋 Passenger Manifest & Door Check-In</strong>
+            <button class="btn btn-outline btn-sm" style="font-size:10px;" onclick="window.exportManifestCSV()">📥 Export CSV</button>
+          </div>
+          <p class="text-xs text-muted mt-1">Tap passenger to toggle them as boarded onto their allocated coach.</p>
+          <div id="admin-manifest-summary" class="mt-2"></div>
         </div>
       </div>
 
-      <div class="card" style="padding:10px; margin-bottom:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <strong style="font-size:11px;">Pickup Stops & Times</strong>
-          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="addNewStop()">+ Add</button>
-        </div>
-        <div id="admin-stops-editor"></div>
+      <!-- PANE 2: MEMBERSHIP SUBS ROSTER -->
+      <div id="admin-pane-subs" class="admin-pane hidden">
+        <h4>💳 Membership Subs Roster (2026/27)</h4>
+        <p class="text-xs text-muted">Toggle dues status (£10) to permit or lock travel booking rights.</p>
+        <div id="admin-subs-roster"></div>
       </div>
 
-      <div class="card" style="padding:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <strong style="font-size:11px;">Forensic Audit Log</strong>
-          <button class="btn btn-outline btn-sm" style="padding:2px 6px; font-size:9px;" onclick="exportMasterAuditCSV()">📥 Export CSV</button>
+      <!-- PANE 3: FRIENDS & FAMILY / CHILD QUEUE & REVOCATION -->
+      <div id="admin-pane-approvals" class="admin-pane hidden">
+        <h4>👨‍👧 Friends & Family / Child Approval Queue</h4>
+        <p class="text-xs text-muted">Approve, decline or revoke relationships. Minors under 18 must be linked to an approved adult.</p>
+        <div id="admin-approvals-queue"></div>
+      </div>
+
+      <!-- PANE 4: TREASURY & FINANCIAL LEDGER -->
+      <div id="admin-pane-treasury" class="admin-pane hidden">
+        <div class="flex-between">
+          <h4>💰 Financial Statement & Fare Ledger</h4>
+          <button class="btn btn-outline btn-sm" style="font-size:10px;" onclick="window.exportMasterAuditCSV()">📥 Export Master CSV</button>
         </div>
-        <div id="admin-audit-log-list" style="max-height:80px; overflow-y:auto;"></div>
+        <div class="treasury-grid mt-2" id="admin-treasury-stats"></div>
+        
+        <div class="admin-card mt-2">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+            <div>
+              <label class="form-label">Category</label>
+              <select id="treasury-filter-category" class="form-select" onchange="renderAdminTreasury()">
+                <option value="all">All Transactions</option>
+                <option value="subs">Subs Only (£10)</option>
+                <option value="bus">Coach Fares Only</option>
+                <option value="away">Away Tickets</option>
+                <option value="card">Football Card</option>
+                <option value="topup">Top-ups / Deposits</option>
+                <option value="payout">Payouts / Prizes</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Date Filter</label>
+              <select id="treasury-filter-time" class="form-select" onchange="renderAdminTreasury()">
+                <option value="all">All Time</option>
+                <option value="7d">Past 7 Days</option>
+                <option value="30d">Past 30 Days</option>
+                <option value="season">Current Season (2026/27)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="admin-financial-ledger" class="mt-2"></div>
+      </div>
+
+      <!-- PANE 5: AWAY MATCH TICKET ALLOCATIONS -->
+      <div id="admin-pane-awaytickets" class="admin-pane hidden">
+        <h4>🎟️ Away Match Ticket Allocations</h4>
+        <p class="text-xs text-muted">Select an away game from the season list, adjust branch ticket quota, and manually toggle ticket allocation for registered members.</p>
+        
+        <div class="form-group mt-2">
+          <label class="form-label">Select Away Fixture</label>
+          <select id="admin-away-game-select" class="form-select" onchange="renderAdminAwayFixture()"></select>
+        </div>
+
+        <div id="admin-away-fixture-manager" class="mt-2"></div>
+      </div>
+
+      <!-- PANE 6: BROADCAST NOTICE / BRANCH NEWS (WITH DELETE & ARCHIVE) -->
+      <div id="admin-pane-news" class="admin-pane hidden">
+        <div class="highlight-box">
+          <h4>📢 Broadcast Notice / News Item</h4>
+          <p class="text-xs text-muted">Publishes directly to member home feeds & alert banners.</p>
+          <div class="form-group mt-2">
+            <input type="text" id="admin-news-title" class="form-input" placeholder="Notice Headline (e.g. Coach Timing Update)" />
+          </div>
+          <div class="form-group">
+            <textarea id="admin-news-body" class="form-input" rows="3" placeholder="Announcement details..."></textarea>
+          </div>
+          <button class="btn btn-gold btn-block btn-sm" onclick="window.adminPostAnnouncement()">Broadcast Notice</button>
+        </div>
+
+        <!-- Management List for Deletion & Archiving -->
+        <div class="admin-card mt-3">
+          <strong style="font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;">Manage Active & Archived Notices</strong>
+          <div id="admin-news-manage-list"></div>
+        </div>
+      </div>
+
+      <!-- PANE 7: FOOTBALL CARD FUNDRAISER SUITE -->
+      <div id="admin-pane-footballcard" class="admin-pane hidden">
+        <h4>⚽ Football Card Fundraiser Suite</h4>
+        <p class="text-xs text-muted">Configure custom grid sizes (up to 100 teams), entry fees, prize splits, and launch fresh cards.</p>
+        
+        <div id="admin-footballcard-config-card" class="admin-card mt-2"></div>
+        <div id="admin-footballcard-summary" class="mt-2"></div>
+      </div>
+
+      <!-- PANE 8: SAFEGUARDING & DISCIPLINARY BOARD -->
+      <div id="admin-pane-disciplinary" class="admin-pane hidden">
+        <h4>⚖️ Safeguarding & Disciplinary Board</h4>
+        <p class="text-xs text-muted">Review automated chat language flags, committee quorum voting, and junior member safeguarding oversight.</p>
+        
+        <div class="admin-card mt-2">
+          <strong style="font-size:12px; color:var(--safc-gold); display:block; margin-bottom:6px;">🛡️ Active Junior Safeguarding Registry</strong>
+          <div id="admin-disciplinary-junior-log"></div>
+        </div>
+
+        <div id="admin-disciplinary-board" class="mt-2"></div>
       </div>
     </div>
   </div>
+
 </div>
 
 <script src="app.js"></script>

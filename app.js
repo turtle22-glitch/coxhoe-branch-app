@@ -1,3 +1,8 @@
+// ========================================================
+// COXHOE BRANCH SAFC - APP.JS (PART 1 OF 3)
+// Core State, Data Architecture, HUD & Travel Management
+// ========================================================
+
 // --- MASTER DIRECTORY & CONFIG DATA ---
 var MASTER_MEMBERS = [
   { id: 1, name: "Dave Kelly", memberNo: "COX-012", category: "Adult", hasAppAccount: true, balance: 18.00, registeredDaysAgo: 120, messagingAllowed: true, membershipStatus: "active", membershipTier: "Adult", membershipSeason: "2026/27", validUntil: "2027-07-31" },
@@ -14,6 +19,92 @@ var DEFAULT_STOPS = [
   { id: 2, name: "Blackgate / The Avenue", time: "12:50" },
   { id: 3, name: "Bowburn Cooperage", time: "13:00" },
   { id: 4, name: "Quarrington Hill", time: "13:10" }
+];
+
+// Season Home Matches (Each coach contains its own independent capacity, fares & timetable stops)
+var SEASON_HOME_MATCHES = [
+  {
+    id: "H-01",
+    opponent: "Coventry City",
+    date: "Sat 21 Nov 2026",
+    time: "15:00",
+    status: "Open",
+    buses: [
+      {
+        busId: 1,
+        title: "Bus 1 (Main Village Route)",
+        subtitle: "Official Branch Travel • Stadium of Light",
+        capacity: 53,
+        adultFare: 12.00,
+        juniorFare: 8.00,
+        isFreeBus: false,
+        stops: [
+          { id: 1, name: "Coxhoe Red Lion", time: "12:45" },
+          { id: 2, name: "Blackgate / The Avenue", time: "12:50" },
+          { id: 3, name: "Bowburn Cooperage", time: "13:00" },
+          { id: 4, name: "Quarrington Hill", time: "13:10" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "H-02",
+    opponent: "Burnley",
+    date: "Sat 5 Dec 2026",
+    time: "15:00",
+    status: "Upcoming",
+    buses: [
+      {
+        busId: 1,
+        title: "Bus 1 (Main Village Route)",
+        subtitle: "Official Branch Travel • Stadium of Light",
+        capacity: 53,
+        adultFare: 12.00,
+        juniorFare: 8.00,
+        isFreeBus: false,
+        stops: [
+          { id: 1, name: "Coxhoe Red Lion", time: "12:45" },
+          { id: 2, name: "Blackgate / The Avenue", time: "12:50" },
+          { id: 3, name: "Bowburn Cooperage", time: "13:00" },
+          { id: 4, name: "Quarrington Hill", time: "13:10" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "H-03",
+    opponent: "Leeds United",
+    date: "Sat 26 Dec 2026",
+    time: "12:30",
+    status: "Upcoming",
+    buses: [
+      {
+        busId: 1,
+        title: "Bus 1 (Boxing Day Special)",
+        subtitle: "Festive Derby Matchday Service",
+        capacity: 53,
+        adultFare: 12.00,
+        juniorFare: 8.00,
+        isFreeBus: false,
+        stops: [
+          { id: 1, name: "Coxhoe Red Lion", time: "10:15" },
+          { id: 2, name: "Blackgate / The Avenue", time: "10:20" },
+          { id: 3, name: "Bowburn Cooperage", time: "10:30" },
+          { id: 4, name: "Quarrington Hill", time: "10:40" }
+        ]
+      }
+    ]
+  }
+];
+
+var SEASON_AWAY_FIXTURES = [
+  { id: "A-01", opponent: "Leeds United", date: "Sat 28 Nov 2026", time: "15:00", allocation: 25, status: "Open" },
+  { id: "A-02", opponent: "Sheffield United", date: "Tue 8 Dec 2026", time: "19:45", allocation: 20, status: "Open" },
+  { id: "A-03", opponent: "Middlesbrough", date: "Sat 19 Dec 2026", time: "12:30", allocation: 35, status: "Open" },
+  { id: "A-04", opponent: "Burnley", date: "Fri 1 Jan 2027", time: "15:00", allocation: 20, status: "Upcoming" },
+  { id: "A-05", opponent: "West Brom", date: "Sat 16 Jan 2027", time: "15:00", allocation: 25, status: "Upcoming" },
+  { id: "A-06", opponent: "Norwich City", date: "Sat 30 Jan 2027", time: "15:00", allocation: 15, status: "Upcoming" },
+  { id: "A-07", opponent: "Watford", date: "Sat 13 Feb 2027", time: "15:00", allocation: 20, status: "Upcoming" }
 ];
 
 var MASTER_CLUBS = [
@@ -90,36 +181,48 @@ function getInitialBonusRegistry() {
 // --- STATE MANAGEMENT ---
 var appState = {
   currentUser: { name: "Gary Miller", role: "member", memberNo: "COX-084", category: "Adult" },
-  users: JSON.parse(localStorage.getItem("coxhoe_users_v15")) || MASTER_MEMBERS,
-  stops: JSON.parse(localStorage.getItem("coxhoe_stops_v15")) || DEFAULT_STOPS,
-  bookings: JSON.parse(localStorage.getItem("coxhoe_bookings_v15")) || [
-    { id: 101, name: "Gary Miller", stop: "Coxhoe Red Lion", adults: 1, juniors: 0, total: 12.00, boarded: true },
-    { id: 102, name: "Dave Kelly", stop: "Coxhoe Red Lion", adults: 2, juniors: 0, total: 24.00, boarded: false }
+  users: JSON.parse(localStorage.getItem("coxhoe_users_v18")) || MASTER_MEMBERS,
+  stops: JSON.parse(localStorage.getItem("coxhoe_stops_v18")) || DEFAULT_STOPS,
+  
+  // Matches & Independent Buses Architecture
+  homeMatches: JSON.parse(localStorage.getItem("coxhoe_home_matches_v18")) || SEASON_HOME_MATCHES,
+  selectedHomeMatchId: "H-01",
+  selectedBookingBusId: 1,
+
+  bookings: JSON.parse(localStorage.getItem("coxhoe_bookings_v18")) || [
+    { id: 101, matchId: "H-01", busId: 1, name: "Gary Miller", stop: "Coxhoe Red Lion", adults: 1, juniors: 0, total: 12.00, boarded: true },
+    { id: 102, matchId: "H-01", busId: 1, name: "Dave Kelly", stop: "Coxhoe Red Lion", adults: 2, juniors: 0, total: 24.00, boarded: false }
   ],
-  friendsAndFamily: JSON.parse(localStorage.getItem("coxhoe_friends_v15")) || [
+
+  friendsAndFamily: JSON.parse(localStorage.getItem("coxhoe_friends_v18")) || [
     { id: 1, owner: "Gary Miller", targetName: "Phoebe Miller", type: "Child", memberNo: "COX-085", relation: "Daughter", status: "approved" },
     { id: 2, owner: "Phoebe Miller", targetName: "Gary Miller", type: "Adult", memberNo: "COX-084", relation: "Parent", status: "approved" }
   ],
-  pendingLinkRequests: JSON.parse(localStorage.getItem("coxhoe_pending_links_v15")) || [],
-  duesConfig: JSON.parse(localStorage.getItem("coxhoe_dues_config_v15")) || {
+  
+  pendingLinkRequests: JSON.parse(localStorage.getItem("coxhoe_pending_links_v18")) || [],
+  
+  duesConfig: JSON.parse(localStorage.getItem("coxhoe_dues_config_v18")) || {
     activeSeason: "2026/27",
     adultFee: 15.00,
     juniorFee: 5.00,
     seniorFee: 10.00,
     enforceDuesGate: true
   },
-  announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v15")) || [
-    { id: 1, title: "Coventry City (H) Coach Departure Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled. Please check the timetable.", reactions: 14 },
-    { id: 2, title: "Branch Christmas Social Night Announced", date: "2026-10-28", isUrgent: false, content: "Tickets are now on sale for the annual Christmas branch social at Coxhoe WMC on Friday 18th December. Buffet, guest speaker, and fundraising raffle included.", reactions: 29 }
+
+  announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v18")) || [
+    { id: 1, title: "Coventry City (H) Coach Departure Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled. Please check the timetable.", reactions: 14, archived: false, readBy: [] },
+    { id: 2, title: "Branch Christmas Social Night Announced", date: "2026-10-28", isUrgent: false, content: "Tickets are now on sale for the annual Christmas branch social at Coxhoe WMC on Friday 18th December. Buffet, guest speaker, and fundraising raffle included.", reactions: 29, archived: false, readBy: [] }
   ],
-  matchdayChat: JSON.parse(localStorage.getItem("coxhoe_bus_chat_v15")) || [
+
+  matchdayChat: JSON.parse(localStorage.getItem("coxhoe_bus_chat_v18")) || [
     { id: 1, sender: "Dave Kelly", time: "11:30", text: "What time are we meeting at the Red Lion?" },
     { id: 2, sender: "Sarah Taylor", time: "11:35", text: "Departure is 12:30 sharp because of roadworks on A1." },
     { id: 3, sender: "Micky Gray", time: "11:38", text: "Has anyone got spare tickets for Leeds away?" },
-    { id: 4, sender: "Dave Kelly", time: "11:42", text: "Ballot is open in the app lads, just registered mine." },
+    { id: 4, sender: "Dave Kelly", time: "11:42", text: "Registered my away interest in the app lads." },
     { id: 5, sender: "Sarah Taylor", time: "11:43", text: "Club shop was also sold out of matchday programmes." }
   ],
-  moderation: JSON.parse(localStorage.getItem("coxhoe_moderation_v15")) || {
+
+  moderation: JSON.parse(localStorage.getItem("coxhoe_moderation_v18")) || {
     strikes: {},
     mutedMembers: ["Billy Thompson"],
     revokedMembers: [],
@@ -135,7 +238,7 @@ var appState = {
           "Dave Kelly (11:30): What time are we meeting at the Red Lion?",
           "Sarah Taylor (11:35): Departure is 12:30 sharp because of roadworks on A1.",
           "Micky Gray (11:38): Has anyone got spare tickets for Leeds away?",
-          "Dave Kelly (11:42): Ballot is open in the app lads, just registered mine.",
+          "Dave Kelly (11:42): Registered my away interest in the app lads.",
           "Sarah Taylor (11:43): Club shop was also sold out of matchday programmes.",
           "Billy Thompson (11:45): Shut your mouth you useless bastards [FLAGGED - BAN TRIGGER]"
         ],
@@ -146,12 +249,14 @@ var appState = {
       }
     ]
   },
-  committeeOnCall: JSON.parse(localStorage.getItem("coxhoe_comm_oncall_v15")) || {
+
+  committeeOnCall: JSON.parse(localStorage.getItem("coxhoe_comm_oncall_v18")) || {
     "Graham (Secretary)": true,
     "Dave Kelly": true,
     "Sarah Taylor": true
   },
-  helpdeskTickets: JSON.parse(localStorage.getItem("coxhoe_helpdesk_v15")) || [
+
+  helpdeskTickets: JSON.parse(localStorage.getItem("coxhoe_helpdesk_v18")) || [
     {
       id: "TICK-401",
       member: "Dave Kelly",
@@ -163,13 +268,15 @@ var appState = {
       internalNotes: [{ id: "n1", author: "Sarah Taylor", time: "14:05", text: "Escalated to Graham: does the coach route go past Metal Bridge on 21st?" }]
     }
   ],
-  readTracker: JSON.parse(localStorage.getItem("coxhoe_read_tracker_v15")) || {
+
+  readTracker: JSON.parse(localStorage.getItem("coxhoe_read_tracker_v18")) || {
     "Gary Miller": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
     "Graham (Secretary)": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
     "Dave Kelly": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
     "Sarah Taylor": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: ["n1"] }
   },
-  cardConfig: JSON.parse(localStorage.getItem("coxhoe_card_config_v15")) || {
+
+  cardConfig: JSON.parse(localStorage.getItem("coxhoe_card_config_v18")) || {
     size: 40,
     pricePerSquare: 2.00,
     prizeMode: "percentage",
@@ -177,35 +284,43 @@ var appState = {
     prizeFixed: 50.00,
     activeClubs: MASTER_CLUBS.slice(0, 40)
   },
-  cardClaims: JSON.parse(localStorage.getItem("coxhoe_card_claims_v15")) || {
+  cardClaims: JSON.parse(localStorage.getItem("coxhoe_card_claims_v18")) || {
     "Blackburn": "Dave Kelly",
     "Leeds United": "Sarah Taylor"
   },
-  bonusRegistry: JSON.parse(localStorage.getItem("coxhoe_bonus_reg_v15")) || getInitialBonusRegistry(),
-  awayBallotRequests: JSON.parse(localStorage.getItem("coxhoe_away_ballots_v15")) || [],
-  masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v15")) || [
+  bonusRegistry: JSON.parse(localStorage.getItem("coxhoe_bonus_reg_v18")) || getInitialBonusRegistry(),
+
+  awayFixtures: JSON.parse(localStorage.getItem("coxhoe_away_fixtures_v18")) || SEASON_AWAY_FIXTURES,
+  awayRegistrations: JSON.parse(localStorage.getItem("coxhoe_away_regs_v18")) || [
+    { fixtureId: "A-01", memberName: "Gary Miller", party: ["Gary Miller (Adult)", "Phoebe Miller (Child)"], allocated: true },
+    { fixtureId: "A-01", memberName: "Dave Kelly", party: ["Dave Kelly (Adult)"], allocated: false }
+  ],
+
+  masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v18")) || [
     { txnId: "TXN-1001", timestamp: "2026-10-25 10:00:00", actor: "Gary Miller", role: "Member", target: "Branch", category: "SUBS_DUES", desc: "Annual Membership Subs 2026/27 (Adult)", debit: 15.00, credit: 0, branchImpact: 15.00, balanceAfter: 35.00 }
   ]
 };
 
 function saveState() {
-  localStorage.setItem("coxhoe_users_v15", JSON.stringify(appState.users));
-  localStorage.setItem("coxhoe_stops_v15", JSON.stringify(appState.stops));
-  localStorage.setItem("coxhoe_bookings_v15", JSON.stringify(appState.bookings));
-  localStorage.setItem("coxhoe_friends_v15", JSON.stringify(appState.friendsAndFamily));
-  localStorage.setItem("coxhoe_pending_links_v15", JSON.stringify(appState.pendingLinkRequests));
-  localStorage.setItem("coxhoe_dues_config_v15", JSON.stringify(appState.duesConfig));
-  localStorage.setItem("coxhoe_announcements_v15", JSON.stringify(appState.announcements));
-  localStorage.setItem("coxhoe_bus_chat_v15", JSON.stringify(appState.matchdayChat));
-  localStorage.setItem("coxhoe_moderation_v15", JSON.stringify(appState.moderation));
-  localStorage.setItem("coxhoe_comm_oncall_v15", JSON.stringify(appState.committeeOnCall));
-  localStorage.setItem("coxhoe_helpdesk_v15", JSON.stringify(appState.helpdeskTickets));
-  localStorage.setItem("coxhoe_read_tracker_v15", JSON.stringify(appState.readTracker));
-  localStorage.setItem("coxhoe_card_config_v15", JSON.stringify(appState.cardConfig));
-  localStorage.setItem("coxhoe_card_claims_v15", JSON.stringify(appState.cardClaims));
-  localStorage.setItem("coxhoe_bonus_reg_v15", JSON.stringify(appState.bonusRegistry));
-  localStorage.setItem("coxhoe_away_ballots_v15", JSON.stringify(appState.awayBallotRequests));
-  localStorage.setItem("coxhoe_audit_v15", JSON.stringify(appState.masterAuditTrail));
+  localStorage.setItem("coxhoe_users_v18", JSON.stringify(appState.users));
+  localStorage.setItem("coxhoe_stops_v18", JSON.stringify(appState.stops));
+  localStorage.setItem("coxhoe_home_matches_v18", JSON.stringify(appState.homeMatches));
+  localStorage.setItem("coxhoe_bookings_v18", JSON.stringify(appState.bookings));
+  localStorage.setItem("coxhoe_friends_v18", JSON.stringify(appState.friendsAndFamily));
+  localStorage.setItem("coxhoe_pending_links_v18", JSON.stringify(appState.pendingLinkRequests));
+  localStorage.setItem("coxhoe_dues_config_v18", JSON.stringify(appState.duesConfig));
+  localStorage.setItem("coxhoe_announcements_v18", JSON.stringify(appState.announcements));
+  localStorage.setItem("coxhoe_bus_chat_v18", JSON.stringify(appState.matchdayChat));
+  localStorage.setItem("coxhoe_moderation_v18", JSON.stringify(appState.moderation));
+  localStorage.setItem("coxhoe_comm_oncall_v18", JSON.stringify(appState.committeeOnCall));
+  localStorage.setItem("coxhoe_helpdesk_v18", JSON.stringify(appState.helpdeskTickets));
+  localStorage.setItem("coxhoe_read_tracker_v18", JSON.stringify(appState.readTracker));
+  localStorage.setItem("coxhoe_card_config_v18", JSON.stringify(appState.cardConfig));
+  localStorage.setItem("coxhoe_card_claims_v18", JSON.stringify(appState.cardClaims));
+  localStorage.setItem("coxhoe_bonus_reg_v18", JSON.stringify(appState.bonusRegistry));
+  localStorage.setItem("coxhoe_away_fixtures_v18", JSON.stringify(appState.awayFixtures));
+  localStorage.setItem("coxhoe_away_regs_v18", JSON.stringify(appState.awayRegistrations));
+  localStorage.setItem("coxhoe_audit_v18", JSON.stringify(appState.masterAuditTrail));
 }
 
 function getCurrentUserRecord() {
@@ -237,15 +352,14 @@ function logForensicTransaction(actor, role, target, category, desc, debit, cred
   appState.masterAuditTrail.unshift(txn);
   saveState();
   window.updateBalanceDisplay();
-  renderAuditLogView();
-  renderWalletStatement();
+  if (typeof renderWalletStatement === "function") renderWalletStatement();
 }
 
 function checkChildCompliance(user) {
   if (user.category !== "Child") return { compliant: true };
   var hasParent = appState.friendsAndFamily.some(function(f) {
     return (f.owner === user.name && f.relation === "Parent" && f.status === "approved") ||
-           (f.targetName === user.name && (f.relation === "Daughter" || f.relation === "Son") && f.status === "approved");
+           (f.targetName === user.name && (f.relation === "Daughter" || f.relation === "Son" || f.relation === "Child") && f.status === "approved");
   });
   if (hasParent) return { compliant: true, linkedParent: true };
   var daysRemaining = 7 - user.registeredDaysAgo;
@@ -377,7 +491,9 @@ window.setUserSession = function(name, role, memberNo) {
   window.updateBalanceDisplay();
 
   var adminBar = document.getElementById("admin-bar");
-  adminBar.style.display = (role === "admin") ? "flex" : "none";
+  if (adminBar) {
+    adminBar.style.display = (role === "admin") ? "flex" : "none";
+  }
 
   window.refreshAllViews();
 };
@@ -397,7 +513,8 @@ window.quickLogin = function(name, role, no) {
 };
 
 window.handleLogout = function() {
-  document.getElementById("admin-bar").style.display = "none";
+  var adminBar = document.getElementById("admin-bar");
+  if (adminBar) adminBar.style.display = "none";
   document.getElementById("bottom-bar").style.display = "none";
   document.getElementById("user-header-info").style.display = "none";
   document.getElementById("child-deactivated-guard").style.display = "none";
@@ -430,21 +547,26 @@ window.refreshAllViews = function() {
   window.updateBalanceDisplay();
   renderHUDView();
   renderBusBookingView();
-  renderAwayPartySelector();
-  renderFootballCard();
-  renderBonusRegistry();
-  renderFriendsFamilyChecklist();
-  renderProfilePassView();
-  renderWalletStatement();
-  renderCommsTabs();
-  renderAdminDrawer();
+  renderMemberAwayView();
+  if (typeof renderFootballCard === "function") renderFootballCard();
+  if (typeof renderBonusRegistry === "function") renderBonusRegistry();
+  if (typeof renderFriendsFamilyChecklist === "function") renderFriendsFamilyChecklist();
+  if (typeof renderProfilePassView === "function") renderProfilePassView();
+  if (typeof renderWalletStatement === "function") renderWalletStatement();
+  if (typeof renderCommsTabs === "function") renderCommsTabs();
+  if (typeof renderAdminDrawer === "function") renderAdminDrawer();
   updateCommsBadge();
 };
 
 // --- 1. HOME HUD ---
 function renderHUDView() {
+  var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+
   var urgentContainer = document.getElementById("hud-urgent-banner");
-  var urgentPost = appState.announcements.find(function(a) { return a.isUrgent; });
+  var urgentPost = appState.announcements.find(function(a) { 
+    var read = a.readBy && a.readBy.indexOf(appState.currentUser.name) !== -1;
+    return a.isUrgent && !a.archived && !read; 
+  });
   if (urgentPost) {
     urgentContainer.style.display = "block";
     urgentContainer.innerHTML = "<strong>🚨 URGENT BRANCH NOTICE:</strong> " + urgentPost.content;
@@ -452,17 +574,26 @@ function renderHUDView() {
     urgentContainer.style.display = "none";
   }
 
-  var myBooking = appState.bookings.find(function(b) { return b.name === appState.currentUser.name; });
+  var hudMatchTitle = document.getElementById("hud-next-match-title");
+  var hudMatchDate = document.getElementById("hud-next-match-date");
+  if (hudMatchTitle) hudMatchTitle.textContent = "Sunderland vs " + activeMatch.opponent;
+  if (hudMatchDate) hudMatchDate.textContent = activeMatch.date + " • " + activeMatch.time;
+
+  var myBooking = appState.bookings.find(function(b) { 
+    return b.matchId === activeMatch.id && b.name.indexOf(appState.currentUser.name) !== -1; 
+  });
   var travelStatusBox = document.getElementById("hud-travel-card-status");
   if (myBooking) {
     travelStatusBox.innerHTML = 
       "<div style='color:var(--green); font-weight:800; font-size:12px; margin-bottom:4px;'>✓ SEAT CONFIRMED ON BRANCH COACH</div>" +
-      "<div><strong>Pickup:</strong> " + myBooking.stop + "</div>" +
+      "<div><strong>Pickup:</strong> " + myBooking.stop + " (Bus #" + (myBooking.busId || 1) + ")</div>" +
       "<div style='font-size:11px; color:var(--text-muted);'>Pass: " + (myBooking.adults + myBooking.juniors) + " seat(s) • Status: " + (myBooking.boarded ? "<span style='color:var(--green); font-weight:700;'>Boarded</span>" : "Awaiting Coach") + "</div>";
   } else {
+    var firstBus = activeMatch.buses[0] || { adultFare: 12.00, isFreeBus: false };
+    var fareDisplay = firstBus.isFreeBus ? "FREE" : "£" + firstBus.adultFare.toFixed(2);
     travelStatusBox.innerHTML = 
-      "<div style='color:var(--safc-gold); font-size:12px; margin-bottom:4px;'>No seat booked yet for Coventry City (H)</div>" +
-      "<button class='btn btn-red btn-sm' style='width:auto; padding:4px 10px; margin-top:4px;' onclick='switchTab(\"view-travel\", document.getElementById(\"nav-travel\"))'>Book Coach Seat (£12)</button>";
+      "<div style='color:var(--safc-gold); font-size:12px; margin-bottom:4px;'>No seat booked yet for " + activeMatch.opponent + " (H)</div>" +
+      "<button class='btn btn-red btn-sm' style='width:auto; padding:4px 10px; margin-top:4px;' onclick='switchTab(\"view-travel\", document.getElementById(\"nav-travel\"))'>Book Coach Seat (" + fareDisplay + ")</button>";
   }
 
   var actionsBox = document.getElementById("hud-actions-box");
@@ -479,10 +610,21 @@ function renderHUDView() {
     );
   }
 
-  var hasAway = appState.awayBallotRequests.some(function(r) { return r.leadName === appState.currentUser.name; });
-  if (!hasAway) {
-    actions.push("<div style='margin-bottom:6px;'>🎟️ <strong>Leeds United (A) Ballot:</strong> Registration is open. <a href='#' onclick='switchTab(\"view-travel\", document.getElementById(\"nav-travel\"))' style='color:var(--safc-gold); font-weight:700;'>Register Now ➔</a></div>");
-  }
+  var myAllocations = appState.awayRegistrations.filter(function(r) {
+    return r.memberName === appState.currentUser.name && r.allocated;
+  });
+  myAllocations.forEach(function(alloc) {
+    var fix = appState.awayFixtures.find(function(f) { return f.id === alloc.fixtureId; });
+    if (fix) {
+      actions.push(
+        "<div style='background:#064e3b; border:1px solid #10b981; padding:8px; border-radius:6px; margin-bottom:6px; color:#fff;'>" +
+          "<strong>🎉 TICKET ALLOCATED: " + fix.opponent + " (A)</strong><br>" +
+          "<span style='font-size:10px;'>Your branch ticket request for (" + alloc.party.join(", ") + ") has been approved by the committee!</span>" +
+        "</div>"
+      );
+    }
+  });
+
   var childComp = checkChildCompliance(userRecord);
   if (childComp.pendingWarning) {
     actions.push("<div style='color:#f87171;'>⚠️ <strong>Safeguarding Notice:</strong> Under-18 account must link a verified parent within <strong>" + childComp.daysRemaining + " days</strong> or account will be locked.</div>");
@@ -494,28 +636,57 @@ function renderHUDView() {
     actionsBox.style.display = "none";
   }
 
+  // Member News Feed with Mark as Read (Dismissal) Feature
   var newsFeed = document.getElementById("hud-news-feed");
   newsFeed.innerHTML = "";
-  appState.announcements.forEach(function(post, idx) {
-    var card = document.createElement("div");
-    card.className = "card";
-    card.style.marginBottom = "8px";
-    card.innerHTML = 
-      "<div style='display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-bottom:4px;'>" +
-        "<span>" + post.date + "</span>" +
-        (post.isUrgent ? "<span style='color:#ef4444; font-weight:800;'>URGENT</span>" : "<span>OFFICIAL</span>") +
-      "</div>" +
-      "<h4 style='font-size:13px; font-weight:800; margin-bottom:4px;'>" + post.title + "</h4>" +
-      "<p style='font-size:11px; line-height:1.5; color:#cbd5e1; margin-bottom:8px;'>" + post.content + "</p>" +
-      "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.reactAnnouncement(" + idx + ")'>👍 " + post.reactions + " Reactions</button>";
-    newsFeed.appendChild(card);
+
+  var activeNotices = appState.announcements.filter(function(post) {
+    var read = post.readBy && post.readBy.indexOf(appState.currentUser.name) !== -1;
+    return !post.archived && !read;
   });
+
+  if (activeNotices.length === 0) {
+    newsFeed.innerHTML = "<div class='text-xs text-muted' style='text-align:center; padding:12px 0;'>✓ You are all caught up on branch notices.</div>";
+  } else {
+    activeNotices.forEach(function(post) {
+      var card = document.createElement("div");
+      card.className = "card";
+      card.style.marginBottom = "8px";
+      card.innerHTML = 
+        "<div style='display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-bottom:4px;'>" +
+          "<span>" + post.date + "</span>" +
+          (post.isUrgent ? "<span style='color:#ef4444; font-weight:800;'>URGENT</span>" : "<span>OFFICIAL</span>") +
+        "</div>" +
+        "<h4 style='font-size:13px; font-weight:800; margin-bottom:4px;'>" + post.title + "</h4>" +
+        "<p style='font-size:11px; line-height:1.5; color:#cbd5e1; margin-bottom:8px;'>" + post.content + "</p>" +
+        "<div style='display:flex; gap:6px;'>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.reactAnnouncement(" + post.id + ")'>👍 " + post.reactions + " Reactions</button>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:var(--safc-gold);' onclick='window.dismissAnnouncement(" + post.id + ")'>✓ Mark as Read</button>" +
+        "</div>";
+      newsFeed.appendChild(card);
+    });
+  }
 }
 
-window.reactAnnouncement = function(idx) {
-  appState.announcements[idx].reactions++;
-  saveState();
-  renderHUDView();
+window.reactAnnouncement = function(postId) {
+  var post = appState.announcements.find(function(a) { return a.id === postId; });
+  if (post) {
+    post.reactions++;
+    saveState();
+    renderHUDView();
+  }
+};
+
+window.dismissAnnouncement = function(postId) {
+  var post = appState.announcements.find(function(a) { return a.id === postId; });
+  if (post) {
+    if (!post.readBy) post.readBy = [];
+    if (post.readBy.indexOf(appState.currentUser.name) === -1) {
+      post.readBy.push(appState.currentUser.name);
+    }
+    saveState();
+    renderHUDView();
+  }
 };
 
 window.promptPayMembershipDues = function() {
@@ -531,7 +702,7 @@ window.promptPayMembershipDues = function() {
 
   window.showConfirmDialog(
     "Renew Annual Membership Subs",
-    "<strong>Season:</strong> " + appState.duesConfig.activeSeason + "<br><strong>Tier:</strong> " + user.membershipTier + "<br><strong>Total to Pay:</strong> £" + fee.toFixed(2) + "<br><br>Settle annual dues to restore travel and ticket ballot privileges.",
+    "<strong>Season:</strong> " + appState.duesConfig.activeSeason + "<br><strong>Tier:</strong> " + user.membershipTier + "<br><strong>Total to Pay:</strong> £" + fee.toFixed(2) + "<br><br>Settle annual dues to restore travel and ticket privileges.",
     function() {
       user.balance -= fee;
       user.membershipStatus = "active";
@@ -547,42 +718,144 @@ window.promptPayMembershipDues = function() {
 
 // --- 2. TRAVEL & BUS BOOKINGS ---
 function renderBusBookingView() {
-  var sel = document.getElementById("booking-stop");
-  if (!sel) return;
-  sel.innerHTML = "";
-  appState.stops.forEach(function(s) {
-    var opt = document.createElement("option");
-    opt.value = s.name + " (" + s.time + ")";
-    opt.textContent = s.name + " (" + s.time + ")";
-    sel.appendChild(opt);
-  });
-  var totalSeats = 0;
-  appState.bookings.forEach(function(b) { totalSeats += (b.adults + b.juniors); });
-  var rem = 53 - totalSeats;
-  document.getElementById("seats-status").textContent = rem > 0 ? rem + " Seats Remaining" : "FULL (Waitlist)";
-  document.getElementById("seats-bar").style.width = Math.min(100, Math.round((totalSeats / 53) * 100)) + "%";
+  var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+  var buses = activeMatch.buses || [];
+
+  // Coach Selector for Multiple Coaches
+  var busSelectorGroup = document.getElementById("booking-bus-selector-group");
+  var busSelectElem = document.getElementById("booking-bus-select");
+
+  if (busSelectorGroup && busSelectElem) {
+    if (buses.length > 1) {
+      busSelectorGroup.style.display = "block";
+      var currentBusVal = parseInt(busSelectElem.value) || appState.selectedBookingBusId;
+      busSelectElem.innerHTML = "";
+      buses.forEach(function(b) {
+        var opt = document.createElement("option");
+        opt.value = b.busId;
+        opt.textContent = b.title + " (" + (b.capacity || 53) + " Seats)";
+        if (b.busId === currentBusVal) opt.selected = true;
+        busSelectElem.appendChild(opt);
+      });
+      appState.selectedBookingBusId = parseInt(busSelectElem.value) || buses[0].busId;
+    } else {
+      busSelectorGroup.style.display = "none";
+      appState.selectedBookingBusId = buses[0] ? buses[0].busId : 1;
+    }
+  }
+
+  window.updateBookingCoachUI();
 }
+
+window.updateBookingCoachUI = function() {
+  var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+  var buses = activeMatch.buses || [];
+
+  var busSelectElem = document.getElementById("booking-bus-select");
+  if (busSelectElem && buses.length > 1) {
+    appState.selectedBookingBusId = parseInt(busSelectElem.value) || 1;
+  }
+
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+    busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS
+  };
+
+  var titleElem = document.getElementById("travel-coach-title");
+  var subElem = document.getElementById("travel-coach-subtitle");
+  var pricePill = document.getElementById("travel-coach-price-pill");
+  var labelAdult = document.getElementById("label-adult-fare");
+  var labelJunior = document.getElementById("label-junior-fare");
+  var busCountLabel = document.getElementById("travel-bus-count-label");
+
+  if (titleElem) titleElem.textContent = "Sunderland vs " + activeMatch.opponent;
+  if (subElem) subElem.textContent = selectedBus.subtitle || (selectedBus.title + " • Official Branch Travel");
+  if (busCountLabel) busCountLabel.textContent = "Fleet: " + buses.length + " Coach" + (buses.length > 1 ? "es" : "");
+
+  if (selectedBus.isFreeBus) {
+    if (pricePill) pricePill.textContent = "FREE BUS (Branch Sponsored)";
+    if (labelAdult) labelAdult.textContent = "Adults (£0.00 - FREE)";
+    if (labelJunior) labelJunior.textContent = "Junior U16 (£0.00 - FREE)";
+  } else {
+    if (pricePill) pricePill.textContent = "£" + selectedBus.adultFare.toFixed(2) + " Adult • £" + selectedBus.juniorFare.toFixed(2) + " Junior";
+    if (labelAdult) labelAdult.textContent = "Adults (£" + selectedBus.adultFare.toFixed(2) + ")";
+    if (labelJunior) labelJunior.textContent = "Junior U16 (£" + selectedBus.juniorFare.toFixed(2) + ")";
+  }
+
+  // Populate Pickup Stops specific to this coach
+  var sel = document.getElementById("booking-stop");
+  if (sel) {
+    sel.innerHTML = "";
+    var coachStops = selectedBus.stops || DEFAULT_STOPS;
+    coachStops.forEach(function(s) {
+      var opt = document.createElement("option");
+      opt.value = s.name + " (" + s.time + ")";
+      opt.textContent = s.name + " (" + s.time + ")";
+      sel.appendChild(opt);
+    });
+  }
+
+  // Calculate Capacity & Booked seats on this specific bus
+  var busBookings = appState.bookings.filter(function(b) {
+    return b.matchId === activeMatch.id && (b.busId || 1) === selectedBus.busId;
+  });
+  var totalBooked = 0;
+  busBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
+
+  var cap = selectedBus.capacity || 53;
+  var rem = cap - totalBooked;
+  var statusElem = document.getElementById("seats-status");
+  var barElem = document.getElementById("seats-bar");
+  if (statusElem) statusElem.textContent = rem > 0 ? rem + " / " + cap + " Seats on " + selectedBus.title : selectedBus.title + " FULL";
+  if (barElem) barElem.style.width = Math.min(100, Math.round((totalBooked / (cap || 1)) * 100)) + "%";
+
+  // Check if current user already booked on this match
+  var actionBox = document.getElementById("booking-action-container");
+  var matchBookings = appState.bookings.filter(function(b) { return b.matchId === activeMatch.id; });
+  var existingBooking = matchBookings.find(function(b) { return b.name.indexOf(appState.currentUser.name) !== -1; });
+
+  if (actionBox) {
+    if (existingBooking) {
+      actionBox.innerHTML = 
+        "<div style='background:#064e3b; border:1px solid #10b981; padding:8px 10px; border-radius:6px; margin-bottom:8px; font-size:11px; color:#fff;'>" +
+          "<strong>✓ You have booked seats for this match!</strong><br>" +
+          "Coach: Bus #" + (existingBooking.busId || 1) + " • Seats: " + (existingBooking.adults + existingBooking.juniors) + " • Pickup: " + existingBooking.stop +
+        "</div>" +
+        "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.cancelMyBooking(" + existingBooking.id + ")'>Cancel Booking & Refund</button>";
+    } else {
+      actionBox.innerHTML = "<button id='btn-book-seat' class='btn btn-red btn-sm' onclick='window.openBookingModal()'>Book Coach Seat (" + (selectedBus.isFreeBus ? "FREE" : "£" + selectedBus.adultFare.toFixed(2)) + ")</button>";
+    }
+  }
+};
 
 window.openBookingModal = function() {
   if (!verifyMembershipAccess("book matchday coach travel")) return;
 
+  var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+  var buses = activeMatch.buses || [];
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+    busId: 1, title: "Bus 1", adultFare: 12.00, juniorFare: 8.00, isFreeBus: false
+  };
+
   var adults = parseInt(document.getElementById("adult-count").value) || 0;
   var juniors = parseInt(document.getElementById("junior-count").value) || 0;
   var stop = document.getElementById("booking-stop").value;
-  var total = (adults * 12) + (juniors * 8);
+  
+  var total = selectedBus.isFreeBus ? 0.00 : ((adults * selectedBus.adultFare) + (juniors * selectedBus.juniorFare));
 
   var user = getCurrentUserRecord();
-  if (total === 0) { alert("Please select at least 1 seat."); return; }
+  if (adults === 0 && juniors === 0) { alert("Please select at least 1 seat."); return; }
   if (user.balance < total) { alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2)); return; }
 
   window.showConfirmDialog(
     "Confirm Match Coach Booking",
-    "<strong>Fixture:</strong> Coventry City (H)<br><strong>Pickup:</strong> " + stop + "<br><strong>Seats:</strong> " + adults + " Adult(s), " + juniors + " Junior(s)<br><strong>Total to Pay:</strong> £" + total.toFixed(2),
+    "<strong>Fixture:</strong> Sunderland vs " + activeMatch.opponent + "<br><strong>Coach:</strong> " + selectedBus.title + "<br><strong>Pickup:</strong> " + stop + "<br><strong>Seats:</strong> " + adults + " Adult(s), " + juniors + " Junior(s)<br><strong>Total to Pay:</strong> " + (selectedBus.isFreeBus ? "<span style='color:var(--green); font-weight:800;'>FREE (Branch Sponsored)</span>" : "£" + total.toFixed(2)),
     function() {
-      user.balance -= total;
-      logForensicTransaction(appState.currentUser.name, "Member", "Branch", "BUS_BOOKING", "Coach Seats: " + adults + " Adult, " + juniors + " Junior (" + stop + ")", total, 0, total);
+      if (total > 0) user.balance -= total;
+      logForensicTransaction(appState.currentUser.name, "Member", "Branch", "BUS_BOOKING", "Coach vs " + activeMatch.opponent + " (" + selectedBus.title + "): " + adults + " Adult, " + juniors + " Junior (" + stop + ")", total, 0, total);
       appState.bookings.push({
         id: Date.now(),
+        matchId: activeMatch.id,
+        busId: selectedBus.busId || 1,
         name: appState.currentUser.name + (juniors > 0 ? " + Party" : ""),
         stop: stop,
         adults: adults,
@@ -592,56 +865,147 @@ window.openBookingModal = function() {
       });
       saveState();
       window.refreshAllViews();
-      alert("Booking confirmed and seat reserved on branch coach!");
+      alert("✓ Booking confirmed! Your seat is reserved on " + selectedBus.title + ".");
     }
   );
 };
 
-function renderAwayPartySelector() {
-  var container = document.getElementById("away-party-checklist");
-  if (!container) return;
-  container.innerHTML = "";
-  var lead = getCurrentUserRecord();
-  var leadDiv = document.createElement("label");
-  leadDiv.style.cssText = "display:flex; align-items:center; gap:8px; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
-  leadDiv.innerHTML = "<input type='checkbox' checked disabled> <span><strong>" + lead.name + "</strong> (" + lead.category + " - Lead)</span>";
-  container.appendChild(leadDiv);
+window.cancelMyBooking = function(bookingId) {
+  var bIdx = appState.bookings.findIndex(function(b) { return b.id === bookingId; });
+  if (bIdx === -1) return;
+  var booking = appState.bookings[bIdx];
 
-  var myFriends = appState.friendsAndFamily.filter(function(f) { return f.owner === appState.currentUser.name && f.status === "approved"; });
-  myFriends.forEach(function(f) {
-    var div = document.createElement("label");
-    div.style.cssText = "display:flex; align-items:center; gap:8px; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
-    div.innerHTML = "<input type='checkbox' class='away-party-member' data-name='" + f.targetName + "' data-type='" + f.type + "'> <span><strong>" + f.targetName + "</strong> (" + f.type + " - " + f.relation + ")</span>";
-    container.appendChild(div);
+  window.showConfirmDialog(
+    "Cancel Coach Booking",
+    "Are you sure you want to cancel your coach reservation?<br><br>A full refund of <strong>£" + booking.total.toFixed(2) + "</strong> will be credited directly to your branch wallet.",
+    function() {
+      var user = getCurrentUserRecord();
+      if (booking.total > 0) {
+        user.balance += booking.total;
+        logForensicTransaction("Branch", "System", user.name, "BUS_REFUND", "Refund: Cancelled coach booking #" + booking.id, 0, booking.total, -booking.total);
+      }
+      appState.bookings.splice(bIdx, 1);
+      saveState();
+      window.refreshAllViews();
+      alert("✓ Coach booking cancelled. Refund processed to your wallet.");
+    }
+  );
+};
+
+// --- MEMBER AWAY FIXTURE SELECTOR ---
+function renderMemberAwayView() {
+  var sel = document.getElementById("member-away-game-select");
+  var card = document.getElementById("member-away-status-card");
+  if (!sel || !card) return;
+
+  var currentVal = sel.value;
+  sel.innerHTML = "";
+  appState.awayFixtures.forEach(function(f) {
+    var opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = f.opponent + " (A) • " + f.date;
+    if (currentVal && currentVal === f.id) opt.selected = true;
+    sel.appendChild(opt);
   });
+  if (!sel.value && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
+
+  var selectedId = sel.value;
+  var fixture = appState.awayFixtures.find(function(f) { return f.id === selectedId; });
+  if (!fixture) return;
+
+  var myReg = appState.awayRegistrations.find(function(r) {
+    return r.fixtureId === selectedId && r.memberName === appState.currentUser.name;
+  });
+
+  var html = 
+    "<div class='flex-between'>" +
+      "<strong>" + fixture.opponent + " (Away)</strong>" +
+      "<span class='badge-gold'>" + fixture.date + " (" + fixture.time + ")</span>" +
+    "</div>" +
+    "<div class='text-xs text-muted mt-2'>Branch Ticket Quota: <strong>" + fixture.allocation + " Tickets</strong></div>";
+
+  if (myReg) {
+    var allocPill = myReg.allocated ? 
+      "<span style='color:var(--green); font-weight:800;'>✓ TICKET ALLOCATED BY COMMITTEE</span>" : 
+      "<span style='color:var(--safc-gold); font-weight:800;'>⏳ Interest Registered (Awaiting Club Allocation)</span>";
+
+    html += 
+      "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin:10px 0; font-size:11px;'>" +
+        "<div>Status: " + allocPill + "</div>" +
+        "<div style='color:#cbd5e1; margin-top:4px;'>Party: " + myReg.party.join(", ") + "</div>" +
+      "</div>" +
+      "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Expression of Interest</button>";
+  } else {
+    var lead = getCurrentUserRecord();
+    var myFriends = appState.friendsAndFamily.filter(function(f) { return f.owner === appState.currentUser.name && f.status === "approved"; });
+
+    html += 
+      "<div style='margin-top:10px;'>" +
+        "<label class='form-label'>Traveling Party (Friends & Family)</label>" +
+        "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:11px;'>" +
+          "<input type='checkbox' checked disabled /> <strong>" + lead.name + "</strong> (" + lead.category + " - Lead)" +
+        "</div>";
+
+    myFriends.forEach(function(f) {
+      html += 
+        "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;'>" +
+          "<input type='checkbox' class='away-party-member-cb' data-name='" + f.targetName + "' data-type='" + f.type + "' /> " +
+          "<strong>" + f.targetName + "</strong> (" + f.type + " - " + f.relation + ")" +
+        "</div>";
+    });
+
+    html += 
+        "<button class='btn btn-red btn-sm mt-2' style='width:100%;' onclick='window.registerAwayInterest(\"" + fixture.id + "\")'>Register Expression of Interest</button>" +
+      "</div>";
+  }
+
+  card.innerHTML = html;
 }
 
-window.submitAwayBallotInterest = function() {
-  if (!verifyMembershipAccess("enter away ticket ballots")) return;
+window.registerAwayInterest = function(fixtureId) {
+  if (!verifyMembershipAccess("apply for away match tickets")) return;
 
   var party = [appState.currentUser.name + " (Adult)"];
-  var adults = 1; var juniors = 0;
-  document.querySelectorAll(".away-party-member:checked").forEach(function(cb) {
-    var name = cb.getAttribute("data-name");
-    var type = cb.getAttribute("data-type");
-    party.push(name + " (" + type + ")");
-    if (type === "Child" || type === "Junior") juniors++; else adults++;
+  document.querySelectorAll(".away-party-member-cb:checked").forEach(function(cb) {
+    party.push(cb.getAttribute("data-name") + " (" + cb.getAttribute("data-type") + ")");
   });
 
-  appState.awayBallotRequests = appState.awayBallotRequests.filter(function(r) { return r.leadName !== appState.currentUser.name; });
-  appState.awayBallotRequests.push({
-    leadName: appState.currentUser.name,
-    party: party, adults: adults, juniors: juniors, timestamp: Date.now()
+  appState.awayRegistrations.push({
+    fixtureId: fixtureId,
+    memberName: appState.currentUser.name,
+    party: party,
+    allocated: false
   });
-  logForensicTransaction(appState.currentUser.name, "Member", "Branch", "AWAY_BALLOT_SUBMIT", "Ballot request for party of " + party.length + " to Leeds (A)", 0, 0, 0);
+
   saveState();
-  window.refreshAllViews();
-  alert("Expression of Interest registered for " + party.length + " party member(s).");
+  renderMemberAwayView();
+  alert("✓ Expression of Interest registered for party of " + party.length + ".");
 };
+
+window.withdrawAwayInterest = function(fixtureId) {
+  var idx = appState.awayRegistrations.findIndex(function(r) {
+    return r.fixtureId === fixtureId && r.memberName === appState.currentUser.name;
+  });
+  if (idx !== -1) {
+    appState.awayRegistrations.splice(idx, 1);
+    saveState();
+    renderMemberAwayView();
+    alert("✓ Expression of Interest withdrawn.");
+  }
+};
+
+// ==========================================
+// END OF PART 1 OF 3
+// ==========================================
+
+// ========================================================
+// COXHOE BRANCH SAFC - APP.JS (PART 2 OF 3)
+// Fundraiser, Profile/FnF Unlink, Statement & Comms Hub
+// ========================================================
 
 // --- 3. FUNDRAISER (FOOTBALL CARD & BONUS BALL) ---
 function calculateCardFinancials() {
-  var activeClubs = appState.cardConfig.activeClubs;
+  var activeClubs = appState.cardConfig.activeClubs || [];
   var totalSquares = activeClubs.length;
   var soldCount = 0;
   activeClubs.forEach(function(c) { if (appState.cardClaims[c]) soldCount++; });
@@ -663,7 +1027,7 @@ function renderFootballCard() {
   if (!grid) return;
   grid.innerHTML = "";
 
-  var activeClubs = appState.cardConfig.activeClubs;
+  var activeClubs = appState.cardConfig.activeClubs || [];
   var fin = calculateCardFinancials();
 
   activeClubs.forEach(function(team) {
@@ -680,28 +1044,27 @@ function renderFootballCard() {
     grid.appendChild(cell);
   });
 
-  document.getElementById("card-teams-count-label").textContent = "⚽ " + fin.totalSquares + "-Team Football Card";
-  document.getElementById("card-price-label").textContent = "£" + appState.cardConfig.pricePerSquare.toFixed(2) + "/sq";
-  document.getElementById("card-prize-label").textContent = "£" + fin.winnerPrize.toFixed(2) + " Prize";
-  document.getElementById("card-sold-summary").textContent = fin.soldCount + " of " + fin.totalSquares + " Sold";
+  var teamsCountLabel = document.getElementById("card-teams-count-label");
+  var priceLabel = document.getElementById("card-price-label");
+  var prizeLabel = document.getElementById("card-prize-label");
+  var soldSummary = document.getElementById("card-sold-summary");
 
-  var adminBreakdown = document.getElementById("admin-card-financial-breakdown");
-  if (adminBreakdown) {
-    adminBreakdown.innerHTML =
-      "<div style='display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px;'>" +
-        "<div>Sold: <strong>" + fin.soldCount + " / " + fin.totalSquares + "</strong></div>" +
-        "<div>Gross Pot: <strong>£" + fin.grossPot.toFixed(2) + "</strong></div>" +
-        "<div style='color:var(--safc-gold);'>Winner Share: <strong>£" + fin.winnerPrize.toFixed(2) + "</strong></div>" +
-        "<div style='color:var(--green);'>Branch Retained: <strong>£" + fin.branchProfit.toFixed(2) + "</strong></div>" +
-      "</div>";
-  }
+  if (teamsCountLabel) teamsCountLabel.textContent = "⚽ " + fin.totalSquares + "-Team Football Card";
+  if (priceLabel) priceLabel.textContent = "£" + appState.cardConfig.pricePerSquare.toFixed(2) + "/sq";
+  if (prizeLabel) prizeLabel.textContent = "£" + fin.winnerPrize.toFixed(2) + " Prize";
+  if (soldSummary) soldSummary.textContent = fin.soldCount + " of " + fin.totalSquares + " Sold";
 }
 
 window.promptCardClaim = function(team) {
+  var user = getCurrentUserRecord();
+  if (user.category === "Child") {
+    alert("🛡️ JUNIOR ACCOUNT RESTRICTION:\n\nMembers under 18 cannot purchase football card entries directly.\n\nAll fundraiser entries must be bought by your linked adult guardian.");
+    return;
+  }
+
   if (!verifyMembershipAccess("play the football card")) return;
 
   var fee = appState.cardConfig.pricePerSquare;
-  var user = getCurrentUserRecord();
   if (user.balance < fee) {
     alert("Insufficient balance! You need £" + fee.toFixed(2) + " to buy a square, but your balance is £" + user.balance.toFixed(2) + ".\nPlease top up your wallet.");
     return;
@@ -728,16 +1091,16 @@ function renderBonusRegistry() {
   grid.innerHTML = "";
   for (var i = 1; i <= 59; i++) {
     var num = i.toString();
-    var item = appState.bonusRegistry[num];
+    var item = appState.bonusRegistry[num] || { owner: null, status: "locked" };
     var cell = document.createElement("div");
     cell.className = "bonus-cell";
     if (item.status === "ballot_open") {
-      cell.innerHTML = "<div style='font-weight:800; color:#facc15;'>#" + num + "</div><div style='font-size:7px; color:#facc15;'>BALLOT</div>";
+      cell.innerHTML = "<div style='font-weight:800; color:#facc15;'>#" + num + "</div><div style='font-size:7px; color:#facc15;'>OPEN</div>";
     } else if (item.owner === appState.currentUser.name) {
       cell.style.background = "#15803d";
       cell.innerHTML = "<div style='font-weight:800; color:#fff;'>#" + num + "</div><div style='font-size:8px; color:#fff;'>YOU</div>";
     } else {
-      cell.innerHTML = "<div style='font-weight:800;'>#" + num + "</div><div style='font-size:8px; color:var(--safc-gold); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;'>" + item.owner + "</div>";
+      cell.innerHTML = "<div style='font-weight:800;'>#" + num + "</div><div style='font-size:8px; color:var(--safc-gold); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;'>" + (item.owner || "Available") + "</div>";
     }
     grid.appendChild(cell);
   }
@@ -746,25 +1109,148 @@ function renderBonusRegistry() {
 // --- 4. MY PASS & STATEMENT ---
 function renderProfilePassView() {
   var user = getCurrentUserRecord();
-  document.getElementById("card-name").textContent = user.name;
-  document.getElementById("card-no").textContent = "Member #" + user.memberNo;
-
+  var cardNameElem = document.getElementById("card-name");
+  var cardNoElem = document.getElementById("card-no");
   var statusElem = document.getElementById("pass-membership-status");
   var renewalBtn = document.getElementById("pass-renew-btn");
+
+  var displayNameText = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
+  if (cardNameElem) cardNameElem.textContent = displayNameText;
+  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (user.dob ? "DOB: " + user.dob : user.category);
 
   if (user.membershipStatus === "active") {
     statusElem.innerHTML = "<span style='color:var(--green); font-weight:800;'>🟢 ACTIVE • " + (user.membershipSeason || "2026/27") + " (" + user.membershipTier + ")</span><br><span style='font-size:10px; color:var(--text-muted);'>Valid through " + (user.validUntil || "2027-07-31") + "</span>";
     if (renewalBtn) renewalBtn.style.display = "none";
   } else {
     var dueFee = (user.category === "Child" ? appState.duesConfig.juniorFee : appState.duesConfig.adultFee);
-    statusElem.innerHTML = "<span style='color:#ef4444; font-weight:800;'>🔴 LAPSED / OVERDUE • " + (user.membershipSeason || "2025/26") + "</span><br><span style='font-size:10px; color:#f87171;'>Travel & Ballot Privileges Locked</span>";
+    statusElem.innerHTML = "<span style='color:#ef4444; font-weight:800;'>🔴 LAPSED / OVERDUE • " + (user.membershipSeason || "2025/26") + "</span><br><span style='font-size:10px; color:#f87171;'>Travel & Away Privileges Locked</span>";
     if (renewalBtn) {
-      renewalBtn.style.display = "block";
+      renewalBtn.style.display = (user.category === "Child") ? "none" : "block";
       renewalBtn.textContent = "Renew " + appState.duesConfig.activeSeason + " Season Pass (£" + dueFee.toFixed(2) + ")";
+    }
+  }
+
+  // Under-18 Safeguarding Wallet Lock: Disables wallet top-up/spending for minors
+  var topUpBtn = document.querySelector("#wallet-statement-title ~ button");
+  if (topUpBtn) {
+    if (user.category === "Child") {
+      topUpBtn.style.display = "none";
+      var balanceElem = document.getElementById("display-balance");
+      if (balanceElem) balanceElem.textContent = "JUNIOR PASS";
+    } else {
+      topUpBtn.style.display = "inline-block";
     }
   }
 }
 
+// Friends & Family Network with Member-Side Unlink Ability
+function renderFriendsFamilyChecklist() {
+  var container = document.getElementById("fnf-manager-list");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  var myFriends = appState.friendsAndFamily.filter(function(f) { 
+    return f.owner === appState.currentUser.name; 
+  });
+
+  if (myFriends.length === 0) {
+    container.innerHTML = "<div class='text-xs text-muted' style='padding:6px 0;'>No linked friends or family yet. Use the form below to connect family members.</div>";
+    return;
+  }
+
+  myFriends.forEach(function(f) {
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
+    row.innerHTML = 
+      "<div>" +
+        "<strong>" + f.targetName + "</strong> (" + f.relation + ")<br>" +
+        "<span style='color:var(--safc-gold); font-size:10px;'>" + f.type + " • " + (f.memberNo || "Member") + "</span>" +
+      "</div>" +
+      "<div style='display:flex; align-items:center; gap:6px;'>" +
+        "<span style='color:var(--green); font-size:10px; font-weight:700;'>✓ Active</span>" +
+        "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.unlinkFriendFamily(" + f.id + ")'>Unlink</button>" +
+      "</div>";
+    container.appendChild(row);
+  });
+}
+
+window.unlinkFriendFamily = function(linkId) {
+  var link = appState.friendsAndFamily.find(function(f) { return f.id === linkId; });
+  if (!link) return;
+
+  window.showConfirmDialog(
+    "Unlink Connection",
+    "Are you sure you want to disconnect from <strong>" + link.targetName + "</strong> (" + link.relation + ")?<br><br>You will no longer be able to book travel or away tickets on their behalf.",
+    function() {
+      appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) {
+        var isDirect = (f.owner === link.owner && f.targetName === link.targetName);
+        var isReciprocal = (f.owner === link.targetName && f.targetName === link.owner);
+        return !isDirect && !isReciprocal;
+      });
+      saveState();
+      window.refreshAllViews();
+      alert("✓ Connection removed.");
+    }
+  );
+};
+
+window.requestMemberLink = function() {
+  var searchInput = document.getElementById("fnf-search-input");
+  var relSelect = document.getElementById("fnf-relation-select");
+  var targetName = searchInput ? searchInput.value.trim() : "";
+  var relation = relSelect ? relSelect.value : "Friend";
+
+  if (!targetName) {
+    alert("Please enter a member name or number.");
+    return;
+  }
+
+  var found = appState.users.find(function(u) {
+    return u.name.toLowerCase() === targetName.toLowerCase() || u.memberNo.toLowerCase() === targetName.toLowerCase();
+  });
+
+  var finalName = found ? found.name : targetName;
+  var finalType = (found && found.category === "Child") || relation === "Child" ? "Child" : "Adult";
+  var finalNo = found ? found.memberNo : "COX-" + Math.floor(100 + Math.random() * 900);
+
+  if (finalType === "Child") {
+    appState.pendingLinkRequests.push({
+      id: Date.now(),
+      requester: appState.currentUser.name,
+      targetName: finalName,
+      relation: relation,
+      type: finalType,
+      status: "pending_admin"
+    });
+    alert("🛡️ Safeguarding Verification Submitted:\n\nUnder branch rules, links involving members under 18 must be approved by the Branch Secretary before bookings can be made.");
+  } else {
+    appState.friendsAndFamily.push({
+      id: Date.now(),
+      owner: appState.currentUser.name,
+      targetName: finalName,
+      relation: relation,
+      type: finalType,
+      memberNo: finalNo,
+      status: "approved"
+    });
+    appState.friendsAndFamily.push({
+      id: Date.now() + 1,
+      owner: finalName,
+      targetName: appState.currentUser.name,
+      relation: relation === "Child" ? "Parent" : "Friend",
+      type: "Adult",
+      memberNo: appState.currentUser.memberNo,
+      status: "approved"
+    });
+    alert("✓ Link established with " + finalName + ".");
+  }
+
+  if (searchInput) searchInput.value = "";
+  saveState();
+  window.refreshAllViews();
+};
+
+// Advanced Wallet Statement with Multi-Filtering & Export
 window.handleStatementTimeframeChange = function(val) {
   var customBox = document.getElementById("statement-custom-date-box");
   if (customBox) {
@@ -797,8 +1283,9 @@ function renderWalletStatement() {
     if (!isMyDebit && !isMyCredit) return false;
 
     if (categoryFilter !== "ALL") {
-      if (categoryFilter === "BUS" && t.category !== "BUS_BOOKING") return false;
+      if (categoryFilter === "BUS" && t.category !== "BUS_BOOKING" && t.category !== "BUS_REFUND") return false;
       if (categoryFilter === "CARD" && t.category !== "CARD" && t.category !== "FOOTBALL_CARD" && t.category !== "CARD_WINNER_PAYOUT") return false;
+      if (categoryFilter === "AWAY" && t.category.indexOf("AWAY") === -1) return false;
       if (categoryFilter === "BONUS" && t.category.indexOf("BONUS") === -1) return false;
       if (categoryFilter === "TOPUP" && t.category !== "TOPUP" && t.category !== "MEMBER_TOPUP") return false;
       if (categoryFilter === "SUBS" && t.category !== "SUBS_DUES") return false;
@@ -842,7 +1329,7 @@ function renderWalletStatement() {
 
   var summaryBox = document.getElementById("statement-filtered-summary");
   if (summaryBox) {
-    summaryBox.innerHTML =
+    summaryBox.innerHTML = 
       "<span>In: <strong style='color:var(--green);'>+£" + filteredIn.toFixed(2) + "</strong></span>" +
       "<span>Out: <strong style='color:#ef4444;'>-£" + filteredOut.toFixed(2) + "</strong></span>" +
       "<span>Net: <strong style='color:" + (netFlow >= 0 ? "var(--green)" : "#ef4444") + ";'>" + (netFlow >= 0 ? "+£" : "-£") + Math.abs(netFlow).toFixed(2) + "</strong></span>";
@@ -860,34 +1347,33 @@ function renderWalletStatement() {
     var color = isCredit ? "var(--green)" : "#ef4444";
     var prefix = isCredit ? "+£" : "-£";
     var amt = isCredit ? item.credit : item.debit;
-    row.innerHTML =
+    row.innerHTML = 
       "<div><strong>" + item.desc + "</strong><br><span style='font-size:10px; color:#94a3b8;'>" + item.timestamp.substring(0, 16) + " • " + item.txnId + "</span></div>" +
       "<div style='font-weight:700; color:" + color + ";'>" + prefix + amt.toFixed(2) + "</div>";
     container.appendChild(row);
   });
 }
 
-function renderFriendsFamilyChecklist() {
-  var container = document.getElementById("fnf-manager-list");
-  if (!container) return;
-  container.innerHTML = "";
-  var myFriends = appState.friendsAndFamily.filter(function(f) { return f.owner === appState.currentUser.name; });
-  myFriends.forEach(function(f) {
-    var row = document.createElement("div");
-    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
-    row.innerHTML = 
-      "<div><strong>" + f.targetName + "</strong> (" + f.relation + ")<br><span style='color:var(--safc-gold);'>" + f.type + " • " + f.memberNo + "</span></div>" +
-      "<span style='color:var(--green); font-size:10px;'>✓ Active</span>";
-    container.appendChild(row);
+window.exportMyStatementCSV = function() {
+  var current = appState.currentUser.name;
+  var myTxns = appState.masterAuditTrail.filter(function(t) {
+    return t.actor === current || t.target === current;
   });
-}
 
-function renderPendingAuthorizations() {
-  var box = document.getElementById("member-pending-auth-box");
-  if (!box) return;
-  var myReqs = appState.pendingLinkRequests.filter(function(r) { return r.targetName === appState.currentUser.name; });
-  box.style.display = myReqs.length > 0 ? "block" : "none";
-}
+  var csv = "Txn ID,Timestamp,Category,Description,Debit (Out),Credit (In),Balance After\n";
+  myTxns.forEach(function(t) {
+    var debitStr = (t.actor === current && t.debit > 0) ? "£" + t.debit.toFixed(2) : "£0.00";
+    var creditStr = (t.target === current && t.credit > 0) ? "£" + t.credit.toFixed(2) : "£0.00";
+    csv += '"' + t.txnId + '","' + t.timestamp + '","' + t.category + '","' + t.desc.replace(/"/g, '""') + '","' + debitStr + '","' + creditStr + '","£' + (t.balanceAfter || 0).toFixed(2) + '"\n';
+  });
+
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var url = window.URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.setAttribute("href", url);
+  a.setAttribute("download", current.replace(/\s+/g, "_") + "_Branch_Statement.csv");
+  a.click();
+};
 
 // --- 5. COMMS & CHAT HUB ---
 window.switchCommsSubTab = function(subId) {
@@ -908,7 +1394,9 @@ function renderCommsTabs() {
 
 function renderMatchdayBusChat() {
   var container = document.getElementById("bus-chat-messages");
+  if (!container) return;
   container.innerHTML = "";
+  
   appState.matchdayChat.forEach(function(msg) {
     var isMe = msg.sender === appState.currentUser.name;
     var bubble = document.createElement("div");
@@ -929,20 +1417,23 @@ function renderMatchdayBusChat() {
   var statusNotice = document.getElementById("bus-chat-status-notice");
 
   if (isRevoked) {
-    input.disabled = true; sendBtn.disabled = true;
-    statusNotice.innerHTML = "<span style='color:#ef4444; font-weight:800;'>⛔ Messaging privileges revoked across branch. Subject to Committee Quorum Vote.</span>";
+    if (input) input.disabled = true; 
+    if (sendBtn) sendBtn.disabled = true;
+    if (statusNotice) statusNotice.innerHTML = "<span style='color:#ef4444; font-weight:800;'>⛔ Messaging privileges revoked across branch. Subject to Committee Quorum Vote.</span>";
   } else if (isMuted) {
-    input.disabled = true; sendBtn.disabled = true;
-    statusNotice.innerHTML = "<span style='color:#facc15; font-weight:800;'>🚫 Chat Muted for language/aggression. Incident forwarded for Committee Review.</span>";
+    if (input) input.disabled = true; 
+    if (sendBtn) sendBtn.disabled = true;
+    if (statusNotice) statusNotice.innerHTML = "<span style='color:#facc15; font-weight:800;'>🚫 Chat Muted for language/aggression. Incident forwarded for Committee Review.</span>";
   } else {
-    input.disabled = false; sendBtn.disabled = false;
-    statusNotice.innerHTML = "<span style='color:#94a3b8; font-size:10px;'>Active Safeguarding Engine: Profanity, northern slang & aggression moderated.</span>";
+    if (input) input.disabled = false; 
+    if (sendBtn) sendBtn.disabled = false;
+    if (statusNotice) statusNotice.innerHTML = "<span style='color:#94a3b8; font-size:10px;'>Active Safeguarding Engine: Profanity, northern slang & aggression moderated.</span>";
   }
 }
 
 window.sendMatchdayBusMessage = function() {
   var input = document.getElementById("bus-chat-input");
-  var text = input.value.trim();
+  var text = input ? input.value.trim() : "";
   if (!text) return;
   var current = appState.currentUser.name;
 
@@ -978,7 +1469,7 @@ window.sendMatchdayBusMessage = function() {
       saveState();
       renderMatchdayBusChat();
       updateAdminDrawerBadge();
-      alert("🚫 CHAT MUTED (STRIKE 2):\n" + analysis.reason + "\n\nYou have been muted from this Matchday Chat. The complete conversation transcript has been forwarded to the Committee Review Board.");
+      alert("🚫 CHAT MUTED (STRIKE 2):\n" + analysis.reason + "\n\nYou have been muted from Matchday Chat. The transcript has been forwarded to the Committee Review Board.");
       return;
     } else {
       appState.moderation.revokedMembers.push(current);
@@ -1016,6 +1507,7 @@ window.sendMatchdayBusMessage = function() {
 
 function renderDirectMessagesView() {
   var container = document.getElementById("dm-threads-container");
+  if (!container) return;
   container.innerHTML = "";
   var current = appState.currentUser.name;
   var curRecord = getCurrentUserRecord();
@@ -1051,11 +1543,12 @@ window.startDirectMessage = function() {
     alert("🛡️ SAFEGUARDING VIOLATION BLOCKED:\nDirect messaging with members under 18 is prohibited.\n\nAll contact regarding " + recipient + " must be conducted via their linked parent.");
     return;
   }
-  document.getElementById("active-dm-feed").innerHTML = "<strong>Chat with " + recipient + ":</strong><br><span style='color:var(--green);'>Private end-to-end encrypted connection open.</span>";
+  document.getElementById("active-dm-feed").innerHTML = "<strong>Chat with " + recipient + ":</strong><br><span style='color:var(--green);'>Private connection open.</span>";
 };
 
 function renderCommitteeDeskView() {
   var container = document.getElementById("helpdesk-threads-list");
+  if (!container) return;
   container.innerHTML = "";
   var current = appState.currentUser.name;
   var isAdmin = appState.currentUser.role === "admin";
@@ -1274,114 +1767,435 @@ window.submitMemberHelpdeskTicket = function() {
   alert("Ticket #" + newId + " submitted to Shared Committee Desk.");
 };
 
-// --- 6. ADMIN DRAWER ---
+// ==========================================
+// END OF PART 2 OF 3
+// ==========================================
+
+// ========================================================
+// COXHOE BRANCH SAFC - APP.JS (PART 3 OF 3)
+// Committee Secretary HUD (All Panes), Modals & Bootloader
+// ========================================================
+
+// --- COMPLETE DROPDOWN ADMIN ENGINE ---
+var activeAdminTool = "buses";
+
+window.openAdminDrawer = function() {
+  var drawer = document.getElementById("admin-drawer");
+  if (drawer) {
+    drawer.style.display = "block";
+    drawer.classList.remove("hidden");
+  }
+  window.switchAdminTool(activeAdminTool);
+};
+
+window.closeAdminDrawer = function() {
+  var drawer = document.getElementById("admin-drawer");
+  if (drawer) {
+    drawer.style.display = "none";
+    drawer.classList.add("hidden");
+  }
+};
+
+window.switchAdminTool = function(toolId) {
+  activeAdminTool = toolId;
+
+  // 1. Hide all admin panes
+  var panes = document.querySelectorAll(".admin-pane");
+  panes.forEach(function(pane) {
+    pane.style.display = "none";
+    pane.classList.add("hidden");
+  });
+
+  // 2. Unhide selected pane
+  var selected = document.getElementById("admin-pane-" + toolId);
+  if (selected) {
+    selected.style.display = "block";
+    selected.classList.remove("hidden");
+  }
+
+  // 3. Keep select dropdown in sync
+  var selectElem = document.getElementById("admin-tool-select");
+  if (selectElem && selectElem.value !== toolId) {
+    selectElem.value = toolId;
+  }
+
+  // 4. Render data for active pane
+  renderAdminActivePane(toolId);
+};
+
+function renderAdminActivePane(toolId) {
+  switch (toolId) {
+    case "buses": window.renderAdminBusesTool(); break;
+    case "subs": renderAdminSubs(); break;
+    case "approvals": renderAdminApprovals(); break;
+    case "treasury": renderAdminTreasury(); break;
+    case "awaytickets": renderAdminAwayFixture(); break;
+    case "news": renderAdminNews(); break;
+    case "footballcard": renderAdminFootballCard(); break;
+    case "disciplinary": renderAdminDisciplinary(); break;
+  }
+}
+
 function renderAdminDrawer() {
-  var current = appState.currentUser.name;
-  var isOnCall = appState.committeeOnCall[current] !== false;
-  var toggleBtn = document.getElementById("admin-oncall-toggle-btn");
-  if (toggleBtn) {
-    toggleBtn.textContent = isOnCall ? "🟢 On-Call (Receiving Alerts)" : "⚪ Off-Duty (Muted)";
-    toggleBtn.style.color = isOnCall ? "var(--green)" : "#94a3b8";
-  }
-
-  renderAdminDuesManager();
-  renderAdminDisciplinaryBoard();
-
-  var childList = document.getElementById("admin-child-compliance-list");
-  if (childList) {
-    childList.innerHTML = "";
-    var children = appState.users.filter(function(u) { return u.category === "Child"; });
-    children.forEach(function(ch) {
-      var comp = checkChildCompliance(ch);
-      var statusText = comp.deactivated ? "<span style='color:#ef4444; font-weight:800;'>DEACTIVATED (Over 7 days)</span>" : "<span style='color:var(--green); font-weight:800;'>Compliant (Parent Linked)</span>";
-      var row = document.createElement("div");
-      row.style.cssText = "background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px; display:flex; justify-content:space-between; align-items:center;";
-      row.innerHTML = 
-        "<div><strong>" + ch.name + "</strong> (" + ch.memberNo + ")<br>Registered " + ch.registeredDaysAgo + " days ago • " + statusText + "</div>" +
-        (comp.deactivated ? "<button class='btn btn-gold btn-sm' style='padding:2px 6px; font-size:9px;' onclick='window.adminForceLinkParent(\"" + ch.name + "\")'>Link Parent</button>" : "");
-      childList.appendChild(row);
-    });
-  }
-
-  var box = document.getElementById("admin-pending-auth-box");
-  if (box) {
-    box.innerHTML = "";
-    var adminReqs = appState.pendingLinkRequests.filter(function(r) { return r.status === "pending_admin"; });
-    if (adminReqs.length === 0) {
-      box.innerHTML = "<div style='color:#94a3b8; font-size:10px;'>No pending non-app links.</div>";
-    } else {
-      adminReqs.forEach(function(req) {
-        var item = document.createElement("div");
-        item.style.cssText = "background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px; display:flex; justify-content:space-between; align-items:center;";
-        item.innerHTML = 
-          "<div><strong>" + req.requester + "</strong> ➔ <strong>" + req.targetName + "</strong> (" + req.relation + ")</div>" +
-          "<div style='display:flex; gap:4px;'><button class='btn btn-gold btn-sm' style='padding:1px 6px; font-size:9px;' onclick='window.adminApproveLink(" + req.id + ")'>Approve</button><button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444;' onclick='window.adminRejectLink(" + req.id + ")'>Reject</button></div>";
-        box.appendChild(item);
-      });
-    }
-  }
-
-  renderAdminLinkRectifierDropdown();
-  renderAdminLinkRectifier();
-  renderManifest();
-  renderAdminStopList();
-  renderAdminCardSettings();
-  renderAuditLogView();
+  window.switchAdminTool(activeAdminTool);
   updateAdminDrawerBadge();
 }
 
-function renderAdminDuesManager() {
-  var container = document.getElementById("admin-dues-roster-list");
+// --------------------------------------------------------
+// PANE 1: CONSOLIDATED BUSES SUITE
+// --------------------------------------------------------
+window.renderAdminBusesTool = function() {
+  var matchSelect = document.getElementById("admin-bus-match-select");
+  var busesContainer = document.getElementById("admin-match-buses-container");
+  if (!matchSelect || !busesContainer) return;
+
+  // 1. Populate Home Match Dropdown
+  var currentVal = matchSelect.value || appState.selectedHomeMatchId;
+  matchSelect.innerHTML = "";
+  appState.homeMatches.forEach(function(m) {
+    var opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = "Sunderland vs " + m.opponent + " (" + m.date + ")";
+    if (m.id === currentVal) opt.selected = true;
+    matchSelect.appendChild(opt);
+  });
+  if (!matchSelect.value && appState.homeMatches.length > 0) {
+    matchSelect.value = appState.homeMatches[0].id;
+  }
+
+  appState.selectedHomeMatchId = matchSelect.value;
+  var selectedMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+
+  // 2. Render Independent Buses Cards for this Match
+  busesContainer.innerHTML = "";
+  if (!selectedMatch.buses || selectedMatch.buses.length === 0) {
+    selectedMatch.buses = [{
+      busId: 1,
+      title: "Bus 1 (Main Village Route)",
+      subtitle: "Official Branch Travel • Stadium of Light",
+      capacity: 53,
+      adultFare: 12.00,
+      juniorFare: 8.00,
+      isFreeBus: false,
+      stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
+    }];
+  }
+
+  selectedMatch.buses.forEach(function(bus, idx) {
+    var card = document.createElement("div");
+    card.className = "admin-card mt-2";
+    
+    // Build stops list specifically for this coach
+    var stopsHtml = "";
+    var currentStops = bus.stops || DEFAULT_STOPS;
+    currentStops.forEach(function(s, sIdx) {
+      stopsHtml += 
+        "<div style='display:flex; gap:6px; margin-bottom:6px;'>" +
+          "<input type='text' class='form-input' style='flex:2; padding:4px 6px; font-size:11px;' value='" + s.name + "' onchange='window.updateBusStopField(\"" + selectedMatch.id + "\", " + idx + ", " + sIdx + ", \"name\", this.value)'>" +
+          "<input type='text' class='form-input' style='flex:1; padding:4px 6px; font-size:11px;' value='" + s.time + "' onchange='window.updateBusStopField(\"" + selectedMatch.id + "\", " + idx + ", " + sIdx + ", \"time\", this.value)'>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; color:#ef4444; border-color:#ef4444;' onclick='window.deleteStopFromBus(\"" + selectedMatch.id + "\", " + idx + ", " + sIdx + ")'>✕</button>" +
+        "</div>";
+    });
+
+    card.innerHTML = 
+      "<div class='flex-between'>" +
+        "<strong style='color:var(--safc-gold); font-size:12px;'>🚌 Coach #" + (idx + 1) + ": " + bus.title + "</strong>" +
+        (selectedMatch.buses.length > 1 ? 
+          "<button class='btn btn-outline btn-sm' style='padding:2px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.adminRemoveBus(\"" + selectedMatch.id + "\", " + idx + ")'>Remove Bus</button>" : "") +
+      "</div>" +
+      "<div class='form-group mt-2'>" +
+        "<label class='form-label'>Bus Name (Title)</label>" +
+        "<input type='text' class='form-input' value='" + bus.title + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"title\", this.value)' />" +
+      "</div>" +
+      "<div class='form-group'>" +
+        "<label class='form-label'>Subtitle / Route Note</label>" +
+        "<input type='text' class='form-input' value='" + bus.subtitle + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"subtitle\", this.value)' />" +
+      "</div>" +
+      "<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:8px;'>" +
+        "<div>" +
+          "<label class='form-label'>Capacity</label>" +
+          "<input type='number' class='form-input' min='10' max='85' value='" + bus.capacity + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"capacity\", parseInt(this.value)||53)' />" +
+        "</div>" +
+        "<div>" +
+          "<label class='form-label'>Adult Fare (£)</label>" +
+          "<input type='number' class='form-input' step='0.50' value='" + bus.adultFare + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"adultFare\", parseFloat(this.value)||12)' />" +
+        "</div>" +
+        "<div>" +
+          "<label class='form-label'>Junior Fare (£)</label>" +
+          "<input type='number' class='form-input' step='0.50' value='" + bus.juniorFare + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"juniorFare\", parseFloat(this.value)||8)' />" +
+        "</div>" +
+      "</div>" +
+      "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; font-size:11px; margin-bottom:10px;'>" +
+        "<label style='display:flex; align-items:center; gap:6px; font-weight:700; color:var(--safc-gold); cursor:pointer;'>" +
+          "<input type='checkbox' " + (bus.isFreeBus ? "checked" : "") + " onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"isFreeBus\", this.checked)' /> " +
+          "Enable Free Bus (Branch Sponsored)" +
+        "</label>" +
+      "</div>" +
+      "<div style='border-top:1px solid #334155; padding-top:8px;'>" +
+        "<div class='flex-between mb-2'>" +
+          "<label class='form-label' style='margin-bottom:0;'>Timetable Stops for " + bus.title + "</label>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px;' onclick='window.addStopToBus(\"" + selectedMatch.id + "\", " + idx + ")'>+ Add Stop</button>" +
+        "</div>" +
+        "<div>" + stopsHtml + "</div>" +
+      "</div>";
+
+    busesContainer.appendChild(card);
+  });
+
+  // 3. Render 24h Allocation Preview and Manifest for this Match
+  renderAdminAllocationPreviewForMatch(selectedMatch);
+  renderAdminManifestForMatch(selectedMatch);
+};
+
+window.updateBusField = function(matchId, busIdx, field, val) {
+  var match = appState.homeMatches.find(function(m) { return m.id === matchId; });
+  if (match && match.buses && match.buses[busIdx]) {
+    match.buses[busIdx][field] = val;
+    saveState();
+    renderBusBookingView();
+    renderHUDView();
+  }
+};
+
+window.updateBusStopField = function(matchId, busIdx, stopIdx, field, val) {
+  var match = appState.homeMatches.find(function(m) { return m.id === matchId; });
+  if (match && match.buses && match.buses[busIdx] && match.buses[busIdx].stops) {
+    match.buses[busIdx].stops[stopIdx][field] = val;
+    saveState();
+    renderBusBookingView();
+  }
+};
+
+window.addStopToBus = function(matchId, busIdx) {
+  var match = appState.homeMatches.find(function(m) { return m.id === matchId; });
+  if (match && match.buses && match.buses[busIdx]) {
+    if (!match.buses[busIdx].stops) match.buses[busIdx].stops = JSON.parse(JSON.stringify(DEFAULT_STOPS));
+    match.buses[busIdx].stops.push({ id: Date.now(), name: "New Village Pickup", time: "12:30" });
+    saveState();
+    window.renderAdminBusesTool();
+    renderBusBookingView();
+  }
+};
+
+window.deleteStopFromBus = function(matchId, busIdx, stopIdx) {
+  var match = appState.homeMatches.find(function(m) { return m.id === matchId; });
+  if (match && match.buses && match.buses[busIdx] && match.buses[busIdx].stops) {
+    match.buses[busIdx].stops.splice(stopIdx, 1);
+    saveState();
+    window.renderAdminBusesTool();
+    renderBusBookingView();
+  }
+};
+
+window.adminAddBusToSelectedMatch = function() {
+  var match = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; });
+  if (!match) return;
+  if (!match.buses) match.buses = [];
+
+  var newIndex = match.buses.length + 1;
+  match.buses.push({
+    busId: newIndex,
+    title: "Bus " + newIndex + " (Auxiliary Route)",
+    subtitle: "Official Branch Travel • Stadium of Light",
+    capacity: 53,
+    adultFare: 12.00,
+    juniorFare: 8.00,
+    isFreeBus: false,
+    stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
+  });
+
+  saveState();
+  window.renderAdminBusesTool();
+  renderBusBookingView();
+  alert("✓ Bus " + newIndex + " added to Sunderland vs " + match.opponent + " with independent timetable.");
+};
+
+window.adminRemoveBus = function(matchId, busIdx) {
+  var match = appState.homeMatches.find(function(m) { return m.id === matchId; });
+  if (!match || !match.buses || match.buses.length <= 1) return;
+
+  if (confirm("Remove this bus from Sunderland vs " + match.opponent + "?")) {
+    match.buses.splice(busIdx, 1);
+    saveState();
+    window.renderAdminBusesTool();
+    renderBusBookingView();
+    alert("✓ Bus removed from match fleet.");
+  }
+};
+
+// 24h Allocation Preview for Selected Match
+function renderAdminAllocationPreviewForMatch(match) {
+  var summaryBox = document.getElementById("admin-allocation-status-summary");
+  if (!summaryBox) return;
+
+  var matchBookings = appState.bookings.filter(function(b) { return b.matchId === match.id; });
+  var totalBooked = 0;
+  matchBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
+
+  var totalCap = 0;
+  match.buses.forEach(function(b) { totalCap += (b.capacity || 53); });
+
+  var bus1 = match.buses[0] || { capacity: 53 };
+  var bus1Count = Math.min(totalBooked, bus1.capacity - 2);
+  var cushion = 2;
+  var overflow = Math.max(0, totalBooked - (bus1.capacity - 2));
+
+  summaryBox.innerHTML = 
+    "<div class='flex-between'>" +
+      "<strong>Match: Sunderland vs " + match.opponent + "</strong>" +
+      "<span style='color:var(--green); font-weight:800; font-size:10px;'>🟢 Auto-Scheduled T-24h</span>" +
+    "</div>" +
+    "<div class='text-xs text-muted mt-2'>Allocation automatically distributes seats 24 hours prior to kick-off (" + match.date + " at " + match.time + ").</div>" +
+    "<div style='background:#1e293b; padding:8px; border-radius:6px; margin-top:8px; font-size:10px; line-height:1.6;'>" +
+      "• Total Bookings Registered: <strong>" + totalBooked + " Seats</strong> (Total Capacity: " + totalCap + ")<br>" +
+      "• Bus 1 Allocation: <strong>" + bus1Count + " Seats</strong><br>" +
+      "• Priority Village Stops: <strong>Outer Village Stops Protected</strong><br>" +
+      "• Safety Cushion: <strong>" + cushion + " Seats Reserved for Committee</strong><br>" +
+      "• Overflow: <strong>" + (overflow > 0 ? overflow + " Passengers to Auxiliary Coach" : "0 (General Sale Open)") + "</strong>" +
+    "</div>";
+}
+
+window.adminRunAllocationBackup = function() {
+  var match = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+  var matchBookings = appState.bookings.filter(function(b) { return b.matchId === match.id; });
+  var totalBooked = 0;
+  matchBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
+
+  alert(
+    "⚡ EARLY CUTOFF OVERRIDE EXECUTED:\n\n" +
+    "• Match: Sunderland vs " + match.opponent + "\n" +
+    "• Total Bookings Processed: " + totalBooked + "\n" +
+    "• Bus 1 Priority: Outer village stops locked\n" +
+    "• Committee Buffer: 2 seats reserved\n\n" +
+    "Override logged to Master Audit Trail."
+  );
+  logForensicTransaction("Graham (Secretary)", "Admin", "All Passengers", "ALLOCATION_24H_OVERRIDE", "Manual early cutoff allocation for vs " + match.opponent, 0, 0, 0);
+};
+
+// Manifest & Boarding for Selected Match
+function renderAdminManifestForMatch(match) {
+  var container = document.getElementById("admin-manifest-summary");
   if (!container) return;
-  container.innerHTML = "";
+
+  var matchBookings = appState.bookings.filter(function(b) { return b.matchId === match.id; });
+  var totalPassengers = 0;
+  var boardedCount = 0;
+  matchBookings.forEach(function(b) {
+    var count = (b.adults || 0) + (b.juniors || 0);
+    totalPassengers += count;
+    if (b.boarded) boardedCount += count;
+  });
+
+  var totalCap = 0;
+  match.buses.forEach(function(b) { totalCap += (b.capacity || 53); });
+
+  var html = 
+    "<div class='flex-between' style='font-size:11px; margin-bottom:8px;'>" +
+      "<span>Total: <strong>" + totalPassengers + " / " + totalCap + " Booked</strong></span>" +
+      "<span style='color:var(--safc-gold); font-weight:800;'>" + boardedCount + " Boarded</span>" +
+    "</div>";
+
+  if (matchBookings.length === 0) {
+    html += "<div class='text-xs text-muted' style='text-align:center; padding:10px;'>No bookings registered for this match.</div>";
+  } else {
+    matchBookings.forEach(function(b) {
+      var seats = (b.adults || 0) + (b.juniors || 0);
+      var realIdx = appState.bookings.indexOf(b);
+      html += 
+        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px;'>" +
+          "<div>" +
+            "<strong>" + b.name + "</strong> (" + seats + " seat" + (seats > 1 ? "s" : "") + ")<br>" +
+            "<span style='color:var(--safc-gold);'>" + b.stop + " • Bus #" + (b.busId || 1) + "</span>" +
+          "</div>" +
+          "<button class='btn btn-sm " + (b.boarded ? "btn-outline" : "btn-red") + "' style='padding:2px 6px; font-size:9px;' onclick='window.toggleBoarded(" + realIdx + ")'>" +
+            (b.boarded ? "✓ Boarded" : "Check In") +
+          "</button>" +
+        "</div>";
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+window.toggleBoarded = function(idx) {
+  if (appState.bookings[idx]) {
+    appState.bookings[idx].boarded = !appState.bookings[idx].boarded;
+    saveState();
+    window.renderAdminBusesTool();
+    renderHUDView();
+  }
+};
+
+window.exportManifestCSV = function() {
+  var match = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+  var matchBookings = appState.bookings.filter(function(b) { return b.matchId === match.id; });
+
+  var csv = "Match,Passenger Name,Bus Assigned,Pickup Stop,Adults,Juniors,Total Paid,Boarded\n";
+  matchBookings.forEach(function(b) {
+    csv += '"Sunderland vs ' + match.opponent + '","' + b.name + '","Bus ' + (b.busId || 1) + '","' + b.stop + '",' + b.adults + ',' + b.juniors + ',£' + b.total.toFixed(2) + ',"' + (b.boarded ? "YES" : "NO") + '"\n';
+  });
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var url = window.URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.setAttribute("href", url);
+  a.setAttribute("download", "Coxhoe_Coach_Manifest_" + match.opponent + ".csv");
+  a.click();
+};
+
+// --------------------------------------------------------
+// PANE 2: MEMBERSHIP SUBS ROSTER
+// --------------------------------------------------------
+function renderAdminSubs() {
+  var container = document.getElementById("admin-subs-roster");
+  if (!container) return;
 
   var activeCount = 0;
   var lapsedCount = 0;
-  var revenueCollected = 0;
+  var totalRevenue = 0;
 
-  appState.users.forEach(function(u, idx) {
-    var isPaid = u.membershipStatus === "active";
-    if (isPaid) {
+  appState.users.forEach(function(u) {
+    if (u.membershipStatus === "active") {
       activeCount++;
       var fee = (u.category === "Child" ? appState.duesConfig.juniorFee : appState.duesConfig.adultFee);
       if (u.membershipTier === "Life") fee = 0;
-      revenueCollected += fee;
+      totalRevenue += fee;
     } else {
       lapsedCount++;
     }
-
-    var row = document.createElement("div");
-    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px;";
-    row.innerHTML = 
-      "<div><strong>" + u.name + "</strong> (" + u.membershipTier + ")<br><span style='color:" + (isPaid ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" + (isPaid ? "✓ Paid (" + (u.membershipSeason || "26/27") + ")" : "🔴 Lapsed / Overdue") + "</span></div>" +
-      "<div style='display:flex; gap:4px;'>" +
-        (isPaid ? 
-          "<button class='btn btn-outline btn-sm' style='padding:2px 6px; font-size:9px; color:#ef4444;' onclick='window.adminToggleMemberDues(" + idx + ", false)'>Revoke</button>" : 
-          "<button class='btn btn-gold btn-sm' style='padding:2px 6px; font-size:9px;' onclick='window.adminToggleMemberDues(" + idx + ", true)'>Mark Paid</button>") +
-      "</div>";
-    container.appendChild(row);
   });
 
-  document.getElementById("dues-metrics-box").innerHTML = 
-    "<span>Active: <strong style='color:var(--green);'>" + activeCount + "</strong></span> | " +
-    "<span>Lapsed: <strong style='color:#ef4444;'>" + lapsedCount + "</strong></span> | " +
-    "<span>Total Subs Revenue: <strong style='color:var(--safc-gold);'>£" + revenueCollected.toFixed(2) + "</strong></span>";
+  var html = 
+    "<div class='treasury-grid mb-2'>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Active: <strong style='color:var(--green);'>" + activeCount + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Lapsed: <strong style='color:#ef4444;'>" + lapsedCount + "</strong></div>" +
+    "</div>" +
+    "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;'>" +
+      "Subs Collected (" + appState.duesConfig.activeSeason + "): <strong style='color:var(--safc-gold);'>£" + totalRevenue.toFixed(2) + "</strong>" +
+    "</div>" +
+    "<button class='btn btn-outline btn-sm' style='width:100%; margin-bottom:12px;' onclick='window.exportDuesCSV()'>📥 Export Membership Subs CSV</button>" +
+    "<div style='max-height:260px; overflow-y:auto;'>";
 
-  document.getElementById("cfg-season-name").value = appState.duesConfig.activeSeason;
-  document.getElementById("cfg-adult-fee").value = appState.duesConfig.adultFee;
-  document.getElementById("cfg-junior-fee").value = appState.duesConfig.juniorFee;
-  document.getElementById("cfg-enforce-gate").checked = appState.duesConfig.enforceDuesGate;
+  appState.users.forEach(function(u, idx) {
+    var isPaid = u.membershipStatus === "active";
+    html += 
+      "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px;'>" +
+        "<div>" +
+          "<strong>" + u.name + "</strong> (" + (u.membershipTier || u.category) + ")<br>" +
+          "<span style='color:" + (isPaid ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" +
+            (isPaid ? "✓ Active (" + (u.membershipSeason || "2026/27") + ")" : "🔴 Lapsed / Overdue") +
+          "</span>" +
+        "</div>" +
+        "<div>" +
+          (isPaid ? 
+            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:#ef4444;' onclick='window.adminToggleMemberDues(" + idx + ", false)'>Revoke</button>" : 
+            "<button class='btn btn-gold btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.adminToggleMemberDues(" + idx + ", true)'>Mark Paid</button>") +
+        "</div>" +
+      "</div>";
+  });
+
+  html += "</div>";
+  container.innerHTML = html;
 }
-
-window.saveMembershipConfig = function() {
-  appState.duesConfig.activeSeason = document.getElementById("cfg-season-name").value.trim() || "2026/27";
-  appState.duesConfig.adultFee = parseFloat(document.getElementById("cfg-adult-fee").value) || 15.00;
-  appState.duesConfig.juniorFee = parseFloat(document.getElementById("cfg-junior-fee").value) || 5.00;
-  appState.duesConfig.enforceDuesGate = document.getElementById("cfg-enforce-gate").checked;
-  saveState();
-  window.refreshAllViews();
-  alert("Membership tiers and policy updated!");
-};
 
 window.adminToggleMemberDues = function(idx, setPaid) {
   var user = appState.users[idx];
@@ -1389,15 +2203,14 @@ window.adminToggleMemberDues = function(idx, setPaid) {
     user.membershipStatus = "active";
     user.membershipSeason = appState.duesConfig.activeSeason;
     user.validUntil = "2027-07-31";
-    logForensicTransaction("Graham (Secretary)", "Admin", user.name, "SUBS_WAIVE", "Manually verified & set active for " + user.name, 0, 0, 0);
-    alert(user.name + " set to Active.");
+    logForensicTransaction("Graham (Secretary)", "Admin", user.name, "SUBS_WAIVE", "Manually verified dues for " + user.name, 0, 0, 0);
   } else {
     user.membershipStatus = "lapsed";
-    logForensicTransaction("Graham (Secretary)", "Admin", user.name, "SUBS_REVOKE", "Revoked active membership for " + user.name, 0, 0, 0);
-    alert(user.name + " set to Lapsed.");
+    logForensicTransaction("Graham (Secretary)", "Admin", user.name, "SUBS_REVOKE", "Revoked dues for " + user.name, 0, 0, 0);
   }
   saveState();
-  window.refreshAllViews();
+  renderAdminSubs();
+  renderHUDView();
 };
 
 window.exportDuesCSV = function() {
@@ -1413,106 +2226,562 @@ window.exportDuesCSV = function() {
   a.click();
 };
 
-window.publishAdminAnnouncement = function() {
-  var title = document.getElementById("admin-post-title").value.trim();
-  var content = document.getElementById("admin-post-content").value.trim();
-  var isUrgent = document.getElementById("admin-post-urgent").checked;
+// --------------------------------------------------------
+// PANE 3: CHILD & GUARDIAN APPROVAL QUEUE WITH REVOCATION
+// --------------------------------------------------------
+function renderAdminApprovals() {
+  var container = document.getElementById("admin-approvals-queue");
+  if (!container) return;
 
-  if (!title || !content) { alert("Please enter title and content."); return; }
+  var pending = appState.pendingLinkRequests.filter(function(r) { return r.status === "pending_admin"; });
 
-  if (isUrgent) {
-    appState.announcements.forEach(function(a) { a.isUrgent = false; });
+  var html = "<div class='admin-card'><strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Pending Requests (Approve / Decline)</strong>";
+  if (pending.length === 0) {
+    html += "<p class='text-xs text-muted'>✓ No pending link requests.</p>";
+  } else {
+    pending.forEach(function(req) {
+      html += 
+        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:8px; border-radius:6px; margin-bottom:6px; font-size:11px;'>" +
+          "<div><strong>" + req.requester + "</strong> ➔ <strong>" + req.targetName + "</strong> (" + req.relation + ")</div>" +
+          "<div style='display:flex; gap:4px;'>" +
+            "<button class='btn btn-gold btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.adminApproveLink(" + req.id + ")'>Approve</button>" +
+            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:#ef4444; border-color:#ef4444;' onclick='window.adminRejectLink(" + req.id + ")'>Decline</button>" +
+          "</div>" +
+        "</div>";
+    });
+  }
+  html += "</div>";
+
+  html += 
+    "<div class='admin-card'>" +
+      "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Active Network Connections (Revoke Links)</strong>" +
+      "<div style='max-height:220px; overflow-y:auto;'>";
+
+  if (appState.friendsAndFamily.length === 0) {
+    html += "<p class='text-xs text-muted'>No active member links found.</p>";
+  } else {
+    appState.friendsAndFamily.forEach(function(link) {
+      html += 
+        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px;'>" +
+          "<div><strong>" + link.owner + "</strong> ➔ <strong>" + link.targetName + "</strong> (" + link.relation + " • " + link.type + ")</div>" +
+          "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.adminRevokeLink(" + link.id + ")'>Revoke</button>" +
+        "</div>";
+    });
+  }
+
+  html += "</div></div>";
+  container.innerHTML = html;
+}
+
+window.adminApproveLink = function(reqId) {
+  var req = appState.pendingLinkRequests.find(function(r) { return r.id === reqId; });
+  if (!req) return;
+
+  appState.friendsAndFamily.push({
+    id: Date.now(),
+    owner: req.requester,
+    targetName: req.targetName,
+    relation: req.relation,
+    type: req.type,
+    status: "approved"
+  });
+  appState.friendsAndFamily.push({
+    id: Date.now() + 1,
+    owner: req.targetName,
+    targetName: req.requester,
+    relation: req.relation === "Child" ? "Parent" : "Friend",
+    type: "Adult",
+    status: "approved"
+  });
+
+  appState.pendingLinkRequests = appState.pendingLinkRequests.filter(function(r) { return r.id !== reqId; });
+  saveState();
+  renderAdminApprovals();
+  updateAdminDrawerBadge();
+  alert("✓ Link approved and verified for junior travel booking.");
+};
+
+window.adminRejectLink = function(reqId) {
+  appState.pendingLinkRequests = appState.pendingLinkRequests.filter(function(r) { return r.id !== reqId; });
+  saveState();
+  renderAdminApprovals();
+  updateAdminDrawerBadge();
+  alert("✓ Link request declined.");
+};
+
+window.adminRevokeLink = function(linkId) {
+  var link = appState.friendsAndFamily.find(function(l) { return l.id === linkId; });
+  if (!link) return;
+
+  if (confirm("Revoke relationship between " + link.owner + " and " + link.targetName + "?")) {
+    appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) {
+      var isDirect = (f.owner === link.owner && f.targetName === link.targetName);
+      var isReciprocal = (f.owner === link.targetName && f.targetName === link.owner);
+      return !isDirect && !isReciprocal;
+    });
+    saveState();
+    renderAdminApprovals();
+    alert("✓ Relationship link revoked.");
+  }
+};
+
+// --------------------------------------------------------
+// PANE 4: TREASURY & FINANCIAL LEDGER
+// --------------------------------------------------------
+window.renderAdminTreasury = function() {
+  var statsContainer = document.getElementById("admin-treasury-stats");
+  var ledgerContainer = document.getElementById("admin-financial-ledger");
+  var catFilter = document.getElementById("treasury-filter-category") ? document.getElementById("treasury-filter-category").value : "all";
+  var timeFilter = document.getElementById("treasury-filter-time") ? document.getElementById("treasury-filter-time").value : "all";
+
+  var totalInflow = 0;
+  var totalOutflow = 0;
+  var branchRetained = 0;
+
+  appState.masterAuditTrail.forEach(function(t) {
+    if (t.debit > 0) totalInflow += t.debit;
+    if (t.credit > 0) totalOutflow += t.credit;
+    branchRetained += (t.branchImpact || 0);
+  });
+
+  if (statsContainer) {
+    statsContainer.innerHTML = 
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Gross Inflow: <strong style='color:var(--green);'>+£" + totalInflow.toFixed(2) + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Payouts: <strong style='color:#ef4444;'>-£" + totalOutflow.toFixed(2) + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px; grid-column:span 2;'>Branch Net Funds: <strong style='color:var(--safc-gold);'>£" + branchRetained.toFixed(2) + "</strong></div>";
+  }
+
+  if (ledgerContainer) {
+    var now = new Date();
+    var filtered = appState.masterAuditTrail.filter(function(t) {
+      if (catFilter !== "all") {
+        if (catFilter === "subs" && t.category !== "SUBS_DUES") return false;
+        if (catFilter === "bus" && t.category !== "BUS_BOOKING" && t.category !== "BUS_REFUND") return false;
+        if (catFilter === "away" && t.category.indexOf("AWAY") === -1) return false;
+        if (catFilter === "card" && t.category.indexOf("CARD") === -1) return false;
+        if (catFilter === "topup" && t.category !== "TOPUP") return false;
+        if (catFilter === "payout" && t.category !== "CARD_WINNER_PAYOUT") return false;
+      }
+      if (timeFilter !== "all") {
+        var txnDate = new Date(t.timestamp.replace(" ", "T"));
+        var diffDays = (now - txnDate) / (1000 * 60 * 60 * 24);
+        if (timeFilter === "7d" && diffDays > 7) return false;
+        if (timeFilter === "30d" && diffDays > 30) return false;
+        if (timeFilter === "season" && diffDays > 365) return false;
+      }
+      return true;
+    });
+
+    var html = "<div style='max-height:240px; overflow-y:auto;'>";
+    if (filtered.length === 0) {
+      html += "<div class='text-xs text-muted' style='padding:8px 0;'>No transactions match your active filter.</div>";
+    } else {
+      filtered.slice(0, 40).forEach(function(t) {
+        html += 
+          "<div style='background:#1e293b; border-bottom:1px solid #334155; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px;'>" +
+            "<div style='display:flex; justify-content:space-between;'>" +
+              "<strong>" + t.txnId + " • " + t.category + "</strong>" +
+              "<span style='color:var(--safc-gold);'>" + t.timestamp.substring(0, 16) + "</span>" +
+            "</div>" +
+            "<div style='color:#cbd5e1;'>" + t.desc + " (" + t.actor + ")</div>" +
+          "</div>";
+      });
+    }
+    html += "</div>";
+    ledgerContainer.innerHTML = html;
+  }
+};
+
+window.exportMasterAuditCSV = function() {
+  var csv = "Txn ID,Timestamp,Actor,Role,Target,Category,Description,Debit,Credit,Branch Impact,Balance After\n";
+  appState.masterAuditTrail.forEach(function(t) {
+    csv += '"' + t.txnId + '","' + t.timestamp + '","' + t.actor + '","' + t.role + '","' + t.target + '","' + t.category + '","' + t.desc.replace(/"/g, '""') + '",£' + t.debit.toFixed(2) + ',£' + t.credit.toFixed(2) + ',£' + t.branchImpact.toFixed(2) + ',£' + t.balanceAfter.toFixed(2) + "\n";
+  });
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var url = window.URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.setAttribute("href", url);
+  a.setAttribute("download", "Coxhoe_Branch_Master_Audit.csv");
+  a.click();
+};
+
+// --------------------------------------------------------
+// PANE 5: AWAY MATCH TICKET ALLOCATION SUITE
+// --------------------------------------------------------
+function renderAdminAwayFixture() {
+  var sel = document.getElementById("admin-away-game-select");
+  var container = document.getElementById("admin-away-fixture-manager");
+  if (!sel || !container) return;
+
+  var currentVal = sel.value;
+  sel.innerHTML = "";
+  appState.awayFixtures.forEach(function(f) {
+    var opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = f.opponent + " (A) • " + f.date + " [Quota: " + f.allocation + "]";
+    if (currentVal && currentVal === f.id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (!sel.value && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
+
+  var selectedId = sel.value;
+  var fixture = appState.awayFixtures.find(function(f) { return f.id === selectedId; });
+  if (!fixture) return;
+
+  var regs = appState.awayRegistrations.filter(function(r) { return r.fixtureId === selectedId; });
+  var allocatedCount = 0;
+  regs.forEach(function(r) { if (r.allocated) allocatedCount += (r.party ? r.party.length : 1); });
+
+  var html = 
+    "<div class='admin-card'>" +
+      "<div class='flex-between'>" +
+        "<strong>" + fixture.opponent + " (Away)</strong>" +
+        "<span class='badge-gold'>" + fixture.date + "</span>" +
+      "</div>" +
+      "<div style='display:flex; gap:6px; align-items:center; margin-top:8px;'>" +
+        "<label class='text-xs text-muted' style='flex:1;'>Branch Quota:</label>" +
+        "<input type='number' id='admin-away-quota-input' class='form-input' style='flex:1; padding:4px;' value='" + fixture.allocation + "' />" +
+        "<button class='btn btn-outline btn-sm' style='padding:4px 10px; font-size:10px;' onclick='window.confirmAwayQuota(\"" + fixture.id + "\")'>Confirm Quota</button>" +
+      "</div>" +
+      "<div id='admin-away-counter-label' class='text-xs mt-2' style='color:var(--safc-gold);'>Allocated so far: <strong>" + allocatedCount + " / " + fixture.allocation + " Tickets</strong></div>" +
+    "</div>" +
+    "<div class='admin-card'>" +
+      "<strong style='font-size:11px; display:block; margin-bottom:8px;'>Member Expressions of Interest:</strong>";
+
+  if (regs.length === 0) {
+    html += "<p class='text-xs text-muted'>No members have registered interest for this match yet.</p>";
+  } else {
+    regs.forEach(function(r) {
+      var seats = r.party ? r.party.length : 1;
+      html += 
+        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:10px; border-left:3px solid " + (r.allocated ? "var(--green)" : "var(--safc-gold)") + ";'>" +
+          "<div>" +
+            "<strong>" + r.memberName + "</strong> (" + seats + " ticket" + (seats > 1 ? "s" : "") + ")<br>" +
+            "<span style='color:#cbd5e1; font-size:9px;'>" + (r.party ? r.party.join(", ") : "Single") + "</span>" +
+          "</div>" +
+          "<button class='btn btn-sm " + (r.allocated ? "btn-outline" : "btn-gold") + "' style='padding:2px 8px; font-size:9px;' onclick='window.toggleAwayAllocation(\"" + r.fixtureId + "\", \"" + r.memberName + "\")'>" +
+            (r.allocated ? "✓ Allocated" : "Allocate Ticket") +
+          "</button>" +
+        "</div>";
+    });
+  }
+
+  html += "</div>";
+  container.innerHTML = html;
+}
+
+window.confirmAwayQuota = function(fixtureId) {
+  var input = document.getElementById("admin-away-quota-input");
+  var val = input ? parseInt(input.value) : 20;
+  var fix = appState.awayFixtures.find(function(f) { return f.id === fixtureId; });
+  if (fix) {
+    fix.allocation = val || 20;
+    saveState();
+    renderAdminAwayFixture();
+    renderMemberAwayView();
+    alert("✓ Branch ticket quota confirmed & updated to " + fix.allocation + " tickets.");
+  }
+};
+
+window.toggleAwayAllocation = function(fixtureId, memberName) {
+  var reg = appState.awayRegistrations.find(function(r) {
+    return r.fixtureId === fixtureId && r.memberName === memberName;
+  });
+  if (reg) {
+    reg.allocated = !reg.allocated;
+    saveState();
+    renderAdminAwayFixture();
+    renderMemberAwayView();
+    renderHUDView();
+    alert("✓ Ticket allocation status updated for " + memberName + ". Member notification badge updated.");
+  }
+};
+
+// --------------------------------------------------------
+// PANE 6: BROADCAST NOTICE / BRANCH NEWS (DELETE & ARCHIVE)
+// --------------------------------------------------------
+function renderAdminNews() {
+  var manageList = document.getElementById("admin-news-manage-list");
+  if (!manageList) return;
+
+  if (appState.announcements.length === 0) {
+    manageList.innerHTML = "<div class='text-xs text-muted'>No announcements created yet.</div>";
+    return;
+  }
+
+  var html = "";
+  appState.announcements.forEach(function(post) {
+    html += 
+      "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; border-left:3px solid " + (post.isUrgent ? "#ef4444" : "var(--safc-gold)") + ";'>" +
+        "<div class='flex-between'>" +
+          "<strong>" + post.title + "</strong>" +
+          "<span style='font-size:9px; color:" + (post.archived ? "#94a3b8" : "var(--green)") + "; font-weight:800;'>" + (post.archived ? "📁 ARCHIVED" : "🟢 ACTIVE") + "</span>" +
+        "</div>" +
+        "<div style='color:#cbd5e1; font-size:10px; margin:4px 0;'>" + post.content + "</div>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:9px; color:var(--text-muted);'>" +
+          "<span>" + post.date + " • Read by " + (post.readBy ? post.readBy.length : 0) + "</span>" +
+          "<div style='display:flex; gap:4px;'>" +
+            "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px;' onclick='window.toggleArchiveAnnouncement(" + post.id + ")'>" + (post.archived ? "Unarchive" : "Archive") + "</button>" +
+            "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.deleteAnnouncement(" + post.id + ")'>Delete</button>" +
+          "</div>" +
+        "</div>" +
+      "</div>";
+  });
+
+  manageList.innerHTML = html;
+}
+
+window.adminPostAnnouncement = function() {
+  var titleInput = document.getElementById("admin-news-title");
+  var bodyInput = document.getElementById("admin-news-body");
+
+  var title = titleInput ? titleInput.value.trim() : "";
+  var body = bodyInput ? bodyInput.value.trim() : "";
+
+  if (!title || !body) {
+    alert("Please enter both a headline and announcement details.");
+    return;
   }
 
   appState.announcements.unshift({
     id: Date.now(),
     title: title,
     date: new Date().toISOString().substring(0, 10),
-    isUrgent: isUrgent,
-    content: content,
-    reactions: 0
+    isUrgent: false,
+    content: body,
+    reactions: 0,
+    archived: false,
+    readBy: []
   });
 
-  logForensicTransaction("Graham (Secretary)", "Admin", "All Members", "BROADCAST", "Published announcement: " + title + (isUrgent ? " [URGENT]" : ""), 0, 0, 0);
+  logForensicTransaction("Graham (Secretary)", "Admin", "All Members", "BROADCAST", "Notice: " + title, 0, 0, 0);
 
-  document.getElementById("admin-post-title").value = "";
-  document.getElementById("admin-post-content").value = "";
-  document.getElementById("admin-post-urgent").checked = false;
+  if (titleInput) titleInput.value = "";
+  if (bodyInput) bodyInput.value = "";
 
   saveState();
-  window.refreshAllViews();
-  alert("Announcement published!");
+  renderHUDView();
+  renderAdminNews();
+  alert("✓ Broadcast notice published to branch home feeds.");
 };
 
-function renderAdminDisciplinaryBoard() {
-  var container = document.getElementById("admin-disciplinary-board");
-  if (!container) return;
-  container.innerHTML = "";
+window.toggleArchiveAnnouncement = function(postId) {
+  var post = appState.announcements.find(function(a) { return a.id === postId; });
+  if (post) {
+    post.archived = !post.archived;
+    saveState();
+    renderHUDView();
+    renderAdminNews();
+    alert("✓ Notice status updated (" + (post.archived ? "Archived" : "Active") + ").");
+  }
+};
 
-  if (appState.moderation.incidents.length === 0) {
-    container.innerHTML = "<div style='color:#94a3b8; font-size:10px;'>No disciplinary infractions on record.</div>";
-    return;
+window.deleteAnnouncement = function(postId) {
+  if (confirm("Permanently delete this announcement?")) {
+    appState.announcements = appState.announcements.filter(function(a) { return a.id !== postId; });
+    saveState();
+    renderHUDView();
+    renderAdminNews();
+    alert("✓ Announcement deleted.");
+  }
+};
+
+// --------------------------------------------------------
+// PANE 7: FOOTBALL CARD FUNDRAISER SUITE
+// --------------------------------------------------------
+function renderAdminFootballCard() {
+  var configContainer = document.getElementById("admin-footballcard-config-card");
+  var summaryContainer = document.getElementById("admin-footballcard-summary");
+  var cfg = appState.cardConfig;
+  var fin = calculateCardFinancials();
+
+  if (configContainer) {
+    configContainer.innerHTML = 
+      "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Launch & Configure Football Card</strong>" +
+      "<div style='display:flex; gap:6px; margin-bottom:6px;'>" +
+        "<div style='flex:1;'>" +
+          "<label class='form-label'>Card Size (Teams)</label>" +
+          "<input type='number' id='admin-card-size' class='form-input' min='20' max='100' value='" + cfg.size + "' />" +
+        "</div>" +
+        "<div style='flex:1;'>" +
+          "<label class='form-label'>Price Per Square (£)</label>" +
+          "<input type='number' id='admin-card-price' class='form-input' step='0.50' value='" + cfg.pricePerSquare + "' />" +
+        "</div>" +
+      "</div>" +
+      "<div style='display:flex; gap:6px; margin-bottom:8px;'>" +
+        "<div style='flex:1;'>" +
+          "<label class='form-label'>Prize Split Mode</label>" +
+          "<select id='admin-prize-mode' class='form-select'>" +
+            "<option value='percentage' " + (cfg.prizeMode === "percentage" ? "selected" : "") + ">Percentage Split (50/50)</option>" +
+            "<option value='fixed' " + (cfg.prizeMode === "fixed" ? "selected" : "") + ">Fixed Cash Prize (£)</option>" +
+          "</select>" +
+        "</div>" +
+        "<div style='flex:1;'>" +
+          "<label class='form-label'>Winner Prize (£ or %)</label>" +
+          "<input type='number' id='admin-prize-val' class='form-input' value='" + (cfg.prizeMode === "percentage" ? cfg.prizePct : cfg.prizeFixed) + "' />" +
+        "</div>" +
+      "</div>" +
+      "<button class='btn btn-outline btn-sm' style='width:100%;' onclick='window.launchNewFootballCard()'>🚀 Launch Fresh Football Card</button>";
   }
 
-  var activeAdmin = appState.currentUser.name;
-
-  appState.moderation.incidents.forEach(function(inc) {
-    if (!inc.internalDiscussion) inc.internalDiscussion = [];
-    if (!inc.votes) inc.votes = {};
-
-    var reinstateVotes = 0;
-    var upholdVotes = 0;
-    var voters = Object.keys(inc.votes);
-    voters.forEach(function(v) {
-      if (inc.votes[v] === "reinstate") reinstateVotes++;
-      if (inc.votes[v] === "uphold") upholdVotes++;
-    });
-
-    var myVote = inc.votes[activeAdmin] || null;
-    var isResolved = inc.status !== "active_ban";
-
-    var card = document.createElement("div");
-    card.style.cssText = "background:#0f172a; border:1px solid #334155; padding:10px; border-radius:8px; margin-bottom:10px; font-size:11px;";
-    card.innerHTML = 
-      "<div style='display:flex; justify-content:space-between; margin-bottom:4px;'>" +
-        "<strong>Case #" + inc.id + " • " + inc.member + "</strong>" +
-        "<span style='color:" + (inc.status === "active_ban" ? "#ef4444" : "var(--green)") + "; font-weight:800;'>" + inc.status.toUpperCase() + "</span>" +
-      "</div>" +
-      "<div style='color:var(--safc-gold); font-size:10px; margin-bottom:4px;'>Charge: " + inc.reason + " (" + inc.timestamp + ")</div>" +
-      "<div style='background:#1e293b; padding:6px; border-radius:4px; margin-bottom:6px; font-family:monospace; font-size:10px;'>\"" + inc.offendingText + "\"</div>" +
-      "<button class='btn btn-outline btn-sm' style='padding:3px 6px; font-size:9px; margin-bottom:6px;' onclick='window.toggleTranscriptModal(\"" + inc.id + "\")'>📜 Inspect Full Conversation Transcript</button>" +
-      "<div style='background:#141d2e; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:10px; border-left:2px solid var(--safc-gold);'>" +
-        "<strong>Committee Quorum (2 Votes to Reinstate):</strong><br>" +
-        "• Votes to Reinstate: <strong style='color:var(--green);'>" + reinstateVotes + " / 2</strong><br>" +
-        "• Votes to Uphold Ban: <strong style='color:#ef4444;'>" + upholdVotes + "</strong><br>" +
-        (voters.length > 0 ? "<span style='color:#94a3b8;'>Votes cast: " + voters.map(function(v){ return v + " (" + inc.votes[v] + ")"; }).join(", ") + "</span>" : "<span style='color:#94a3b8;'>No committee votes recorded yet.</span>") +
-      "</div>" +
-      (!isResolved ? 
-        "<div style='display:flex; gap:4px; margin-bottom:6px;'>" +
-          "<button class='btn btn-gold btn-sm' style='flex:1; padding:4px;' onclick='window.castCommitteeVote(\"" + inc.id + "\", \"reinstate\")'>" + (myVote === "reinstate" ? "✓ Voted Reinstate" : "Vote to Reinstate") + "</button>" +
-          "<button class='btn btn-outline btn-sm' style='flex:1; padding:4px; color:#ef4444;' onclick='window.castCommitteeVote(\"" + inc.id + "\", \"uphold\")'>" + (myVote === "uphold" ? "✓ Voted Uphold" : "Vote to Uphold Ban") + "</button>" +
-        "</div>" : "<div style='color:var(--green); font-weight:800; font-size:10px; margin-bottom:6px;'>CASE RESOLVED BY COMMITTEE QUORUM</div>") +
-      "<div style='border-top:1px solid #334155; padding-top:6px;'>" +
-        "<strong style='font-size:10px;'>Committee Deliberation & Notes:</strong>" +
-        "<div style='margin:4px 0; max-height:60px; overflow-y:auto; font-size:10px; color:#cbd5e1;'>" +
-          (inc.internalDiscussion.length === 0 ? "<span style='color:#94a3b8;'>No deliberation notes added.</span>" : inc.internalDiscussion.map(function(n){ return "<div><strong>" + n.author + ":</strong> " + n.text + "</div>"; }).join("")) +
+  if (summaryContainer) {
+    summaryContainer.innerHTML = 
+      "<div class='admin-card'>" +
+        "<div class='flex-between'>" +
+          "<strong>Active Matchday Card: Coventry City (H)</strong>" +
+          "<span style='color:var(--safc-gold); font-weight:800; font-size:11px;'>" + fin.soldCount + " / " + fin.totalSquares + " Sold</span>" +
         "</div>" +
-        "<button class='btn btn-outline btn-sm' style='padding:2px 6px; font-size:9px;' onclick='window.addCommitteeNote(\"" + inc.id + "\")'>+ Add Deliberation Note</button>" +
+        "<div class='treasury-grid mt-2'>" +
+          "<div style='background:#1e293b; padding:6px; border-radius:4px; font-size:10px;'>Total Pot: <strong>£" + fin.grossPot.toFixed(2) + "</strong></div>" +
+          "<div style='background:#1e293b; padding:6px; border-radius:4px; font-size:10px;'>Winner Share: <strong style='color:var(--safc-gold);'>£" + fin.winnerPrize.toFixed(2) + "</strong></div>" +
+          "<div style='background:#1e293b; padding:6px; border-radius:4px; font-size:10px; grid-column:span 2;'>Branch Profit: <strong style='color:var(--green);'>£" + fin.branchProfit.toFixed(2) + "</strong></div>" +
+        "</div>" +
+        "<button class='btn btn-gold btn-sm btn-block mt-2' onclick='window.drawCardWinner()'>🏆 Draw Winning Team Now</button>" +
       "</div>";
-    container.appendChild(card);
-  });
+  }
 }
 
-window.addCommitteeNote = function(incId) {
-  var note = prompt("Enter deliberation note for committee review:");
-  if (!note || !note.trim()) return;
-  var inc = appState.moderation.incidents.find(function(i) { return String(i.id) === String(incId); });
-  if (inc) {
-    if (!Array.isArray(inc.internalDiscussion)) inc.internalDiscussion = [];
-    inc.internalDiscussion.push({ author: appState.currentUser.name, time: new Date().toTimeString().substring(0, 5), text: note.trim() });
+window.launchNewFootballCard = function() {
+  var size = Math.min(100, Math.max(20, parseInt(document.getElementById("admin-card-size").value) || 40));
+  var price = parseFloat(document.getElementById("admin-card-price").value) || 2.00;
+  var mode = document.getElementById("admin-prize-mode").value;
+  var prizeVal = parseFloat(document.getElementById("admin-prize-val").value) || 50;
+
+  if (confirm("Launch new " + size + "-team football card? Any unclaimed squares on the active card will be reset.")) {
+    appState.cardConfig = {
+      size: size,
+      pricePerSquare: price,
+      prizeMode: mode,
+      prizePct: mode === "percentage" ? prizeVal : 50,
+      prizeFixed: mode === "fixed" ? prizeVal : 50.00,
+      activeClubs: shuffleArray(MASTER_CLUBS).slice(0, size)
+    };
+    appState.cardClaims = {};
     saveState();
-    renderAdminDisciplinaryBoard();
+    renderFootballCard();
+    renderAdminFootballCard();
+    alert("✓ New " + size + "-team Football Card launched!");
   }
+};
+
+window.drawCardWinner = function() {
+  var claimed = Object.keys(appState.cardClaims);
+  if (claimed.length === 0) { alert("No squares sold on this card yet!"); return; }
+  var winning = claimed[Math.floor(Math.random() * claimed.length)];
+  var winner = appState.cardClaims[winning];
+  
+  var fin = calculateCardFinancials();
+  var prize = fin.winnerPrize;
+
+  var winnerUser = appState.users.find(function(u) { return u.name === winner; });
+  if (winnerUser) winnerUser.balance += prize;
+
+  logForensicTransaction("Graham (Secretary)", "Admin", winner, "CARD_WINNER_PAYOUT", "Awarded Football Card prize (" + winning + ")", 0, prize, fin.branchProfit);
+  alert("🏆 WINNING TEAM: " + winning.toUpperCase() + "!\nWinner: " + winner + " wins £" + prize.toFixed(2) + " deposited directly to wallet.");
+  
+  appState.cardClaims = {};
+  appState.cardConfig.activeClubs = shuffleArray(MASTER_CLUBS).slice(0, appState.cardConfig.size);
+  saveState();
+  window.refreshAllViews();
+};
+
+// --------------------------------------------------------
+// PANE 8: SAFEGUARDING & DISCIPLINARY BOARD
+// --------------------------------------------------------
+function renderAdminDisciplinary() {
+  var juniorLog = document.getElementById("admin-disciplinary-junior-log");
+  var boardContainer = document.getElementById("admin-disciplinary-board");
+
+  if (juniorLog) {
+    var children = appState.users.filter(function(u) { return u.category === "Child"; });
+    var htmlJ = "";
+    if (children.length === 0) {
+      htmlJ = "<p class='text-xs text-muted'>No junior accounts registered.</p>";
+    } else {
+      children.forEach(function(ch) {
+        var comp = checkChildCompliance(ch);
+        var parentLink = appState.friendsAndFamily.find(function(f) {
+          return (f.owner === ch.name && f.relation === "Parent") || (f.targetName === ch.name && (f.relation === "Daughter" || f.relation === "Son" || f.relation === "Child"));
+        });
+
+        htmlJ += 
+          "<div style='background:#1e293b; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px; display:flex; justify-content:space-between; align-items:center;'>" +
+            "<div>" +
+              "<strong>" + ch.name + "</strong> (" + ch.memberNo + ")<br>" +
+              "<span style='color:" + (comp.compliant ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" +
+                (comp.compliant ? "✓ Linked to " + (parentLink ? (parentLink.owner === ch.name ? parentLink.targetName : parentLink.owner) : "Parent") : "🔴 Account Locked (No Guardian)") +
+              "</span>" +
+            "</div>" +
+            (!comp.compliant ? "<button class='btn btn-gold btn-sm' style='padding:2px 6px; font-size:9px;' onclick='window.adminForceLinkParent(\"" + ch.name + "\")'>Link Guardian</button>" : "") +
+          "</div>";
+      });
+    }
+    juniorLog.innerHTML = htmlJ;
+  }
+
+  if (boardContainer) {
+    boardContainer.innerHTML = "";
+    if (appState.moderation.incidents.length === 0) {
+      boardContainer.innerHTML = "<div class='text-xs text-muted'>No disciplinary infractions on record.</div>";
+      return;
+    }
+
+    var activeAdmin = appState.currentUser.name;
+
+    appState.moderation.incidents.forEach(function(inc) {
+      if (!inc.internalDiscussion) inc.internalDiscussion = [];
+      if (!inc.votes) inc.votes = {};
+
+      var reinstateVotes = 0;
+      var upholdVotes = 0;
+      var voters = Object.keys(inc.votes);
+      voters.forEach(function(v) {
+        if (inc.votes[v] === "reinstate") reinstateVotes++;
+        if (inc.votes[v] === "uphold") upholdVotes++;
+      });
+
+      var myVote = inc.votes[activeAdmin] || null;
+      var isResolved = inc.status !== "active_ban";
+
+      var card = document.createElement("div");
+      card.className = "admin-card";
+      card.innerHTML = 
+        "<div class='flex-between' style='margin-bottom:4px;'>" +
+          "<strong>Case #" + inc.id + " • " + inc.member + "</strong>" +
+          "<span style='color:" + (inc.status === "active_ban" ? "#ef4444" : "var(--green)") + "; font-weight:800; font-size:10px;'>" + inc.status.toUpperCase() + "</span>" +
+        "</div>" +
+        "<div style='color:var(--safc-gold); font-size:10px; margin-bottom:4px;'>Charge: " + inc.reason + " (" + inc.timestamp + ")</div>" +
+        "<div style='background:#1e293b; padding:6px; border-radius:4px; margin-bottom:6px; font-family:monospace; font-size:10px;'>\"" + inc.offendingText + "\"</div>" +
+        "<button class='btn btn-outline btn-sm' style='padding:3px 6px; font-size:9px; margin-bottom:6px;' onclick='window.toggleTranscriptModal(\"" + inc.id + "\")'>📜 Inspect Full Conversation Transcript</button>" +
+        "<div style='background:#141d2e; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:10px; border-left:2px solid var(--safc-gold);'>" +
+          "<strong>Committee Quorum (2 Votes to Reinstate):</strong><br>" +
+          "• Votes to Reinstate: <strong style='color:var(--green);'>" + reinstateVotes + " / 2</strong><br>" +
+          "• Votes to Uphold Ban: <strong style='color:#ef4444;'>" + upholdVotes + "</strong><br>" +
+          (voters.length > 0 ? "<span style='color:#94a3b8;'>Votes cast: " + voters.map(function(v){ return v + " (" + inc.votes[v] + ")"; }).join(", ") + "</span>" : "<span style='color:#94a3b8;'>No committee votes recorded yet.</span>") +
+        "</div>" +
+        (!isResolved ? 
+          "<div style='display:flex; gap:4px; margin-bottom:6px;'>" +
+            "<button class='btn btn-gold btn-sm' style='flex:1; padding:4px;' onclick='window.castCommitteeVote(\"" + inc.id + "\", \"reinstate\")'>" + (myVote === "reinstate" ? "✓ Voted Reinstate" : "Vote to Reinstate") + "</button>" +
+            "<button class='btn btn-outline btn-sm' style='flex:1; padding:4px; color:#ef4444; border-color:#ef4444;' onclick='window.castCommitteeVote(\"" + inc.id + "\", \"uphold\")'>" + (myVote === "uphold" ? "✓ Voted Uphold" : "Vote to Uphold Ban") + "</button>" +
+          "</div>" : "<div style='color:var(--green); font-weight:800; font-size:10px; margin-bottom:6px;'>CASE RESOLVED BY COMMITTEE QUORUM</div>");
+
+      boardContainer.appendChild(card);
+    });
+  }
+}
+
+window.adminForceLinkParent = function(childName) {
+  var parentName = prompt("Enter parent full name to link with " + childName + ":", "Gary Miller");
+  if (!parentName) return;
+  appState.friendsAndFamily.push({
+    id: Date.now(), owner: parentName, targetName: childName, type: "Child", memberNo: "COX-085", relation: "Child", status: "approved"
+  });
+  appState.friendsAndFamily.push({
+    id: Date.now() + 1, owner: childName, targetName: parentName, type: "Adult", memberNo: "COX-084", relation: "Parent", status: "approved"
+  });
+  saveState();
+  renderAdminDisciplinary();
+  alert("Verified parent linkage established. " + childName + "'s account is now active.");
 };
 
 window.castCommitteeVote = function(incId, voteType) {
@@ -1537,7 +2806,7 @@ window.castCommitteeVote = function(incId, voteType) {
   }
 
   saveState();
-  renderAdminDisciplinaryBoard();
+  renderAdminDisciplinary();
   renderMatchdayBusChat();
   updateCommsBadge();
 };
@@ -1549,7 +2818,7 @@ window.toggleTranscriptModal = function(incId) {
   var body = document.getElementById("transcript-body");
   
   body.innerHTML = 
-    "<div style='font-size:11px; margin-bottom:8px; color:var(--safc-gold);'><strong>Complete Conversation Transcript (Scroll up to view earlier context):</strong></div>" +
+    "<div style='font-size:11px; margin-bottom:8px; color:var(--safc-gold);'><strong>Complete Conversation Transcript:</strong></div>" +
     "<div id='transcript-scroll-area' style='max-height:300px; overflow-y:auto; padding-right:4px;'>" +
     inc.transcriptContext.map(function(line){
       var isFlag = line.indexOf("[FLAGGED") !== -1;
@@ -1568,245 +2837,9 @@ window.closeTranscriptModal = function() {
   document.getElementById("modal-transcript").style.display = "none";
 };
 
-window.toggleMyOnCallStatus = function() {
-  var current = appState.currentUser.name;
-  appState.committeeOnCall[current] = !(appState.committeeOnCall[current] !== false);
-  saveState();
-  renderAdminDrawer();
-};
-
-window.adminForceLinkParent = function(childName) {
-  var parentName = prompt("Enter parent full name to link with " + childName + ":", "Gary Miller");
-  if (!parentName) return;
-  appState.friendsAndFamily.push({
-    id: Date.now(), owner: parentName, targetName: childName, type: "Child", memberNo: "COX-085", relation: "Child", status: "approved"
-  });
-  appState.friendsAndFamily.push({
-    id: Date.now() + 1, owner: childName, targetName: parentName, type: "Adult", memberNo: "COX-084", relation: "Parent", status: "approved"
-  });
-  saveState();
-  renderAdminDrawer();
-  alert("Verified parent linkage established. " + childName + "'s account is now active.");
-};
-
-window.adminApproveLink = function(reqId) {
-  var req = appState.pendingLinkRequests.find(function(r) { return r.id === reqId; });
-  if (req) {
-    req.status = "approved";
-    saveState();
-    renderAdminDrawer();
-    updateCommsBadge();
-  }
-};
-
-window.adminRejectLink = function(reqId) {
-  appState.pendingLinkRequests = appState.pendingLinkRequests.filter(function(r) { return r.id !== reqId; });
-  saveState();
-  renderAdminDrawer();
-  updateCommsBadge();
-};
-
-function renderAdminLinkRectifierDropdown() {
-  var sel = document.getElementById("admin-rectifier-member-select");
-  if (!sel) return;
-  var curVal = sel.value;
-  sel.innerHTML = "";
-  appState.users.forEach(function(u) {
-    var opt = document.createElement("option");
-    opt.value = u.name;
-    opt.textContent = u.name + " (" + u.memberNo + ")";
-    if (curVal && curVal === u.name) opt.selected = true;
-    sel.appendChild(opt);
-  });
-  if (!curVal && appState.users.length > 0) sel.value = appState.users[0].name;
-}
-
-window.renderAdminLinkRectifier = function() {
-  var container = document.getElementById("admin-link-rectifier-list");
-  var sel = document.getElementById("admin-rectifier-member-select");
-  if (!container || !sel) return;
-  container.innerHTML = "";
-  var selectedMember = sel.value;
-  var filteredLinks = appState.friendsAndFamily.filter(function(l) {
-    return l.owner === selectedMember || l.targetName === selectedMember;
-  });
-  if (filteredLinks.length === 0) {
-    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; padding:4px 0;'>No connections for " + selectedMember + ".</div>";
-    return;
-  }
-  filteredLinks.forEach(function(link) {
-    var realIdx = appState.friendsAndFamily.indexOf(link);
-    var row = document.createElement("div");
-    row.style.cssText = "background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px;";
-    row.innerHTML = 
-      "<div style='display:flex; justify-content:space-between; margin-bottom:2px;'>" +
-        "<strong>" + link.owner + " ➔ " + link.targetName + " (" + link.type + ")</strong>" +
-        "<span style='color:var(--safc-gold);'>" + link.relation + "</span>" +
-      "</div>" +
-      "<div style='display:flex; gap:4px;'>" +
-        "<button class='btn btn-outline btn-sm' style='padding:1px 5px; font-size:9px;' onclick='window.adminToggleLinkCategory(" + realIdx + ")'>Switch Category</button>" +
-        "<button class='btn btn-outline btn-sm' style='padding:1px 5px; font-size:9px; color:#ef4444;' onclick='window.adminForceDeleteLink(" + realIdx + ")'>Remove</button>" +
-      "</div>";
-    container.appendChild(row);
-  });
-};
-
-window.adminToggleLinkCategory = function(idx) {
-  var link = appState.friendsAndFamily[idx];
-  link.type = (link.type === "Adult") ? "Child" : "Adult";
-  saveState();
-  renderAdminLinkRectifier();
-};
-
-window.adminForceDeleteLink = function(idx) {
-  if (confirm("Remove this link?")) {
-    appState.friendsAndFamily.splice(idx, 1);
-    saveState();
-    renderAdminLinkRectifier();
-  }
-};
-
-window.adminManualBalanceOverride = function() {
-  var memberName = document.getElementById("admin-override-user").value;
-  var amount = parseFloat(document.getElementById("admin-override-amount").value) || 0;
-  var reason = document.getElementById("admin-override-reason").value.trim() || "Administrative correction";
-  if (amount === 0) return;
-  var targetUser = appState.users.find(function(u) { return u.name === memberName; });
-  if (!targetUser) return;
-  targetUser.balance += amount;
-  logForensicTransaction("Graham (Secretary)", "Admin", memberName, "BALANCE_OVERRIDE", reason + " (" + (amount > 0 ? "+£" : "-£") + Math.abs(amount).toFixed(2) + ")", amount < 0 ? Math.abs(amount) : 0, amount > 0 ? amount : 0, 0);
-  saveState();
-  renderAdminDrawer();
-  alert("Balance adjusted by £" + amount.toFixed(2) + " for " + memberName);
-};
-
-function renderManifest() {
-  var list = document.getElementById("manifest-list");
-  if (!list) return;
-  list.innerHTML = "";
-  appState.bookings.forEach(function(b, idx) {
-    var row = document.createElement("div");
-    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px;";
-    row.innerHTML = 
-      "<div><strong>" + b.name + "</strong> (" + (b.adults + b.juniors) + " seats - " + b.stop + ")</div>" +
-      "<button class='btn btn-sm " + (b.boarded ? "btn-outline" : "btn-red") + "' style='padding:2px 6px; font-size:9px;' onclick='window.toggleBoarded(" + idx + ")'>" + (b.boarded ? "✓ Boarded" : "Check In") + "</button>";
-    list.appendChild(row);
-  });
-}
-
-window.toggleBoarded = function(idx) {
-  appState.bookings[idx].boarded = !appState.bookings[idx].boarded;
-  saveState();
-  renderManifest();
-  renderHUDView();
-};
-
-window.exportManifestCSV = function() {
-  var csv = "Passenger Name,Pickup Stop,Adults,Juniors,Total Paid,Boarded\n";
-  appState.bookings.forEach(function(b) {
-    csv += '"' + b.name + '","' + b.stop + '",' + b.adults + ',' + b.juniors + ',£' + b.total.toFixed(2) + ',' + (b.boarded ? "YES" : "NO") + "\n";
-  });
-  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  var url = window.URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.setAttribute("href", url);
-  a.setAttribute("download", "Coxhoe_Coach_Manifest.csv");
-  a.click();
-};
-
-function renderAdminStopList() {
-  var container = document.getElementById("admin-stops-editor");
-  if (!container) return;
-  container.innerHTML = "";
-  appState.stops.forEach(function(s, idx) {
-    var row = document.createElement("div");
-    row.style.cssText = "display:flex; gap:4px; margin-bottom:4px;";
-    row.innerHTML = 
-      "<input type='text' class='form-input' style='flex:2; padding:4px 6px; font-size:10px;' value='" + s.name + "' onchange='window.updateStopName(" + idx + ", this.value)'>" +
-      "<input type='text' class='form-input' style='flex:1; padding:4px 6px; font-size:10px;' value='" + s.time + "' onchange='window.updateStopTime(" + idx + ", this.value)'>" +
-      "<button class='btn btn-outline btn-sm' style='padding:2px 6px; font-size:9px; color:#ef4444;' onclick='window.deleteStop(" + idx + ")'>✕</button>";
-    container.appendChild(row);
-  });
-}
-
-window.updateStopName = function(idx, val) { appState.stops[idx].name = val; saveState(); renderBusBookingView(); };
-window.updateStopTime = function(idx, val) { appState.stops[idx].time = val; saveState(); renderBusBookingView(); };
-window.addNewStop = function() { appState.stops.push({ id: Date.now(), name: "New Village Stop", time: "12:30" }); saveState(); renderAdminStopList(); renderBusBookingView(); };
-window.deleteStop = function(idx) { appState.stops.splice(idx, 1); saveState(); renderAdminStopList(); renderBusBookingView(); };
-
-function renderAdminCardSettings() {
-  var sizeSel = document.getElementById("admin-card-size");
-  var priceInp = document.getElementById("admin-card-price");
-  var modeSel = document.getElementById("admin-prize-mode");
-  if (!sizeSel) return;
-  sizeSel.value = appState.cardConfig.size.toString();
-  priceInp.value = appState.cardConfig.pricePerSquare;
-  modeSel.value = appState.cardConfig.prizeMode;
-}
-
-window.saveCardSettings = function() {
-  var sizeChoice = parseInt(document.getElementById("admin-card-size").value) || 40;
-  var price = parseFloat(document.getElementById("admin-card-price").value) || 2.00;
-  var mode = document.getElementById("admin-prize-mode").value;
-  appState.cardConfig = {
-    size: sizeChoice,
-    pricePerSquare: price,
-    prizeMode: mode,
-    prizePct: 50,
-    prizeFixed: 50.00,
-    activeClubs: shuffleArray(MASTER_CLUBS).slice(0, sizeChoice)
-  };
-  saveState();
-  renderFootballCard();
-  alert("Football Card settings saved with " + sizeChoice + " teams!");
-};
-
-window.drawCardWinner = function() {
-  var claimed = Object.keys(appState.cardClaims);
-  if (claimed.length === 0) { alert("No squares sold yet!"); return; }
-  var winning = claimed[Math.floor(Math.random() * claimed.length)];
-  var winner = appState.cardClaims[winning];
-  
-  var fin = calculateCardFinancials();
-  var prize = fin.winnerPrize;
-
-  var winnerUser = appState.users.find(function(u) { return u.name === winner; });
-  if (winnerUser) winnerUser.balance += prize;
-
-  logForensicTransaction("Graham (Secretary)", "Admin", winner, "CARD_WINNER_PAYOUT", "Awarded Football Card prize (" + winning + ")", 0, prize, fin.branchProfit);
-  alert("🏆 WINNING TEAM: " + winning.toUpperCase() + "!\nWinner: " + winner + " wins £" + prize.toFixed(2) + " deposited directly to wallet.");
-  
-  appState.cardClaims = {};
-  appState.cardConfig.activeClubs = shuffleArray(MASTER_CLUBS).slice(0, appState.cardConfig.size);
-  saveState();
-  window.refreshAllViews();
-};
-
-function renderAuditLogView() {
-  var container = document.getElementById("admin-audit-log-list");
-  if (!container) return;
-  container.innerHTML = "";
-  appState.masterAuditTrail.slice(0, 15).forEach(function(t) {
-    var item = document.createElement("div");
-    item.style.cssText = "background:#0f172a; padding:4px 6px; border-radius:4px; margin-bottom:3px; font-size:9px;";
-    item.innerHTML = "<strong>" + t.txnId + " • " + t.category + ":</strong> " + t.desc + " (" + t.actor + ")";
-    container.appendChild(item);
-  });
-}
-
-window.exportMasterAuditCSV = function() {
-  var csv = "Txn ID,Timestamp,Actor,Role,Target,Category,Description,Debit,Credit,Branch Impact,Balance After\n";
-  appState.masterAuditTrail.forEach(function(t) {
-    csv += '"' + t.txnId + '","' + t.timestamp + '","' + t.actor + '","' + t.role + '","' + t.target + '","' + t.category + '","' + t.desc.replace(/"/g, '""') + '",£' + t.debit.toFixed(2) + ',£' + t.credit.toFixed(2) + ',£' + t.branchImpact.toFixed(2) + ',£' + t.balanceAfter.toFixed(2) + "\n";
-  });
-  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  var url = window.URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.setAttribute("href", url);
-  a.setAttribute("download", "Coxhoe_Branch_Master_Audit.csv");
-  a.click();
-};
-
+// --------------------------------------------------------
+// CONFIRMATION MODALS & APP BOOTLOADER
+// --------------------------------------------------------
 var pendingConfirmAction = null;
 window.showConfirmDialog = function(title, html, onConfirm) {
   document.getElementById("modal-title").textContent = title;
@@ -1825,7 +2858,6 @@ window.executeConfirmModal = function() {
   window.closeConfirmModal();
 };
 
-window.openAdminModal = function() { document.getElementById("admin-drawer").style.display = "flex"; };
-window.closeAdminModal = function() { document.getElementById("admin-drawer").style.display = "none"; };
-
-window.onload = function() { window.refreshAllViews(); };
+window.onload = function() {
+  window.refreshAllViews();
+};
