@@ -6,6 +6,15 @@
   <title>Coxhoe Branch - Sunderland AFC</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="manifest" href="manifest.json" />
+
+  <!-- Mobile & iOS PWA Status Bar & Icon Support -->
+  <meta name="theme-color" content="#dc2626" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Coxhoe SAFC" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -466,7 +475,7 @@
     </div>
   </div>
 
-  <!-- Incident Transcript Modal (Configured with high z-index) -->
+  <!-- Incident Transcript Modal -->
   <div id="modal-transcript" class="modal-backdrop">
     <div class="modal-sheet">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
