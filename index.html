@@ -132,22 +132,48 @@
         <select id="booking-bus-select" class="form-select" onchange="window.updateBookingCoachUI()"></select>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">Pickup Point</label>
-        <select id="booking-stop" class="form-select"></select>
-      </div>
-      <div style="display:flex; gap:6px; margin-bottom:10px;">
-        <div style="flex:1;">
-          <label id="label-adult-fare" class="form-label">Adults (£12)</label>
-          <input type="number" id="adult-count" class="form-input" value="1" min="0" max="6" />
+      <!-- Confirmed Bookings for this Match (With dynamic stop & cancel button) -->
+      <div id="my-active-bookings-summary" style="margin-bottom:10px;"></div>
+
+      <!-- Party / Multi-Passenger Booking Box -->
+      <div id="booking-party-selection-section" style="background:#1e293b; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #334155;">
+        <label class="form-label" style="color:var(--safc-gold); font-size:11px; margin-bottom:6px;">👥 Select Passengers for Coach</label>
+
+        <!-- Dynamic Traveling Party Checklist -->
+        <div id="party-passengers-list" style="margin-bottom:8px;"></div>
+
+        <!-- Add Other Branch Member (Autocomplete) -->
+        <div style="position:relative; margin-bottom:6px;">
+          <label class="form-label" style="font-size:9px;">Add Another Branch Member</label>
+          <div style="display:flex; gap:4px;">
+            <input type="text" id="party-search-member-input" class="form-input" placeholder="Type name or member #..." style="font-size:11px; padding:5px;" oninput="window.handlePartyMemberSearch(this.value)" />
+          </div>
+          <div id="party-member-autocomplete-box" class="autocomplete-dropdown" style="display:none;"></div>
         </div>
-        <div style="flex:1;">
-          <label id="label-junior-fare" class="form-label">Junior U16 (£8)</label>
-          <input type="number" id="junior-count" class="form-input" value="0" min="0" max="6" />
+
+        <!-- Add Non-Member Guest -->
+        <div style="margin-bottom:8px;">
+          <label class="form-label" style="font-size:9px;">Add Non-Member Guest</label>
+          <div style="display:flex; gap:4px;">
+            <input type="text" id="party-guest-name-input" class="form-input" placeholder="Guest Full Name..." style="font-size:11px; padding:5px; flex:2;" />
+            <select id="party-guest-type-select" class="form-select" style="font-size:11px; padding:5px; flex:1;">
+              <option value="Adult">Adult</option>
+              <option value="Junior">Junior</option>
+            </select>
+            <button class="btn btn-outline btn-sm" style="font-size:10px;" onclick="window.addPartyGuestPassenger()">+ Add</button>
+          </div>
         </div>
-      </div>
-      <div id="booking-action-container">
-        <button id="btn-book-seat" class="btn btn-red btn-sm" onclick="openBookingModal()">Book Coach Seat</button>
+
+        <div class="form-group" style="margin-bottom:6px;">
+          <label class="form-label">Pickup Point</label>
+          <select id="booking-stop" class="form-select" onchange="window.updatePartyStopSelection()"></select>
+        </div>
+
+        <div id="party-fare-breakdown" style="background:#0f172a; padding:6px 8px; border-radius:4px; font-size:11px; margin-bottom:8px;">
+          Total Fare: <strong id="party-total-fare-text" style="color:var(--safc-gold);">£0.00</strong>
+        </div>
+
+        <button id="btn-book-seat" class="btn btn-red btn-sm" style="width:100%;" onclick="window.openBookingModal()">Book Coach Seat(s)</button>
       </div>
     </div>
 
@@ -249,25 +275,55 @@
     </div>
   </section>
 
-  <!-- 6. MY PASS & STATEMENT -->
+  <!-- 6. MY PASS & MEMBER PROFILE -->
   <section id="view-profile" class="tab-view">
+    <!-- Editable Member Profile Card -->
     <div class="card" style="border-top:3px solid var(--safc-gold);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div class="profile-header-card">
+        <div class="profile-avatar-container">
+          <img id="profile-avatar-preview" class="profile-avatar-img" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>" alt="Avatar" />
+          <div class="profile-avatar-badge" onclick="document.getElementById('profile-avatar-file-input').click()">📷</div>
+          <input type="file" id="profile-avatar-file-input" accept="image/*" style="display:none;" onchange="window.handleProfilePhotoUpload(event)" />
+        </div>
         <div>
-          <span style="font-size:9px; font-weight:800; color:var(--safc-gold);">BRANCH MEMBERSHIP PASS</span>
-          <h2 id="card-name" style="font-size:16px; font-weight:800;">Gary Miller</h2>
+          <span style="font-size:9px; font-weight:800; color:var(--safc-gold);">BRANCH MEMBER IDENTITY</span>
+          <h2 id="card-name" style="font-size:16px; font-weight:800; margin:2px 0;">Gary Miller</h2>
           <div id="card-no" style="font-size:11px; color:var(--text-muted);">Member #COX-084</div>
         </div>
-        <div style="background:#fff; padding:4px; border-radius:4px;"><svg width="36" height="36" viewBox="0 0 25 25"><path fill="#000" d="M0 0h7v7H0zm1 1v5h5V1zm1 1h3v3H2zm7-2h2v2H9zm3 0h2v4h-2zm3 0h7v7h-7zm1 1v5h5V1zm1 1h3v3h-3zm-8 4h2v2H8zm-8 5h7v7H0zm1 1v5h5v-5zm1 1h3v3H2zm7-2h2v2H9zm5 0h2v2h-2zm3 0h4v2h-4zm-8 3h2v2H9zm3 0h4v2h-4zm-4 3h2v2H8zm3 0h2v2h-2zm3 0h4v2h-4z"/></svg></div>
       </div>
-      
-      <div id="pass-membership-status" style="background:#0f172a; padding:8px 10px; border-radius:6px; font-size:11px; margin-bottom:10px;"></div>
-      <button id="pass-renew-btn" class="btn btn-gold btn-sm" style="display:none; width:100%; margin-bottom:8px;" onclick="window.promptPayMembershipDues()">Renew Season Pass</button>
+
+      <!-- Editable Designatory & Safety Details -->
+      <div style="background:#0f172a; padding:10px; border-radius:6px; margin-bottom:10px; border:1px solid #334155;">
+        <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:8px;">✏️ Edit Member Profile Details</strong>
+
+        <div class="form-group" style="margin-bottom:6px;">
+          <label class="form-label" style="font-size:9px;">Branch Nickname / Known As (Optional)</label>
+          <input type="text" id="profile-edit-nickname" class="form-input" placeholder="e.g. Gaz" style="font-size:11px; padding:5px;" />
+        </div>
+
+        <div class="form-group" style="margin-bottom:6px;">
+          <label class="form-label" style="font-size:9px;">Matchday Mobile Number</label>
+          <input type="tel" id="profile-edit-phone" class="form-input" placeholder="e.g. 07700 900123" style="font-size:11px; padding:5px;" />
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">
+          <div>
+            <label class="form-label" style="font-size:9px;">Emergency Contact Name</label>
+            <input type="text" id="profile-edit-emergency-name" class="form-input" placeholder="Next of Kin / Parent" style="font-size:11px; padding:5px;" />
+          </div>
+          <div>
+            <label class="form-label" style="font-size:9px;">Emergency Phone</label>
+            <input type="tel" id="profile-edit-emergency-phone" class="form-input" placeholder="Emergency Number" style="font-size:11px; padding:5px;" />
+          </div>
+        </div>
+
+        <button class="btn btn-gold btn-sm" style="width:100%; font-size:10px;" onclick="window.saveMemberProfile()">💾 Save Profile Details</button>
+      </div>
 
       <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="width:100%;">Log Out</button>
     </div>
 
-    <!-- Friends & Family Network with Member Unlink Ability -->
+    <!-- Friends & Family Network -->
     <div class="card">
       <div class="flex-between" style="margin-bottom:8px;">
         <strong style="font-size:12px;">Friends & Family Network</strong>
@@ -410,6 +466,7 @@
     </div>
   </div>
 
+  <!-- Incident Transcript Modal (Configured with high z-index) -->
   <div id="modal-transcript" class="modal-backdrop">
     <div class="modal-sheet">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -420,7 +477,7 @@
     </div>
   </div>
 
-  <!-- ADMIN DRAWER (DROPDOWN-DRIVEN COMMITTEE HUD) -->
+  <!-- ADMIN DRAWER -->
   <div id="admin-drawer" class="admin-drawer hidden">
     <div class="drawer-header">
       <div>
@@ -431,7 +488,6 @@
     </div>
 
     <div class="drawer-content">
-      <!-- Master Admin Tool Dropdown Picker -->
       <div class="admin-tool-picker-card">
         <label class="tool-picker-label">🛠️ SELECT COMMITTEE TOOL</label>
         <select id="admin-tool-select" onchange="switchAdminTool(this.value)">
@@ -451,18 +507,14 @@
         <h4>🚌 Matchday Buses & Route Operations</h4>
         <p class="text-xs text-muted">Configure buses per home match, set independent capacities, fares, and village stops, manage allocation buffers, and board passengers.</p>
 
-        <!-- Home Match Selector -->
         <div class="form-group mt-2">
           <label class="form-label">Select Home Match</label>
           <select id="admin-bus-match-select" class="form-select" onchange="window.renderAdminBusesTool()"></select>
         </div>
 
-        <!-- Dynamic List of Configured Buses for this Match (Each Bus includes its own Timetable Editor) -->
         <div id="admin-match-buses-container" class="mt-2"></div>
-
         <button class="btn btn-gold btn-block mt-2" onclick="window.adminAddBusToSelectedMatch()">+ Add Bus</button>
 
-        <!-- 24-Hour Allocation Engine Section for this Match -->
         <div class="highlight-box mt-3">
           <h4>⚡ 24-Hour Cutoff Allocation Engine</h4>
           <p class="text-xs text-muted">Buses automatically balance and allocate 24 hours prior to scheduled kick-off. Use the override button below only as a manual backup.</p>
@@ -470,7 +522,6 @@
           <button class="btn btn-gold btn-block mt-2" onclick="window.adminRunAllocationBackup()">⚡ Run Early Allocation Cutoff (Backup Override)</button>
         </div>
 
-        <!-- Passenger Door Manifest for this Match -->
         <div class="admin-card mt-3">
           <div class="flex-between">
             <strong style="font-size:12px;">📋 Passenger Manifest & Door Check-In</strong>
@@ -545,21 +596,31 @@
         <div id="admin-away-fixture-manager" class="mt-2"></div>
       </div>
 
-      <!-- PANE 6: BROADCAST NOTICE / BRANCH NEWS (WITH DELETE & ARCHIVE) -->
+      <!-- PANE 6: RICH BROADCAST NOTICE / BRANCH NEWS -->
       <div id="admin-pane-news" class="admin-pane hidden">
         <div class="highlight-box">
           <h4>📢 Broadcast Notice / News Item</h4>
-          <p class="text-xs text-muted">Publishes directly to member home feeds & alert banners.</p>
+          <p class="text-xs text-muted">Publishes rich news with optional photo banners & web/social links directly to member home feeds.</p>
           <div class="form-group mt-2">
-            <input type="text" id="admin-news-title" class="form-input" placeholder="Notice Headline (e.g. Coach Timing Update)" />
+            <input type="text" id="admin-news-title" class="form-input" placeholder="Headline (e.g. Boxing Day Coach Timetable)" />
           </div>
           <div class="form-group">
             <textarea id="admin-news-body" class="form-input" rows="3" placeholder="Announcement details..."></textarea>
           </div>
+          <div class="form-group">
+            <input type="url" id="admin-news-image-url" class="form-input" placeholder="Photo/Image URL (Optional, e.g. https://.../photo.jpg)" />
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <div class="form-group">
+              <input type="url" id="admin-news-link-url" class="form-input" placeholder="Website / Social Link (Optional)" />
+            </div>
+            <div class="form-group">
+              <input type="text" id="admin-news-link-text" class="form-input" placeholder="Link Button Label (e.g. Read Club Post)" />
+            </div>
+          </div>
           <button class="btn btn-gold btn-block btn-sm" onclick="window.adminPostAnnouncement()">Broadcast Notice</button>
         </div>
 
-        <!-- Management List for Deletion & Archiving -->
         <div class="admin-card mt-3">
           <strong style="font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;">Manage Active & Archived Notices</strong>
           <div id="admin-news-manage-list"></div>

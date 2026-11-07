@@ -811,6 +811,28 @@ window.refreshAllViews = function() {
 };
 
 // --- HOME HUD ---
+// --- DYNAMIC TIMETABLE RESOLVER ---
+// Automatically looks up the current scheduled departure time for a stop
+function getDynamicStopDisplay(matchId, busId, rawStop) {
+  if (!rawStop) return "Pickup TBA";
+  // Extract village stop name if a time was previously baked in (e.g., "Coxhoe Red Lion (12:45)" -> "Coxhoe Red Lion")
+  var cleanName = rawStop.split("(")[0].trim();
+  var match = appState.homeMatches.find(function(m) { return m.id === matchId; });
+  if (match && match.buses) {
+    var bus = match.buses.find(function(b) { return b.busId === (busId || 1); }) || match.buses[0];
+    if (bus && bus.stops) {
+      var foundStop = bus.stops.find(function(s) {
+        return s.name.trim().toLowerCase() === cleanName.toLowerCase();
+      });
+      if (foundStop) {
+        return foundStop.name + " (" + foundStop.time + ")";
+      }
+    }
+  }
+  return rawStop;
+}
+
+// --- HOME HUD WITH DYNAMIC TIMETABLE & RICH ANNOUNCEMENTS ---
 function renderHUDView() {
   var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
 
@@ -819,11 +841,13 @@ function renderHUDView() {
     var read = a.readBy && a.readBy.indexOf(appState.currentUser.name) !== -1;
     return a.isUrgent && !a.archived && !read; 
   });
-  if (urgentPost) {
-    urgentContainer.style.display = "block";
-    urgentContainer.innerHTML = "<strong>🚨 URGENT BRANCH NOTICE:</strong> " + urgentPost.content;
-  } else {
-    urgentContainer.style.display = "none";
+  if (urgentContainer) {
+    if (urgentPost) {
+      urgentContainer.style.display = "block";
+      urgentContainer.innerHTML = "<strong>🚨 URGENT BRANCH NOTICE:</strong> " + urgentPost.content;
+    } else {
+      urgentContainer.style.display = "none";
+    }
   }
 
   var hudMatchTitle = document.getElementById("hud-next-match-title");
@@ -835,17 +859,21 @@ function renderHUDView() {
     return b.matchId === activeMatch.id && b.name.indexOf(appState.currentUser.name) !== -1; 
   });
   var travelStatusBox = document.getElementById("hud-travel-card-status");
-  if (myBooking) {
-    travelStatusBox.innerHTML = 
-      "<div style='color:var(--green); font-weight:800; font-size:12px; margin-bottom:4px;'>✓ SEAT CONFIRMED ON BRANCH COACH</div>" +
-      "<div><strong>Pickup:</strong> " + myBooking.stop + " (Bus #" + (myBooking.busId || 1) + ")</div>" +
-      "<div style='font-size:11px; color:var(--text-muted);'>Pass: " + (myBooking.adults + myBooking.juniors) + " seat(s) • Status: " + (myBooking.boarded ? "<span style='color:var(--green); font-weight:700;'>Boarded</span>" : "Awaiting Coach") + "</div>";
-  } else {
-    var firstBus = activeMatch.buses[0] || { adultFare: 12.00, isFreeBus: false };
-    var fareDisplay = firstBus.isFreeBus ? "FREE" : "£" + firstBus.adultFare.toFixed(2);
-    travelStatusBox.innerHTML = 
-      "<div style='color:var(--safc-gold); font-size:12px; margin-bottom:4px;'>No seat booked yet for " + activeMatch.opponent + " (H)</div>" +
-      "<button class='btn btn-red btn-sm' style='width:auto; padding:4px 10px; margin-top:4px;' onclick='switchTab(\"view-travel\", document.getElementById(\"nav-travel\"))'>Book Coach Seat (" + fareDisplay + ")</button>";
+  if (travelStatusBox) {
+    if (myBooking) {
+      // Dynamically resolves pickup time from active bus timetable
+      var resolvedStop = getDynamicStopDisplay(activeMatch.id, myBooking.busId, myBooking.stop);
+      travelStatusBox.innerHTML = 
+        "<div style='color:var(--green); font-weight:800; font-size:12px; margin-bottom:4px;'>✓ SEAT CONFIRMED ON BRANCH COACH</div>" +
+        "<div><strong>Pickup:</strong> " + resolvedStop + " (Bus #" + (myBooking.busId || 1) + ")</div>" +
+        "<div style='font-size:11px; color:var(--text-muted);'>Pass: " + (myBooking.adults + myBooking.juniors) + " seat(s) • Status: " + (myBooking.boarded ? "<span style='color:var(--green); font-weight:700;'>Boarded</span>" : "Awaiting Coach") + "</div>";
+    } else {
+      var firstBus = activeMatch.buses[0] || { adultFare: 12.00, isFreeBus: false };
+      var fareDisplay = firstBus.isFreeBus ? "FREE" : "£" + firstBus.adultFare.toFixed(2);
+      travelStatusBox.innerHTML = 
+        "<div style='color:var(--safc-gold); font-size:12px; margin-bottom:4px;'>No seat booked yet for " + activeMatch.opponent + " (H)</div>" +
+        "<button class='btn btn-red btn-sm' style='width:auto; padding:4px 10px; margin-top:4px;' onclick='switchTab(\"view-travel\", document.getElementById(\"nav-travel\"))'>Book Coach Seat (" + fareDisplay + ")</button>";
+    }
   }
 
   var actionsBox = document.getElementById("hud-actions-box");
@@ -881,15 +909,18 @@ function renderHUDView() {
   if (childComp.pendingWarning) {
     actions.push("<div style='color:#f87171;'>⚠️ <strong>Safeguarding Notice:</strong> Under-18 account must link a verified parent within <strong>" + childComp.daysRemaining + " days</strong> or account will be locked.</div>");
   }
-  if (actions.length > 0) {
-    actionsBox.style.display = "block";
-    document.getElementById("hud-actions-list").innerHTML = actions.join("");
-  } else {
-    actionsBox.style.display = "none";
+  if (actionsBox) {
+    if (actions.length > 0) {
+      actionsBox.style.display = "block";
+      document.getElementById("hud-actions-list").innerHTML = actions.join("");
+    } else {
+      actionsBox.style.display = "none";
+    }
   }
 
-  // Member News Feed with Mark as Read (Dismissal) Feature
+  // Render Rich Announcements Feed with Optional Image & Social/Web Links
   var newsFeed = document.getElementById("hud-news-feed");
+  if (!newsFeed) return;
   newsFeed.innerHTML = "";
 
   var activeNotices = appState.announcements.filter(function(post) {
@@ -904,14 +935,20 @@ function renderHUDView() {
       var card = document.createElement("div");
       card.className = "card";
       card.style.marginBottom = "8px";
+
+      var imageHtml = post.imageUrl ? "<img class='announcement-banner-img' src='" + post.imageUrl + "' alt='Notice photo' onerror='this.style.display=\"none\"' />" : "";
+      var linkHtml = (post.linkUrl) ? "<div style='margin-top:6px;'><a class='announcement-link-btn' href='" + post.linkUrl + "' target='_blank' rel='noopener noreferrer'>🔗 " + (post.linkText || "View Full Details") + "</a></div>" : "";
+
       card.innerHTML = 
         "<div style='display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-bottom:4px;'>" +
           "<span>" + post.date + "</span>" +
           (post.isUrgent ? "<span style='color:#ef4444; font-weight:800;'>URGENT</span>" : "<span>OFFICIAL</span>") +
         "</div>" +
         "<h4 style='font-size:13px; font-weight:800; margin-bottom:4px;'>" + post.title + "</h4>" +
+        imageHtml +
         "<p style='font-size:11px; line-height:1.5; color:#cbd5e1; margin-bottom:8px;'>" + post.content + "</p>" +
-        "<div style='display:flex; gap:6px;'>" +
+        linkHtml +
+        "<div style='display:flex; gap:6px; margin-top:8px;'>" +
           "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.reactAnnouncement(" + post.id + ")'>👍 " + post.reactions + " Reactions</button>" +
           "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:var(--safc-gold);' onclick='window.dismissAnnouncement(" + post.id + ")'>✓ Mark as Read</button>" +
         "</div>";
@@ -984,6 +1021,54 @@ window.promptPayMembershipDues = function() {
 // ========================================================
 
 // --- 1. TRAVEL & COACH BOOKINGS ---
+// ========================================================
+// MULTI-PASSENGER PARTY COACH BOOKING ENGINE
+// ========================================================
+
+// Transient booking party state for current booking session
+var currentBookingParty = [];
+
+function initBookingParty() {
+  var user = getCurrentUserRecord();
+  var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+
+  // Check if lead user already has a seat booked for this match
+  var leadAlreadyBooked = appState.bookings.some(function(b) {
+    return b.matchId === activeMatch.id && b.name.indexOf(user.name) !== -1;
+  });
+
+  currentBookingParty = [
+    {
+      id: "lead-" + user.name,
+      name: user.name,
+      type: user.category || "Adult",
+      isLead: true,
+      alreadyBooked: leadAlreadyBooked,
+      checked: !leadAlreadyBooked
+    }
+  ];
+
+  // Add linked friends & family
+  var myFriends = appState.friendsAndFamily.filter(function(f) {
+    return f.owner === user.name && f.status === "approved";
+  });
+
+  myFriends.forEach(function(f) {
+    var friendBooked = appState.bookings.some(function(b) {
+      return b.matchId === activeMatch.id && b.name.indexOf(f.targetName) !== -1;
+    });
+    currentBookingParty.push({
+      id: "fnf-" + f.targetName,
+      name: f.targetName,
+      type: f.type || "Adult",
+      relation: f.relation,
+      isLinked: true,
+      alreadyBooked: friendBooked,
+      checked: false
+    });
+  });
+}
+
 function renderBusBookingView() {
   var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
   var buses = activeMatch.buses || [];
@@ -1010,6 +1095,7 @@ function renderBusBookingView() {
     }
   }
 
+  initBookingParty();
   window.updateBookingCoachUI();
 }
 
@@ -1029,8 +1115,6 @@ window.updateBookingCoachUI = function() {
   var titleElem = document.getElementById("travel-coach-title");
   var subElem = document.getElementById("travel-coach-subtitle");
   var pricePill = document.getElementById("travel-coach-price-pill");
-  var labelAdult = document.getElementById("label-adult-fare");
-  var labelJunior = document.getElementById("label-junior-fare");
   var busCountLabel = document.getElementById("travel-bus-count-label");
 
   if (titleElem) titleElem.textContent = "Sunderland vs " + activeMatch.opponent;
@@ -1039,26 +1123,26 @@ window.updateBookingCoachUI = function() {
 
   if (selectedBus.isFreeBus) {
     if (pricePill) pricePill.textContent = "FREE BUS (Branch Sponsored)";
-    if (labelAdult) labelAdult.textContent = "Adults (£0.00 - FREE)";
-    if (labelJunior) labelJunior.textContent = "Junior U16 (£0.00 - FREE)";
   } else {
     if (pricePill) pricePill.textContent = "£" + selectedBus.adultFare.toFixed(2) + " Adult • £" + selectedBus.juniorFare.toFixed(2) + " Junior";
-    if (labelAdult) labelAdult.textContent = "Adults (£" + selectedBus.adultFare.toFixed(2) + ")";
-    if (labelJunior) labelJunior.textContent = "Junior U16 (£" + selectedBus.juniorFare.toFixed(2) + ")";
   }
 
-  var sel = document.getElementById("booking-stop");
-  if (sel) {
-    sel.innerHTML = "";
+  // Populate dynamic pickup stops for this specific coach
+  var stopSelect = document.getElementById("booking-stop");
+  if (stopSelect) {
+    var prevVal = stopSelect.value;
+    stopSelect.innerHTML = "";
     var coachStops = selectedBus.stops || DEFAULT_STOPS;
     coachStops.forEach(function(s) {
       var opt = document.createElement("option");
-      opt.value = s.name + " (" + s.time + ")";
+      opt.value = s.name;
       opt.textContent = s.name + " (" + s.time + ")";
-      sel.appendChild(opt);
+      if (prevVal && prevVal === s.name) opt.selected = true;
+      stopSelect.appendChild(opt);
     });
   }
 
+  // Capacity calculation
   var busBookings = appState.bookings.filter(function(b) {
     return b.matchId === activeMatch.id && (b.busId || 1) === selectedBus.busId;
   });
@@ -1072,24 +1156,225 @@ window.updateBookingCoachUI = function() {
   if (statusElem) statusElem.textContent = rem > 0 ? rem + " / " + cap + " Seats on " + selectedBus.title : selectedBus.title + " FULL";
   if (barElem) barElem.style.width = Math.min(100, Math.round((totalBooked / (cap || 1)) * 100)) + "%";
 
-  var actionBox = document.getElementById("booking-action-container");
-  var matchBookings = appState.bookings.filter(function(b) { return b.matchId === activeMatch.id; });
-  var existingBooking = matchBookings.find(function(b) { return b.name.indexOf(appState.currentUser.name) !== -1; });
+  // Render Confirmed Bookings with Dynamic Timetable Resolution
+  renderActiveBookingsSummary(activeMatch);
 
-  if (actionBox) {
-    if (existingBooking) {
-      actionBox.innerHTML = 
-        "<div style='background:#064e3b; border:1px solid #10b981; padding:8px 10px; border-radius:6px; margin-bottom:8px; font-size:11px; color:#fff;'>" +
-          "<strong>✓ You have booked seats for this match!</strong><br>" +
-          "Coach: Bus #" + (existingBooking.busId || 1) + " • Seats: " + (existingBooking.adults + existingBooking.juniors) + " • Pickup: " + existingBooking.stop +
+  // Render Passenger Checklist & Fare Calculation
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+function renderActiveBookingsSummary(activeMatch) {
+  var container = document.getElementById("my-active-bookings-summary");
+  if (!container) return;
+
+  var myBookings = appState.bookings.filter(function(b) {
+    return b.matchId === activeMatch.id && b.name.indexOf(appState.currentUser.name) !== -1;
+  });
+
+  if (myBookings.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  var html = "<div style='font-size:11px; font-weight:800; color:var(--green); margin-bottom:6px;'>✓ YOUR CONFIRMED SEATS FOR THIS MATCH:</div>";
+  myBookings.forEach(function(b) {
+    // Resolve dynamic pickup time from active bus stops
+    var resolvedStop = getDynamicStopDisplay(activeMatch.id, b.busId, b.stop);
+    var seats = (b.adults || 0) + (b.juniors || 0);
+
+    html += 
+      "<div style='background:#064e3b; border:1px solid #10b981; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; color:#fff;'>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+          "<strong>" + b.name + " (" + seats + " Seat" + (seats > 1 ? "s" : "") + ")</strong>" +
+          "<span style='font-weight:700; color:var(--safc-gold);'>Bus #" + (b.busId || 1) + "</span>" +
         "</div>" +
-        "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.cancelMyBooking(" + existingBooking.id + ")'>Cancel Booking & Refund</button>";
+        "<div style='margin-top:2px; font-size:10px;'>🚏 Pickup: <strong>" + resolvedStop + "</strong></div>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px;'>" +
+          "<span style='font-size:10px; color:#a7f3d0;'>Status: " + (b.boarded ? "Boarded ✓" : "Seat Reserved") + "</span>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px; color:#f87171; border-color:#f87171;' onclick='window.cancelMyBooking(" + b.id + ")'>Cancel & Refund (£" + b.total.toFixed(2) + ")</button>" +
+        "</div>" +
+      "</div>";
+  });
+
+  container.innerHTML = html;
+}
+
+function renderPartyPassengersList() {
+  var listContainer = document.getElementById("party-passengers-list");
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+
+  currentBookingParty.forEach(function(p, idx) {
+    var row = document.createElement("div");
+    var rowClass = "party-member-row";
+    if (p.isLead) rowClass += " lead";
+    else if (p.isGuest) rowClass += " guest";
+    row.className = rowClass;
+
+    var badgeText = p.isLead ? "Lead" : (p.relation ? p.relation : (p.isGuest ? "Guest" : "Member"));
+    var disabledAttr = p.alreadyBooked ? "disabled" : "";
+    var checkedAttr = p.checked ? "checked" : "";
+
+    row.innerHTML = 
+      "<div style='display:flex; align-items:center; gap:8px;'>" +
+        "<input type='checkbox' " + checkedAttr + " " + disabledAttr + " onchange='window.togglePartyPassenger(" + idx + ", this.checked)' />" +
+        "<div>" +
+          "<strong>" + p.name + "</strong> " +
+          "<span style='font-size:9px; color:var(--safc-gold);'>(" + p.type + " • " + badgeText + ")</span>" +
+          (p.alreadyBooked ? "<span style='display:block; font-size:9px; color:var(--green); font-weight:700;'>✓ Seat Already Confirmed</span>" : "") +
+        "</div>" +
+      "</div>" +
+      (!p.isLead && !p.isLinked ? "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.removePartyPassenger(" + idx + ")'>✕</button>" : "");
+
+    listContainer.appendChild(row);
+  });
+}
+
+window.togglePartyPassenger = function(idx, isChecked) {
+  if (currentBookingParty[idx]) {
+    currentBookingParty[idx].checked = isChecked;
+    window.updatePartyFareCalculation();
+  }
+};
+
+window.removePartyPassenger = function(idx) {
+  currentBookingParty.splice(idx, 1);
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+window.updatePartyStopSelection = function() {
+  window.updatePartyFareCalculation();
+};
+
+window.updatePartyFareCalculation = function() {
+  var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+  var buses = activeMatch.buses || [];
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+    adultFare: 12.00, juniorFare: 8.00, isFreeBus: false
+  };
+
+  var adultCount = 0;
+  var juniorCount = 0;
+
+  currentBookingParty.forEach(function(p) {
+    if (p.checked && !p.alreadyBooked) {
+      if (p.type === "Junior" || p.type === "Child") juniorCount++;
+      else adultCount++;
+    }
+  });
+
+  var totalFare = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
+
+  var fareText = document.getElementById("party-total-fare-text");
+  var bookBtn = document.getElementById("btn-book-seat");
+
+  if (fareText) {
+    fareText.innerHTML = selectedBus.isFreeBus ? 
+      "<span style='color:var(--green);'>FREE (Branch Sponsored)</span>" : 
+      "£" + totalFare.toFixed(2) + " <span style='font-size:10px; color:#94a3b8;'>(" + adultCount + " Adult" + (adultCount !== 1 ? "s" : "") + ", " + juniorCount + " Junior" + (juniorCount !== 1 ? "s" : "") + ")</span>";
+  }
+
+  if (bookBtn) {
+    var totalSelected = adultCount + juniorCount;
+    if (totalSelected === 0) {
+      bookBtn.textContent = "Select At Least 1 Passenger";
+      bookBtn.disabled = true;
     } else {
-      actionBox.innerHTML = "<button id='btn-book-seat' class='btn btn-red btn-sm' onclick='window.openBookingModal()'>Book Coach Seat (" + (selectedBus.isFreeBus ? "FREE" : "£" + selectedBus.adultFare.toFixed(2)) + ")</button>";
+      bookBtn.textContent = "Book " + totalSelected + " Seat" + (totalSelected > 1 ? "s" : "") + " (" + (selectedBus.isFreeBus ? "FREE" : "£" + totalFare.toFixed(2)) + ")";
+      bookBtn.disabled = false;
     }
   }
 };
 
+// Autocomplete Member Search for Party Booking
+window.handlePartyMemberSearch = function(query) {
+  var box = document.getElementById("party-member-autocomplete-box");
+  if (!box) return;
+
+  var q = (query || "").trim().toLowerCase();
+  if (q.length < 2) {
+    box.style.display = "none";
+    return;
+  }
+
+  var existingNames = currentBookingParty.map(function(p) { return p.name.toLowerCase(); });
+  var matches = appState.users.filter(function(u) {
+    var matchName = u.name.toLowerCase().indexOf(q) !== -1;
+    var matchNo = u.memberNo && u.memberNo.toLowerCase().indexOf(q) !== -1;
+    var notInParty = existingNames.indexOf(u.name.toLowerCase()) === -1;
+    return (matchName || matchNo) && notInParty;
+  });
+
+  if (matches.length === 0) {
+    box.innerHTML = "<div style='padding:6px 10px; font-size:10px; color:#94a3b8;'>No members match '" + query + "'</div>";
+    box.style.display = "block";
+    return;
+  }
+
+  var html = "";
+  matches.slice(0, 6).forEach(function(m) {
+    html += 
+      "<div class='autocomplete-item' onclick='window.selectPartyMember(\"" + m.name.replace(/'/g, "\\'") + "\", \"" + (m.category || "Adult") + "\")'>" +
+        "<strong>" + m.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + m.memberNo + " • " + m.category + ")</span>" +
+      "</div>";
+  });
+
+  box.innerHTML = html;
+  box.style.display = "block";
+};
+
+window.selectPartyMember = function(memberName, category) {
+  var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
+  var isBooked = appState.bookings.some(function(b) {
+    return b.matchId === activeMatch.id && b.name.indexOf(memberName) !== -1;
+  });
+
+  currentBookingParty.push({
+    id: "member-" + memberName,
+    name: memberName,
+    type: category || "Adult",
+    isMember: true,
+    alreadyBooked: isBooked,
+    checked: !isBooked
+  });
+
+  var input = document.getElementById("party-search-member-input");
+  var box = document.getElementById("party-member-autocomplete-box");
+  if (input) input.value = "";
+  if (box) box.style.display = "none";
+
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+window.addPartyGuestPassenger = function() {
+  var nameInput = document.getElementById("party-guest-name-input");
+  var typeSelect = document.getElementById("party-guest-type-select");
+  var guestName = nameInput ? nameInput.value.trim() : "";
+  var guestType = typeSelect ? typeSelect.value : "Adult";
+
+  if (!guestName) {
+    alert("Please enter the guest passenger's name.");
+    return;
+  }
+
+  currentBookingParty.push({
+    id: "guest-" + Date.now(),
+    name: guestName + " (Guest)",
+    type: guestType,
+    isGuest: true,
+    alreadyBooked: false,
+    checked: true
+  });
+
+  if (nameInput) nameInput.value = "";
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+// Execute Confirmed Party Coach Booking
 window.openBookingModal = function() {
   if (!verifyMembershipAccess("book matchday coach travel")) return;
 
@@ -1099,32 +1384,61 @@ window.openBookingModal = function() {
     busId: 1, title: "Bus 1", adultFare: 12.00, juniorFare: 8.00, isFreeBus: false
   };
 
-  var adults = parseInt(document.getElementById("adult-count").value) || 0;
-  var juniors = parseInt(document.getElementById("junior-count").value) || 0;
+  var selectedPassengers = currentBookingParty.filter(function(p) { return p.checked && !p.alreadyBooked; });
+  if (selectedPassengers.length === 0) {
+    alert("Please select at least 1 passenger to book.");
+    return;
+  }
+
+  var adultCount = 0;
+  var juniorCount = 0;
+  var passengerNames = [];
+
+  selectedPassengers.forEach(function(p) {
+    passengerNames.push(p.name + (p.type === "Junior" || p.type === "Child" ? " (Junior)" : ""));
+    if (p.type === "Junior" || p.type === "Child") juniorCount++;
+    else adultCount++;
+  });
+
   var stop = document.getElementById("booking-stop").value;
-  
-  var total = selectedBus.isFreeBus ? 0.00 : ((adults * selectedBus.adultFare) + (juniors * selectedBus.juniorFare));
+  var total = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
 
   var user = getCurrentUserRecord();
-  if (adults === 0 && juniors === 0) { alert("Please select at least 1 seat."); return; }
-  if (user.balance < total) { alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2)); return; }
+  if (user.balance < total) {
+    alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2) + ".\nPlease top up your wallet.");
+    return;
+  }
+
+  var resolvedStop = getDynamicStopDisplay(activeMatch.id, selectedBus.busId, stop);
 
   window.showConfirmDialog(
-    "Confirm Match Coach Booking",
-    "<strong>Fixture:</strong> Sunderland vs " + activeMatch.opponent + "<br><strong>Coach:</strong> " + selectedBus.title + "<br><strong>Pickup:</strong> " + stop + "<br><strong>Seats:</strong> " + adults + " Adult(s), " + juniors + " Junior(s)<br><strong>Total to Pay:</strong> " + (selectedBus.isFreeBus ? "<span style='color:var(--green); font-weight:800;'>FREE (Branch Sponsored)</span>" : "£" + total.toFixed(2)),
+    "Confirm Coach Party Booking",
+    "<strong>Fixture:</strong> Sunderland vs " + activeMatch.opponent + "<br>" +
+    "<strong>Coach:</strong> " + selectedBus.title + "<br>" +
+    "<strong>Pickup Point:</strong> " + resolvedStop + "<br>" +
+    "<strong>Traveling Party (" + selectedPassengers.length + "):</strong> " + passengerNames.join(", ") + "<br>" +
+    "<strong>Total Fare:</strong> " + (selectedBus.isFreeBus ? "<span style='color:var(--green); font-weight:800;'>FREE (Branch Sponsored)</span>" : "£" + total.toFixed(2)),
     function() {
-      // 1. Deduct balance locally & log statement
       if (total > 0) user.balance -= total;
-      logForensicTransaction(appState.currentUser.name, "Member", "Branch", "BUS_BOOKING", "Coach vs " + activeMatch.opponent + " (" + selectedBus.title + "): " + adults + " Adult, " + juniors + " Junior (" + stop + ")", total, 0, total);
-      
+      logForensicTransaction(
+        appState.currentUser.name,
+        "Member",
+        "Branch",
+        "BUS_BOOKING",
+        "Coach vs " + activeMatch.opponent + " (" + selectedBus.title + "): " + passengerNames.join(", ") + " [" + stop + "]",
+        total,
+        0,
+        total
+      );
+
       var newBooking = {
         id: Date.now(),
         matchId: activeMatch.id,
         busId: selectedBus.busId || 1,
-        name: appState.currentUser.name + (juniors > 0 ? " + Party" : ""),
+        name: passengerNames.join(", "),
         stop: stop,
-        adults: adults,
-        juniors: juniors,
+        adults: adultCount,
+        juniors: juniorCount,
         total: total,
         boarded: false
       };
@@ -1133,7 +1447,7 @@ window.openBookingModal = function() {
       saveState();
       window.refreshAllViews();
 
-      // 2. Write booking and updated balance to Supabase
+      // Write booking and balance to Supabase
       if (sbClient) {
         sbClient.from("bus_bookings").insert([{
           id: newBooking.id,
@@ -1157,11 +1471,12 @@ window.openBookingModal = function() {
           });
       }
 
-      alert("✓ Booking confirmed! Your seat is reserved on " + selectedBus.title + ".");
+      alert("✓ Booking confirmed! " + selectedPassengers.length + " seat(s) reserved on " + selectedBus.title + ".");
     }
   );
 };
 
+// Cancel Coach Booking & Process Instant Wallet Refund
 window.cancelMyBooking = function(bookingId) {
   var bIdx = appState.bookings.findIndex(function(b) { return b.id === bookingId; });
   if (bIdx === -1) return;
@@ -1169,13 +1484,24 @@ window.cancelMyBooking = function(bookingId) {
 
   window.showConfirmDialog(
     "Cancel Coach Booking",
-    "Are you sure you want to cancel your coach reservation?<br><br>A full refund of <strong>£" + booking.total.toFixed(2) + "</strong> will be credited directly to your branch wallet.",
+    "Are you sure you want to cancel this booking for <strong>" + booking.name + "</strong>?<br><br>" +
+    "A full refund of <strong>£" + booking.total.toFixed(2) + "</strong> will be credited directly to your branch wallet.",
     function() {
       var user = getCurrentUserRecord();
       if (booking.total > 0) {
         user.balance += booking.total;
-        logForensicTransaction("Branch", "System", user.name, "BUS_REFUND", "Refund: Cancelled coach booking #" + booking.id, 0, booking.total, -booking.total);
+        logForensicTransaction(
+          "Branch",
+          "System",
+          user.name,
+          "BUS_REFUND",
+          "Refund: Cancelled coach booking #" + booking.id + " (" + booking.name + ")",
+          0,
+          booking.total,
+          -booking.total
+        );
       }
+
       appState.bookings.splice(bIdx, 1);
       saveState();
       window.refreshAllViews();
@@ -1193,7 +1519,7 @@ window.cancelMyBooking = function(bookingId) {
           });
       }
 
-      alert("✓ Coach booking cancelled. Refund processed to your wallet.");
+      alert("✓ Coach booking cancelled. £" + booking.total.toFixed(2) + " refunded to your wallet.");
     }
   );
 };
@@ -1424,41 +1750,109 @@ function renderBonusRegistry() {
   }
 }
 
-// --- 4. MY PASS & FRIENDS / FAMILY MANAGEMENT ---
+// --- MEMBER PROFILE & IDENTITY PASS ---
 function renderProfilePassView() {
   var user = getCurrentUserRecord();
   var cardNameElem = document.getElementById("card-name");
   var cardNoElem = document.getElementById("card-no");
-  var statusElem = document.getElementById("pass-membership-status");
-  var renewalBtn = document.getElementById("pass-renew-btn");
+  var avatarImg = document.getElementById("profile-avatar-preview");
 
   var displayNameText = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
   if (cardNameElem) cardNameElem.textContent = displayNameText;
-  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (user.dob ? "DOB: " + user.dob : user.category);
+  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (user.category || "Adult");
 
-  if (user.membershipStatus === "active") {
-    statusElem.innerHTML = "<span style='color:var(--green); font-weight:800;'>🟢 ACTIVE • " + (user.membershipSeason || "2026/27") + " (" + user.membershipTier + ")</span><br><span style='font-size:10px; color:var(--text-muted);'>Valid through " + (user.validUntil || "2027-07-31") + "</span>";
-    if (renewalBtn) renewalBtn.style.display = "none";
-  } else {
-    var dueFee = (user.category === "Child" ? appState.duesConfig.juniorFee : appState.duesConfig.adultFee);
-    statusElem.innerHTML = "<span style='color:#ef4444; font-weight:800;'>🔴 LAPSED / OVERDUE • " + (user.membershipSeason || "2025/26") + "</span><br><span style='font-size:10px; color:#f87171;'>Travel & Away Privileges Locked</span>";
-    if (renewalBtn) {
-      renewalBtn.style.display = (user.category === "Child") ? "none" : "block";
-      renewalBtn.textContent = "Renew " + appState.duesConfig.activeSeason + " Season Pass (£" + dueFee.toFixed(2) + ")";
-    }
-  }
-
-  var topUpBtn = document.querySelector("#wallet-statement-title ~ button");
-  if (topUpBtn) {
-    if (user.category === "Child") {
-      topUpBtn.style.display = "none";
-      var balanceElem = document.getElementById("display-balance");
-      if (balanceElem) balanceElem.textContent = "JUNIOR PASS";
+  // Populate avatar photo
+  if (avatarImg) {
+    if (user.photoUrl) {
+      avatarImg.src = user.photoUrl;
     } else {
-      topUpBtn.style.display = "inline-block";
+      avatarImg.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
     }
   }
+
+  // Populate profile input fields
+  var nickInput = document.getElementById("profile-edit-nickname");
+  var phoneInput = document.getElementById("profile-edit-phone");
+  var emNameInput = document.getElementById("profile-edit-emergency-name");
+  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
+
+  if (nickInput) nickInput.value = user.nickname || "";
+  if (phoneInput) phoneInput.value = user.phone || "";
+  if (emNameInput) emNameInput.value = user.emergencyName || "";
+  if (emPhoneInput) emPhoneInput.value = user.emergencyPhone || "";
 }
+
+// Handle Photo Upload (Converts image to responsive DataURL)
+window.handleProfilePhotoUpload = function(event) {
+  var file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (file.size > 2 * 1024 * 1024) {
+    alert("Please select a photo smaller than 2MB.");
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    var user = getCurrentUserRecord();
+    user.photoUrl = dataUrl;
+
+    var preview = document.getElementById("profile-avatar-preview");
+    if (preview) preview.src = dataUrl;
+
+    saveState();
+    alert("✓ Profile photo updated!");
+
+    if (sbClient) {
+      sbClient.from("members")
+        .update({ photo_url: dataUrl })
+        .eq("member_no", user.memberNo)
+        .then(function(res) {
+          if (res.error) console.warn("Cloud photo sync notice:", res.error.message);
+        });
+    }
+  };
+  reader.readAsDataURL(file);
+};
+
+// Save Profile Details
+window.saveMemberProfile = function() {
+  var user = getCurrentUserRecord();
+  var nickInput = document.getElementById("profile-edit-nickname");
+  var phoneInput = document.getElementById("profile-edit-phone");
+  var emNameInput = document.getElementById("profile-edit-emergency-name");
+  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
+
+  user.nickname = nickInput ? nickInput.value.trim() : "";
+  user.phone = phoneInput ? phoneInput.value.trim() : "";
+  user.emergencyName = emNameInput ? emNameInput.value.trim() : "";
+  user.emergencyPhone = emPhoneInput ? emPhoneInput.value.trim() : "";
+
+  saveState();
+  renderProfilePassView();
+
+  var displayName = document.getElementById("display-name");
+  if (displayName) {
+    displayName.textContent = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
+  }
+
+  if (sbClient) {
+    sbClient.from("members")
+      .update({
+        nickname: user.nickname,
+        phone: user.phone,
+        emergency_name: user.emergencyName,
+        emergency_phone: user.emergencyPhone
+      })
+      .eq("member_no", user.memberNo)
+      .then(function(res) {
+        if (res.error) console.warn("Cloud profile sync notice:", res.error.message);
+      });
+  }
+
+  alert("✓ Member profile details saved successfully.");
+};
 
 function renderFriendsFamilyChecklist() {
   var container = document.getElementById("fnf-manager-list");
@@ -2861,9 +3255,15 @@ function renderAdminNews() {
 window.adminPostAnnouncement = function() {
   var titleInput = document.getElementById("admin-news-title");
   var bodyInput = document.getElementById("admin-news-body");
+  var imageInput = document.getElementById("admin-news-image-url");
+  var linkUrlInput = document.getElementById("admin-news-link-url");
+  var linkTextInput = document.getElementById("admin-news-link-text");
 
   var title = titleInput ? titleInput.value.trim() : "";
   var body = bodyInput ? bodyInput.value.trim() : "";
+  var imageUrl = imageInput ? imageInput.value.trim() : "";
+  var linkUrl = linkUrlInput ? linkUrlInput.value.trim() : "";
+  var linkText = linkTextInput ? linkTextInput.value.trim() : "";
 
   if (!title || !body) {
     alert("Please enter both a headline and announcement details.");
@@ -2876,6 +3276,9 @@ window.adminPostAnnouncement = function() {
     date: new Date().toISOString().substring(0, 10),
     is_urgent: false,
     content: body,
+    imageUrl: imageUrl,
+    linkUrl: linkUrl,
+    linkText: linkText || "View Details",
     reactions: 0,
     archived: false,
     read_by: []
@@ -2887,6 +3290,9 @@ window.adminPostAnnouncement = function() {
     date: newPost.date,
     isUrgent: newPost.is_urgent,
     content: newPost.content,
+    imageUrl: newPost.imageUrl,
+    linkUrl: newPost.linkUrl,
+    linkText: newPost.linkText,
     reactions: newPost.reactions,
     archived: newPost.archived,
     readBy: newPost.read_by
@@ -2896,16 +3302,28 @@ window.adminPostAnnouncement = function() {
 
   if (titleInput) titleInput.value = "";
   if (bodyInput) bodyInput.value = "";
+  if (imageInput) imageInput.value = "";
+  if (linkUrlInput) linkUrlInput.value = "";
+  if (linkTextInput) linkTextInput.value = "";
 
   saveState();
   renderHUDView();
-  renderAdminNews();
+  if (typeof renderAdminNews === "function") renderAdminNews();
 
   if (sbClient) {
-    sbClient.from("announcements").insert([newPost]).then(function() {});
+    sbClient.from("announcements").insert([{
+      id: newPost.id,
+      title: newPost.title,
+      date: newPost.date,
+      is_urgent: newPost.is_urgent,
+      content: newPost.content,
+      reactions: 0,
+      archived: false,
+      read_by: []
+    }]).then(function() {});
   }
 
-  alert("✓ Broadcast notice published to branch home feeds.");
+  alert("✓ Rich broadcast notice published to branch home feeds.");
 };
 
 window.toggleArchiveAnnouncement = function(postId) {
