@@ -1,7 +1,20 @@
 // ========================================================
-// COXHOE BRANCH SAFC - APP.JS (PART 1 OF 3)
-// Core State, Data Architecture, HUD & Travel Management
+// COXHOE BRANCH SAFC - APP.JS (PART 1 OF 4)
+// Supabase Client, Core Data Structures & State Engine
 // ========================================================
+
+// --- SUPABASE CLIENT INITIALIZATION ---
+var SUPABASE_URL = "https://nitzzfwtcfzgjqmbxkwn.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_9GSFeMOaqVmW7p_t19eNEQ_uUMCMBSz"; // Replace with your anon key
+
+var sbClient = null;
+if (window.supabase && typeof window.supabase.createClient === "function") {
+  try {
+    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (err) {
+    console.warn("Supabase initialization error:", err);
+  }
+}
 
 // --- MASTER DIRECTORY & CONFIG DATA ---
 var MASTER_MEMBERS = [
@@ -21,7 +34,7 @@ var DEFAULT_STOPS = [
   { id: 4, name: "Quarrington Hill", time: "13:10" }
 ];
 
-// Season Home Matches (Each coach contains its own independent capacity, fares & timetable stops)
+// Season Home Matches with independent coach timetable stops
 var SEASON_HOME_MATCHES = [
   {
     id: "H-01",
@@ -181,27 +194,25 @@ function getInitialBonusRegistry() {
 // --- STATE MANAGEMENT ---
 var appState = {
   currentUser: { name: "Gary Miller", role: "member", memberNo: "COX-084", category: "Adult" },
-  users: JSON.parse(localStorage.getItem("coxhoe_users_v18")) || MASTER_MEMBERS,
-  stops: JSON.parse(localStorage.getItem("coxhoe_stops_v18")) || DEFAULT_STOPS,
-  
-  // Matches & Independent Buses Architecture
-  homeMatches: JSON.parse(localStorage.getItem("coxhoe_home_matches_v18")) || SEASON_HOME_MATCHES,
+  users: JSON.parse(localStorage.getItem("coxhoe_users_v20")) || MASTER_MEMBERS,
+  stops: JSON.parse(localStorage.getItem("coxhoe_stops_v20")) || DEFAULT_STOPS,
+  homeMatches: JSON.parse(localStorage.getItem("coxhoe_home_matches_v20")) || SEASON_HOME_MATCHES,
   selectedHomeMatchId: "H-01",
   selectedBookingBusId: 1,
 
-  bookings: JSON.parse(localStorage.getItem("coxhoe_bookings_v18")) || [
+  bookings: JSON.parse(localStorage.getItem("coxhoe_bookings_v20")) || [
     { id: 101, matchId: "H-01", busId: 1, name: "Gary Miller", stop: "Coxhoe Red Lion", adults: 1, juniors: 0, total: 12.00, boarded: true },
     { id: 102, matchId: "H-01", busId: 1, name: "Dave Kelly", stop: "Coxhoe Red Lion", adults: 2, juniors: 0, total: 24.00, boarded: false }
   ],
 
-  friendsAndFamily: JSON.parse(localStorage.getItem("coxhoe_friends_v18")) || [
+  friendsAndFamily: JSON.parse(localStorage.getItem("coxhoe_friends_v20")) || [
     { id: 1, owner: "Gary Miller", targetName: "Phoebe Miller", type: "Child", memberNo: "COX-085", relation: "Daughter", status: "approved" },
     { id: 2, owner: "Phoebe Miller", targetName: "Gary Miller", type: "Adult", memberNo: "COX-084", relation: "Parent", status: "approved" }
   ],
   
-  pendingLinkRequests: JSON.parse(localStorage.getItem("coxhoe_pending_links_v18")) || [],
+  pendingLinkRequests: JSON.parse(localStorage.getItem("coxhoe_pending_links_v20")) || [],
   
-  duesConfig: JSON.parse(localStorage.getItem("coxhoe_dues_config_v18")) || {
+  duesConfig: JSON.parse(localStorage.getItem("coxhoe_dues_config_v20")) || {
     activeSeason: "2026/27",
     adultFee: 15.00,
     juniorFee: 5.00,
@@ -209,12 +220,12 @@ var appState = {
     enforceDuesGate: true
   },
 
-  announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v18")) || [
+  announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v20")) || [
     { id: 1, title: "Coventry City (H) Coach Departure Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled. Please check the timetable.", reactions: 14, archived: false, readBy: [] },
     { id: 2, title: "Branch Christmas Social Night Announced", date: "2026-10-28", isUrgent: false, content: "Tickets are now on sale for the annual Christmas branch social at Coxhoe WMC on Friday 18th December. Buffet, guest speaker, and fundraising raffle included.", reactions: 29, archived: false, readBy: [] }
   ],
 
-  matchdayChat: JSON.parse(localStorage.getItem("coxhoe_bus_chat_v18")) || [
+  matchdayChat: JSON.parse(localStorage.getItem("coxhoe_bus_chat_v20")) || [
     { id: 1, sender: "Dave Kelly", time: "11:30", text: "What time are we meeting at the Red Lion?" },
     { id: 2, sender: "Sarah Taylor", time: "11:35", text: "Departure is 12:30 sharp because of roadworks on A1." },
     { id: 3, sender: "Micky Gray", time: "11:38", text: "Has anyone got spare tickets for Leeds away?" },
@@ -222,7 +233,7 @@ var appState = {
     { id: 5, sender: "Sarah Taylor", time: "11:43", text: "Club shop was also sold out of matchday programmes." }
   ],
 
-  moderation: JSON.parse(localStorage.getItem("coxhoe_moderation_v18")) || {
+  moderation: JSON.parse(localStorage.getItem("coxhoe_moderation_v20")) || {
     strikes: {},
     mutedMembers: ["Billy Thompson"],
     revokedMembers: [],
@@ -250,13 +261,13 @@ var appState = {
     ]
   },
 
-  committeeOnCall: JSON.parse(localStorage.getItem("coxhoe_comm_oncall_v18")) || {
+  committeeOnCall: JSON.parse(localStorage.getItem("coxhoe_comm_oncall_v20")) || {
     "Graham (Secretary)": true,
     "Dave Kelly": true,
     "Sarah Taylor": true
   },
 
-  helpdeskTickets: JSON.parse(localStorage.getItem("coxhoe_helpdesk_v18")) || [
+  helpdeskTickets: JSON.parse(localStorage.getItem("coxhoe_helpdesk_v20")) || [
     {
       id: "TICK-401",
       member: "Dave Kelly",
@@ -269,14 +280,14 @@ var appState = {
     }
   ],
 
-  readTracker: JSON.parse(localStorage.getItem("coxhoe_read_tracker_v18")) || {
+  readTracker: JSON.parse(localStorage.getItem("coxhoe_read_tracker_v20")) || {
     "Gary Miller": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
     "Graham (Secretary)": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
     "Dave Kelly": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
     "Sarah Taylor": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: ["n1"] }
   },
 
-  cardConfig: JSON.parse(localStorage.getItem("coxhoe_card_config_v18")) || {
+  cardConfig: JSON.parse(localStorage.getItem("coxhoe_card_config_v20")) || {
     size: 40,
     pricePerSquare: 2.00,
     prizeMode: "percentage",
@@ -284,43 +295,264 @@ var appState = {
     prizeFixed: 50.00,
     activeClubs: MASTER_CLUBS.slice(0, 40)
   },
-  cardClaims: JSON.parse(localStorage.getItem("coxhoe_card_claims_v18")) || {
+  cardClaims: JSON.parse(localStorage.getItem("coxhoe_card_claims_v20")) || {
     "Blackburn": "Dave Kelly",
     "Leeds United": "Sarah Taylor"
   },
-  bonusRegistry: JSON.parse(localStorage.getItem("coxhoe_bonus_reg_v18")) || getInitialBonusRegistry(),
+  bonusRegistry: JSON.parse(localStorage.getItem("coxhoe_bonus_reg_v20")) || getInitialBonusRegistry(),
 
-  awayFixtures: JSON.parse(localStorage.getItem("coxhoe_away_fixtures_v18")) || SEASON_AWAY_FIXTURES,
-  awayRegistrations: JSON.parse(localStorage.getItem("coxhoe_away_regs_v18")) || [
+  awayFixtures: JSON.parse(localStorage.getItem("coxhoe_away_fixtures_v20")) || SEASON_AWAY_FIXTURES,
+  awayRegistrations: JSON.parse(localStorage.getItem("coxhoe_away_regs_v20")) || [
     { fixtureId: "A-01", memberName: "Gary Miller", party: ["Gary Miller (Adult)", "Phoebe Miller (Child)"], allocated: true },
     { fixtureId: "A-01", memberName: "Dave Kelly", party: ["Dave Kelly (Adult)"], allocated: false }
   ],
 
-  masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v18")) || [
+  masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v20")) || [
     { txnId: "TXN-1001", timestamp: "2026-10-25 10:00:00", actor: "Gary Miller", role: "Member", target: "Branch", category: "SUBS_DUES", desc: "Annual Membership Subs 2026/27 (Adult)", debit: 15.00, credit: 0, branchImpact: 15.00, balanceAfter: 35.00 }
   ]
 };
 
 function saveState() {
-  localStorage.setItem("coxhoe_users_v18", JSON.stringify(appState.users));
-  localStorage.setItem("coxhoe_stops_v18", JSON.stringify(appState.stops));
-  localStorage.setItem("coxhoe_home_matches_v18", JSON.stringify(appState.homeMatches));
-  localStorage.setItem("coxhoe_bookings_v18", JSON.stringify(appState.bookings));
-  localStorage.setItem("coxhoe_friends_v18", JSON.stringify(appState.friendsAndFamily));
-  localStorage.setItem("coxhoe_pending_links_v18", JSON.stringify(appState.pendingLinkRequests));
-  localStorage.setItem("coxhoe_dues_config_v18", JSON.stringify(appState.duesConfig));
-  localStorage.setItem("coxhoe_announcements_v18", JSON.stringify(appState.announcements));
-  localStorage.setItem("coxhoe_bus_chat_v18", JSON.stringify(appState.matchdayChat));
-  localStorage.setItem("coxhoe_moderation_v18", JSON.stringify(appState.moderation));
-  localStorage.setItem("coxhoe_comm_oncall_v18", JSON.stringify(appState.committeeOnCall));
-  localStorage.setItem("coxhoe_helpdesk_v18", JSON.stringify(appState.helpdeskTickets));
-  localStorage.setItem("coxhoe_read_tracker_v18", JSON.stringify(appState.readTracker));
-  localStorage.setItem("coxhoe_card_config_v18", JSON.stringify(appState.cardConfig));
-  localStorage.setItem("coxhoe_card_claims_v18", JSON.stringify(appState.cardClaims));
-  localStorage.setItem("coxhoe_bonus_reg_v18", JSON.stringify(appState.bonusRegistry));
-  localStorage.setItem("coxhoe_away_fixtures_v18", JSON.stringify(appState.awayFixtures));
-  localStorage.setItem("coxhoe_away_regs_v18", JSON.stringify(appState.awayRegistrations));
-  localStorage.setItem("coxhoe_audit_v18", JSON.stringify(appState.masterAuditTrail));
+  localStorage.setItem("coxhoe_users_v20", JSON.stringify(appState.users));
+  localStorage.setItem("coxhoe_stops_v20", JSON.stringify(appState.stops));
+  localStorage.setItem("coxhoe_home_matches_v20", JSON.stringify(appState.homeMatches));
+  localStorage.setItem("coxhoe_bookings_v20", JSON.stringify(appState.bookings));
+  localStorage.setItem("coxhoe_friends_v20", JSON.stringify(appState.friendsAndFamily));
+  localStorage.setItem("coxhoe_pending_links_v20", JSON.stringify(appState.pendingLinkRequests));
+  localStorage.setItem("coxhoe_dues_config_v20", JSON.stringify(appState.duesConfig));
+  localStorage.setItem("coxhoe_announcements_v20", JSON.stringify(appState.announcements));
+  localStorage.setItem("coxhoe_bus_chat_v20", JSON.stringify(appState.matchdayChat));
+  localStorage.setItem("coxhoe_moderation_v20", JSON.stringify(appState.moderation));
+  localStorage.setItem("coxhoe_comm_oncall_v20", JSON.stringify(appState.committeeOnCall));
+  localStorage.setItem("coxhoe_helpdesk_v20", JSON.stringify(appState.helpdeskTickets));
+  localStorage.setItem("coxhoe_read_tracker_v20", JSON.stringify(appState.readTracker));
+  localStorage.setItem("coxhoe_card_config_v20", JSON.stringify(appState.cardConfig));
+  localStorage.setItem("coxhoe_card_claims_v20", JSON.stringify(appState.cardClaims));
+  localStorage.setItem("coxhoe_bonus_reg_v20", JSON.stringify(appState.bonusRegistry));
+  localStorage.setItem("coxhoe_away_fixtures_v20", JSON.stringify(appState.awayFixtures));
+  localStorage.setItem("coxhoe_away_regs_v20", JSON.stringify(appState.awayRegistrations));
+  localStorage.setItem("coxhoe_audit_v20", JSON.stringify(appState.masterAuditTrail));
+}
+
+// ==========================================
+// END OF PART 1 OF 4
+// ==========================================
+
+// ========================================================
+// COXHOE BRANCH SAFC - APP.JS (PART 2 OF 4)
+// Cloud Sync, Safeguarding, Auth & Home HUD
+// ========================================================
+
+// --- UNIFIED SUPABASE CLOUD SYNC & REALTIME DISPATCHER ---
+async function initSupabaseCloudSync() {
+  if (!sbClient) return;
+
+  try {
+    // 1. Hydrate Members & Balances from Supabase
+    var mRes = await sbClient.from("members").select("*");
+    if (mRes.data && mRes.data.length > 0) {
+      appState.users = mRes.data.map(function(row) {
+        return {
+          id: row.id,
+          memberNo: row.member_no,
+          name: row.name,
+          nickname: row.nickname,
+          dob: row.dob,
+          category: row.category,
+          balance: parseFloat(row.balance) || 0,
+          registeredDaysAgo: row.registered_days_ago,
+          messagingAllowed: row.messaging_allowed,
+          membershipStatus: row.membership_status,
+          membershipTier: row.membership_tier,
+          membershipSeason: row.membership_season,
+          validUntil: row.valid_until,
+          hasAppAccount: true
+        };
+      });
+    }
+
+    // 2. Hydrate Bus Bookings
+    var bRes = await sbClient.from("bus_bookings").select("*");
+    if (bRes.data && bRes.data.length > 0) {
+      appState.bookings = bRes.data.map(function(row) {
+        return {
+          id: row.id,
+          matchId: row.match_id,
+          busId: row.bus_id || 1,
+          name: row.name,
+          stop: row.stop,
+          adults: row.adults,
+          juniors: row.juniors,
+          total: parseFloat(row.total) || 0,
+          boarded: row.boarded
+        };
+      });
+    }
+
+    // 3. Hydrate Master Audit Ledger (Financial Statement)
+    var lRes = await sbClient.from("audit_ledger").select("*").order("timestamp", { ascending: false }).limit(100);
+    if (lRes.data && lRes.data.length > 0) {
+      appState.masterAuditTrail = lRes.data.map(function(row) {
+        return {
+          txnId: row.txn_id,
+          timestamp: row.timestamp,
+          actor: row.actor,
+          role: row.role,
+          target: row.target,
+          category: row.category,
+          desc: row.description,
+          debit: parseFloat(row.debit) || 0,
+          credit: parseFloat(row.credit) || 0,
+          branchImpact: parseFloat(row.branch_impact) || 0,
+          balanceAfter: parseFloat(row.balance_after) || 0
+        };
+      });
+    }
+
+    // 4. Hydrate Announcements
+    var aRes = await sbClient.from("announcements").select("*").order("id", { ascending: false });
+    if (aRes.data && aRes.data.length > 0) {
+      appState.announcements = aRes.data.map(function(row) {
+        return {
+          id: row.id,
+          title: row.title,
+          date: row.date,
+          isUrgent: row.is_urgent,
+          content: row.content,
+          reactions: row.reactions || 0,
+          archived: row.archived || false,
+          readBy: Array.isArray(row.read_by) ? row.read_by : []
+        };
+      });
+    }
+
+    // 5. Hydrate Chat
+    var cRes = await sbClient.from("matchday_chat").select("*").order("id", { ascending: true }).limit(50);
+    if (cRes.data && cRes.data.length > 0) {
+      appState.matchdayChat = cRes.data;
+    }
+
+    // 6. Hydrate Away Registrations
+    var arRes = await sbClient.from("away_registrations").select("*");
+    if (arRes.data && arRes.data.length > 0) {
+      appState.awayRegistrations = arRes.data.map(function(row) {
+        return {
+          fixtureId: row.fixture_id,
+          memberName: row.member_name,
+          party: Array.isArray(row.party) ? row.party : [],
+          allocated: row.allocated
+        };
+      });
+    }
+
+    saveState();
+    window.refreshAllViews();
+
+    // 7. REALTIME BROADCAST DISPATCHER
+    sbClient
+      .channel("branch-master-sync")
+      // Bus Bookings Synced Live
+      .on("postgres_changes", { event: "*", schema: "public", table: "bus_bookings" }, function(payload) {
+        if (payload.eventType === "INSERT") {
+          var exists = appState.bookings.some(function(b) { return b.id === payload.new.id; });
+          if (!exists) {
+            appState.bookings.push({
+              id: payload.new.id,
+              matchId: payload.new.match_id,
+              busId: payload.new.bus_id || 1,
+              name: payload.new.name,
+              stop: payload.new.stop,
+              adults: payload.new.adults,
+              juniors: payload.new.juniors,
+              total: parseFloat(payload.new.total) || 0,
+              boarded: payload.new.boarded
+            });
+          }
+        } else if (payload.eventType === "UPDATE") {
+          var idx = appState.bookings.findIndex(function(b) { return b.id === payload.new.id; });
+          if (idx !== -1) appState.bookings[idx].boarded = payload.new.boarded;
+        } else if (payload.eventType === "DELETE") {
+          appState.bookings = appState.bookings.filter(function(b) { return b.id !== payload.old.id; });
+        }
+        saveState();
+        window.refreshAllViews();
+      })
+      // Members & Balances Synced Live
+      .on("postgres_changes", { event: "*", schema: "public", table: "members" }, function(payload) {
+        if (payload.new && payload.new.member_no) {
+          var m = appState.users.find(function(u) { return u.memberNo === payload.new.member_no; });
+          if (m) {
+            m.balance = parseFloat(payload.new.balance) || 0;
+            m.membershipStatus = payload.new.membership_status || m.membershipStatus;
+            saveState();
+            window.updateBalanceDisplay();
+            if (typeof renderProfilePassView === "function") renderProfilePassView();
+            if (typeof renderHUDView === "function") renderHUDView();
+            if (typeof renderAdminSubs === "function") renderAdminSubs();
+          }
+        }
+      })
+      // Statement Ledger Synced Live
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "audit_ledger" }, function(payload) {
+        var exists = appState.masterAuditTrail.some(function(t) { return t.txnId === payload.new.txn_id; });
+        if (!exists) {
+          appState.masterAuditTrail.unshift({
+            txnId: payload.new.txn_id,
+            timestamp: payload.new.timestamp,
+            actor: payload.new.actor,
+            role: payload.new.role,
+            target: payload.new.target,
+            category: payload.new.category,
+            desc: payload.new.description,
+            debit: parseFloat(payload.new.debit) || 0,
+            credit: parseFloat(payload.new.credit) || 0,
+            branchImpact: parseFloat(payload.new.branch_impact) || 0,
+            balanceAfter: parseFloat(payload.new.balance_after) || 0
+          });
+          saveState();
+          if (typeof renderWalletStatement === "function") renderWalletStatement();
+          if (typeof renderAdminTreasury === "function") renderAdminTreasury();
+        }
+      })
+      // Chat Messages Synced Live
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "matchday_chat" }, function(payload) {
+        var exists = appState.matchdayChat.some(function(m) { return m.id === payload.new.id; });
+        if (!exists) {
+          appState.matchdayChat.push(payload.new);
+          saveState();
+          if (typeof renderMatchdayBusChat === "function") renderMatchdayBusChat();
+          updateCommsBadge();
+        }
+      })
+      // Away Registrations Synced Live
+      .on("postgres_changes", { event: "*", schema: "public", table: "away_registrations" }, function(payload) {
+        if (payload.eventType === "INSERT") {
+          appState.awayRegistrations.push({
+            fixtureId: payload.new.fixture_id,
+            memberName: payload.new.member_name,
+            party: Array.isArray(payload.new.party) ? payload.new.party : [],
+            allocated: payload.new.allocated
+          });
+        } else if (payload.eventType === "UPDATE") {
+          var reg = appState.awayRegistrations.find(function(r) {
+            return r.fixtureId === payload.new.fixture_id && r.memberName === payload.new.member_name;
+          });
+          if (reg) reg.allocated = payload.new.allocated;
+        }
+        saveState();
+        renderMemberAwayView();
+        renderHUDView();
+        if (typeof renderAdminAwayFixture === "function") renderAdminAwayFixture();
+      })
+      // Announcements Synced Live
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, function() {
+        initSupabaseCloudSync();
+      })
+      .subscribe();
+
+  } catch (syncErr) {
+    console.warn("Supabase Realtime initial connection fallback:", syncErr);
+  }
 }
 
 function getCurrentUserRecord() {
@@ -349,10 +581,30 @@ function logForensicTransaction(actor, role, target, category, desc, debit, cred
     actor: actor, role: role, target: target, category: category, desc: desc,
     debit: debit, credit: credit, branchImpact: branchImpact, balanceAfter: balanceAfter
   };
+
   appState.masterAuditTrail.unshift(txn);
   saveState();
   window.updateBalanceDisplay();
   if (typeof renderWalletStatement === "function") renderWalletStatement();
+
+  // Broadcast to Supabase audit_ledger
+  if (sbClient) {
+    sbClient.from("audit_ledger").insert([{
+      txn_id: txn.txnId,
+      timestamp: txn.timestamp,
+      actor: txn.actor,
+      role: txn.role,
+      target: txn.target,
+      category: txn.category,
+      description: txn.desc,
+      debit: txn.debit,
+      credit: txn.credit,
+      branch_impact: txn.branchImpact,
+      balance_after: txn.balanceAfter
+    }]).then(function(res) {
+      if (res.error) console.error("Ledger sync error:", res.error);
+    });
+  }
 }
 
 function checkChildCompliance(user) {
@@ -546,8 +798,8 @@ window.switchTab = function(viewId, btn) {
 window.refreshAllViews = function() {
   window.updateBalanceDisplay();
   renderHUDView();
-  renderBusBookingView();
-  renderMemberAwayView();
+  if (typeof renderBusBookingView === "function") renderBusBookingView();
+  if (typeof renderMemberAwayView === "function") renderMemberAwayView();
   if (typeof renderFootballCard === "function") renderFootballCard();
   if (typeof renderBonusRegistry === "function") renderBonusRegistry();
   if (typeof renderFriendsFamilyChecklist === "function") renderFriendsFamilyChecklist();
@@ -558,7 +810,7 @@ window.refreshAllViews = function() {
   updateCommsBadge();
 };
 
-// --- 1. HOME HUD ---
+// --- HOME HUD ---
 function renderHUDView() {
   var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
 
@@ -674,6 +926,9 @@ window.reactAnnouncement = function(postId) {
     post.reactions++;
     saveState();
     renderHUDView();
+    if (sbClient) {
+      sbClient.from("announcements").update({ reactions: post.reactions }).eq("id", postId).then(function() {});
+    }
   }
 };
 
@@ -686,6 +941,9 @@ window.dismissAnnouncement = function(postId) {
     }
     saveState();
     renderHUDView();
+    if (sbClient) {
+      sbClient.from("announcements").update({ read_by: post.readBy }).eq("id", postId).then(function() {});
+    }
   }
 };
 
@@ -716,12 +974,20 @@ window.promptPayMembershipDues = function() {
   );
 };
 
-// --- 2. TRAVEL & BUS BOOKINGS ---
+// ==========================================
+// END OF PART 2 OF 4
+// ==========================================
+
+// ========================================================
+// COXHOE BRANCH SAFC - APP.JS (PART 3 OF 4)
+// Travel Bookings, Away Tickets, Fundraiser, Pass & Comms
+// ========================================================
+
+// --- 1. TRAVEL & COACH BOOKINGS ---
 function renderBusBookingView() {
   var activeMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
   var buses = activeMatch.buses || [];
 
-  // Coach Selector for Multiple Coaches
   var busSelectorGroup = document.getElementById("booking-bus-selector-group");
   var busSelectElem = document.getElementById("booking-bus-select");
 
@@ -781,7 +1047,6 @@ window.updateBookingCoachUI = function() {
     if (labelJunior) labelJunior.textContent = "Junior U16 (£" + selectedBus.juniorFare.toFixed(2) + ")";
   }
 
-  // Populate Pickup Stops specific to this coach
   var sel = document.getElementById("booking-stop");
   if (sel) {
     sel.innerHTML = "";
@@ -794,7 +1059,6 @@ window.updateBookingCoachUI = function() {
     });
   }
 
-  // Calculate Capacity & Booked seats on this specific bus
   var busBookings = appState.bookings.filter(function(b) {
     return b.matchId === activeMatch.id && (b.busId || 1) === selectedBus.busId;
   });
@@ -808,7 +1072,6 @@ window.updateBookingCoachUI = function() {
   if (statusElem) statusElem.textContent = rem > 0 ? rem + " / " + cap + " Seats on " + selectedBus.title : selectedBus.title + " FULL";
   if (barElem) barElem.style.width = Math.min(100, Math.round((totalBooked / (cap || 1)) * 100)) + "%";
 
-  // Check if current user already booked on this match
   var actionBox = document.getElementById("booking-action-container");
   var matchBookings = appState.bookings.filter(function(b) { return b.matchId === activeMatch.id; });
   var existingBooking = matchBookings.find(function(b) { return b.name.indexOf(appState.currentUser.name) !== -1; });
@@ -850,9 +1113,11 @@ window.openBookingModal = function() {
     "Confirm Match Coach Booking",
     "<strong>Fixture:</strong> Sunderland vs " + activeMatch.opponent + "<br><strong>Coach:</strong> " + selectedBus.title + "<br><strong>Pickup:</strong> " + stop + "<br><strong>Seats:</strong> " + adults + " Adult(s), " + juniors + " Junior(s)<br><strong>Total to Pay:</strong> " + (selectedBus.isFreeBus ? "<span style='color:var(--green); font-weight:800;'>FREE (Branch Sponsored)</span>" : "£" + total.toFixed(2)),
     function() {
+      // 1. Deduct balance locally & log statement
       if (total > 0) user.balance -= total;
       logForensicTransaction(appState.currentUser.name, "Member", "Branch", "BUS_BOOKING", "Coach vs " + activeMatch.opponent + " (" + selectedBus.title + "): " + adults + " Adult, " + juniors + " Junior (" + stop + ")", total, 0, total);
-      appState.bookings.push({
+      
+      var newBooking = {
         id: Date.now(),
         matchId: activeMatch.id,
         busId: selectedBus.busId || 1,
@@ -862,9 +1127,36 @@ window.openBookingModal = function() {
         juniors: juniors,
         total: total,
         boarded: false
-      });
+      };
+
+      appState.bookings.push(newBooking);
       saveState();
       window.refreshAllViews();
+
+      // 2. Write booking and updated balance to Supabase
+      if (sbClient) {
+        sbClient.from("bus_bookings").insert([{
+          id: newBooking.id,
+          match_id: newBooking.matchId,
+          bus_id: newBooking.busId,
+          name: newBooking.name,
+          stop: newBooking.stop,
+          adults: newBooking.adults,
+          juniors: newBooking.juniors,
+          total: newBooking.total,
+          boarded: false
+        }]).then(function(res) {
+          if (res.error) console.error("Booking error:", res.error);
+        });
+
+        sbClient.from("members")
+          .update({ balance: user.balance })
+          .eq("member_no", user.memberNo)
+          .then(function(res) {
+            if (res.error) console.error("Balance update error:", res.error);
+          });
+      }
+
       alert("✓ Booking confirmed! Your seat is reserved on " + selectedBus.title + ".");
     }
   );
@@ -887,12 +1179,26 @@ window.cancelMyBooking = function(bookingId) {
       appState.bookings.splice(bIdx, 1);
       saveState();
       window.refreshAllViews();
+
+      if (sbClient) {
+        sbClient.from("bus_bookings").delete().eq("id", bookingId).then(function(res) {
+          if (res.error) console.error("Booking delete error:", res.error);
+        });
+
+        sbClient.from("members")
+          .update({ balance: user.balance })
+          .eq("member_no", user.memberNo)
+          .then(function(res) {
+            if (res.error) console.error("Balance refund error:", res.error);
+          });
+      }
+
       alert("✓ Coach booking cancelled. Refund processed to your wallet.");
     }
   );
 };
 
-// --- MEMBER AWAY FIXTURE SELECTOR ---
+// --- 2. AWAY FIXTURE EXPRESSIONS OF INTEREST ---
 function renderMemberAwayView() {
   var sel = document.getElementById("member-away-game-select");
   var card = document.getElementById("member-away-status-card");
@@ -970,15 +1276,26 @@ window.registerAwayInterest = function(fixtureId) {
     party.push(cb.getAttribute("data-name") + " (" + cb.getAttribute("data-type") + ")");
   });
 
-  appState.awayRegistrations.push({
+  var newReg = {
     fixtureId: fixtureId,
     memberName: appState.currentUser.name,
     party: party,
     allocated: false
-  });
+  };
 
+  appState.awayRegistrations.push(newReg);
   saveState();
   renderMemberAwayView();
+
+  if (sbClient) {
+    sbClient.from("away_registrations").insert([{
+      fixture_id: newReg.fixtureId,
+      member_name: newReg.memberName,
+      party: newReg.party,
+      allocated: false
+    }]).then(function() {});
+  }
+
   alert("✓ Expression of Interest registered for party of " + party.length + ".");
 };
 
@@ -987,21 +1304,22 @@ window.withdrawAwayInterest = function(fixtureId) {
     return r.fixtureId === fixtureId && r.memberName === appState.currentUser.name;
   });
   if (idx !== -1) {
+    var memberName = appState.currentUser.name;
     appState.awayRegistrations.splice(idx, 1);
     saveState();
     renderMemberAwayView();
+
+    if (sbClient) {
+      sbClient.from("away_registrations")
+        .delete()
+        .eq("fixture_id", fixtureId)
+        .eq("member_name", memberName)
+        .then(function() {});
+    }
+
     alert("✓ Expression of Interest withdrawn.");
   }
 };
-
-// ==========================================
-// END OF PART 1 OF 3
-// ==========================================
-
-// ========================================================
-// COXHOE BRANCH SAFC - APP.JS (PART 2 OF 3)
-// Fundraiser, Profile/FnF Unlink, Statement & Comms Hub
-// ========================================================
 
 // --- 3. FUNDRAISER (FOOTBALL CARD & BONUS BALL) ---
 function calculateCardFinancials() {
@@ -1106,7 +1424,7 @@ function renderBonusRegistry() {
   }
 }
 
-// --- 4. MY PASS & STATEMENT ---
+// --- 4. MY PASS & FRIENDS / FAMILY MANAGEMENT ---
 function renderProfilePassView() {
   var user = getCurrentUserRecord();
   var cardNameElem = document.getElementById("card-name");
@@ -1130,7 +1448,6 @@ function renderProfilePassView() {
     }
   }
 
-  // Under-18 Safeguarding Wallet Lock: Disables wallet top-up/spending for minors
   var topUpBtn = document.querySelector("#wallet-statement-title ~ button");
   if (topUpBtn) {
     if (user.category === "Child") {
@@ -1143,7 +1460,6 @@ function renderProfilePassView() {
   }
 }
 
-// Friends & Family Network with Member-Side Unlink Ability
 function renderFriendsFamilyChecklist() {
   var container = document.getElementById("fnf-manager-list");
   if (!container) return;
@@ -1250,7 +1566,7 @@ window.requestMemberLink = function() {
   window.refreshAllViews();
 };
 
-// Advanced Wallet Statement with Multi-Filtering & Export
+// --- 5. WALLET STATEMENT & EXPORT ---
 window.handleStatementTimeframeChange = function(val) {
   var customBox = document.getElementById("statement-custom-date-box");
   if (customBox) {
@@ -1375,7 +1691,7 @@ window.exportMyStatementCSV = function() {
   a.click();
 };
 
-// --- 5. COMMS & CHAT HUB ---
+// --- 6. COMMS & CHAT HUB ---
 window.switchCommsSubTab = function(subId) {
   document.getElementById("comms-sub-bus").style.display = (subId === "bus") ? "block" : "none";
   document.getElementById("comms-sub-dm").style.display = (subId === "dm") ? "block" : "none";
@@ -1492,17 +1808,22 @@ window.sendMatchdayBusMessage = function() {
     }
   }
 
-  appState.matchdayChat.push({
+  var newMsg = {
     id: Date.now(),
     sender: current,
     time: new Date().toTimeString().substring(0, 5),
     text: text
-  });
+  };
 
+  appState.matchdayChat.push(newMsg);
   input.value = "";
   saveState();
   renderMatchdayBusChat();
   updateCommsBadge();
+
+  if (sbClient) {
+    sbClient.from("matchday_chat").insert([newMsg]).then(function() {});
+  }
 };
 
 function renderDirectMessagesView() {
@@ -1768,11 +2089,11 @@ window.submitMemberHelpdeskTicket = function() {
 };
 
 // ==========================================
-// END OF PART 2 OF 3
+// END OF PART 3 OF 4
 // ==========================================
 
 // ========================================================
-// COXHOE BRANCH SAFC - APP.JS (PART 3 OF 3)
+// COXHOE BRANCH SAFC - APP.JS (PART 4 OF 4)
 // Committee Secretary HUD (All Panes), Modals & Bootloader
 // ========================================================
 
@@ -1799,27 +2120,23 @@ window.closeAdminDrawer = function() {
 window.switchAdminTool = function(toolId) {
   activeAdminTool = toolId;
 
-  // 1. Hide all admin panes
   var panes = document.querySelectorAll(".admin-pane");
   panes.forEach(function(pane) {
     pane.style.display = "none";
     pane.classList.add("hidden");
   });
 
-  // 2. Unhide selected pane
   var selected = document.getElementById("admin-pane-" + toolId);
   if (selected) {
     selected.style.display = "block";
     selected.classList.remove("hidden");
   }
 
-  // 3. Keep select dropdown in sync
   var selectElem = document.getElementById("admin-tool-select");
   if (selectElem && selectElem.value !== toolId) {
     selectElem.value = toolId;
   }
 
-  // 4. Render data for active pane
   renderAdminActivePane(toolId);
 };
 
@@ -1849,7 +2166,6 @@ window.renderAdminBusesTool = function() {
   var busesContainer = document.getElementById("admin-match-buses-container");
   if (!matchSelect || !busesContainer) return;
 
-  // 1. Populate Home Match Dropdown
   var currentVal = matchSelect.value || appState.selectedHomeMatchId;
   matchSelect.innerHTML = "";
   appState.homeMatches.forEach(function(m) {
@@ -1866,7 +2182,6 @@ window.renderAdminBusesTool = function() {
   appState.selectedHomeMatchId = matchSelect.value;
   var selectedMatch = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
 
-  // 2. Render Independent Buses Cards for this Match
   busesContainer.innerHTML = "";
   if (!selectedMatch.buses || selectedMatch.buses.length === 0) {
     selectedMatch.buses = [{
@@ -1885,7 +2200,6 @@ window.renderAdminBusesTool = function() {
     var card = document.createElement("div");
     card.className = "admin-card mt-2";
     
-    // Build stops list specifically for this coach
     var stopsHtml = "";
     var currentStops = bus.stops || DEFAULT_STOPS;
     currentStops.forEach(function(s, sIdx) {
@@ -1942,7 +2256,6 @@ window.renderAdminBusesTool = function() {
     busesContainer.appendChild(card);
   });
 
-  // 3. Render 24h Allocation Preview and Manifest for this Match
   renderAdminAllocationPreviewForMatch(selectedMatch);
   renderAdminManifestForMatch(selectedMatch);
 };
@@ -2023,7 +2336,6 @@ window.adminRemoveBus = function(matchId, busIdx) {
   }
 };
 
-// 24h Allocation Preview for Selected Match
 function renderAdminAllocationPreviewForMatch(match) {
   var summaryBox = document.getElementById("admin-allocation-status-summary");
   if (!summaryBox) return;
@@ -2072,7 +2384,6 @@ window.adminRunAllocationBackup = function() {
   logForensicTransaction("Graham (Secretary)", "Admin", "All Passengers", "ALLOCATION_24H_OVERRIDE", "Manual early cutoff allocation for vs " + match.opponent, 0, 0, 0);
 };
 
-// Manifest & Boarding for Selected Match
 function renderAdminManifestForMatch(match) {
   var container = document.getElementById("admin-manifest-summary");
   if (!container) return;
@@ -2123,6 +2434,13 @@ window.toggleBoarded = function(idx) {
     saveState();
     window.renderAdminBusesTool();
     renderHUDView();
+
+    if (sbClient) {
+      sbClient.from("bus_bookings")
+        .update({ boarded: appState.bookings[idx].boarded })
+        .eq("id", appState.bookings[idx].id)
+        .then(function() {});
+    }
   }
 };
 
@@ -2493,6 +2811,15 @@ window.toggleAwayAllocation = function(fixtureId, memberName) {
     renderAdminAwayFixture();
     renderMemberAwayView();
     renderHUDView();
+
+    if (sbClient) {
+      sbClient.from("away_registrations")
+        .update({ allocated: reg.allocated })
+        .eq("fixture_id", fixtureId)
+        .eq("member_name", memberName)
+        .then(function() {});
+    }
+
     alert("✓ Ticket allocation status updated for " + memberName + ". Member notification badge updated.");
   }
 };
@@ -2543,15 +2870,26 @@ window.adminPostAnnouncement = function() {
     return;
   }
 
-  appState.announcements.unshift({
+  var newPost = {
     id: Date.now(),
     title: title,
     date: new Date().toISOString().substring(0, 10),
-    isUrgent: false,
+    is_urgent: false,
     content: body,
     reactions: 0,
     archived: false,
-    readBy: []
+    read_by: []
+  };
+
+  appState.announcements.unshift({
+    id: newPost.id,
+    title: newPost.title,
+    date: newPost.date,
+    isUrgent: newPost.is_urgent,
+    content: newPost.content,
+    reactions: newPost.reactions,
+    archived: newPost.archived,
+    readBy: newPost.read_by
   });
 
   logForensicTransaction("Graham (Secretary)", "Admin", "All Members", "BROADCAST", "Notice: " + title, 0, 0, 0);
@@ -2562,6 +2900,11 @@ window.adminPostAnnouncement = function() {
   saveState();
   renderHUDView();
   renderAdminNews();
+
+  if (sbClient) {
+    sbClient.from("announcements").insert([newPost]).then(function() {});
+  }
+
   alert("✓ Broadcast notice published to branch home feeds.");
 };
 
@@ -2572,6 +2915,11 @@ window.toggleArchiveAnnouncement = function(postId) {
     saveState();
     renderHUDView();
     renderAdminNews();
+
+    if (sbClient) {
+      sbClient.from("announcements").update({ archived: post.archived }).eq("id", postId).then(function() {});
+    }
+
     alert("✓ Notice status updated (" + (post.archived ? "Archived" : "Active") + ").");
   }
 };
@@ -2582,6 +2930,11 @@ window.deleteAnnouncement = function(postId) {
     saveState();
     renderHUDView();
     renderAdminNews();
+
+    if (sbClient) {
+      sbClient.from("announcements").delete().eq("id", postId).then(function() {});
+    }
+
     alert("✓ Announcement deleted.");
   }
 };
@@ -2858,6 +3211,10 @@ window.executeConfirmModal = function() {
   window.closeConfirmModal();
 };
 
+// Bootloader: Syncs with Supabase Cloud and mounts the initial UI
 window.onload = function() {
   window.refreshAllViews();
+  if (typeof initSupabaseCloudSync === "function") {
+    initSupabaseCloudSync();
+  }
 };
