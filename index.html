@@ -92,24 +92,88 @@
 
   <!-- 2. HOME MATCHDAY HUD -->
   <section id="view-hud" class="tab-view">
+    <!-- Urgent Broadcast Banner -->
     <div id="hud-urgent-banner" style="display:none; background:#7f1d1d; border:1px solid #ef4444; color:#fff; padding:10px; border-radius:8px; font-size:11px; margin-bottom:10px; line-height:1.4;"></div>
 
-    <div class="card" style="border-top:3px solid var(--safc-red);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">NEXT HOME MATCH</span>
-        <span id="hud-next-match-date" style="font-size:11px; color:var(--text-muted);">Sat 21 Nov • 15:00</span>
+    <!-- HUD Card 1: Quick Member Identity & Wallet Snapshot -->
+    <div class="card" style="margin-bottom:8px; padding:10px 12px; background:#0f172a; border:1px solid #334155;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <img id="hud-user-avatar" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>" style="width:36px; height:36px; border-radius:50%; border:1px solid var(--safc-gold); object-fit:cover;" alt="Avatar" />
+          <div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <strong id="hud-member-name" style="font-size:13px; font-weight:800;">Gary Miller</strong>
+              <span id="hud-subs-badge" class="badge-gold" style="font-size:9px; padding:1px 5px;">● 2026/27 Active</span>
+            </div>
+            <div id="hud-member-no" style="font-size:10px; color:var(--text-muted);">Member #COX-084</div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase;">Wallet Balance</div>
+          <div id="hud-wallet-balance" style="font-size:14px; font-weight:800; color:var(--safc-gold);">£35.00</div>
+          <div style="display:flex; gap:4px; margin-top:2px;">
+            <button class="btn btn-outline btn-sm" style="font-size:9px; padding:1px 6px;" onclick="switchTab('view-profile')">Pass 🪪</button>
+            <button class="btn btn-gold btn-sm" style="font-size:9px; padding:1px 6px;" onclick="var u=getCurrentUserRecord(); u.balance+=20.00; safePersistState(); window.updateBalanceDisplay(); alert('£20.00 added to wallet!');">+ Top Up</button>
+          </div>
+        </div>
       </div>
-      <h3 id="hud-next-match-title" style="font-size:17px; font-weight:800; margin-bottom:2px;">Sunderland vs Coventry City</h3>
-      <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Stadium of Light • Home League Match</p>
-      <div id="hud-travel-card-status" style="background:#0f172a; padding:8px 10px; border-radius:8px; font-size:11px; line-height:1.5;"></div>
     </div>
 
-    <div id="hud-actions-box" class="card" style="display:none; border-left:3px solid var(--safc-gold);">
-      <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:6px;">⚡ ACTION REQUIRED / NOTIFICATIONS</strong>
+    <!-- HUD Card 2: Full-Width Matchday Football Card Pulse Bar -->
+    <div class="card" style="margin-bottom:8px; padding:10px 12px; background:#1e293b; border:1px solid #334155; cursor:pointer;" onclick="switchTab('view-fundraising')">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <span style="font-size:11px; font-weight:700;">⚽ Matchday Football Card</span>
+        <span id="hud-pulse-card-sold" style="font-size:10px; color:var(--safc-gold); font-weight:700;">2 / 40 Claimed</span>
+      </div>
+      <div style="height:5px; background:#0f172a; border-radius:3px; overflow:hidden;">
+        <div id="hud-pulse-card-bar" style="width:5%; height:100%; background:var(--safc-red); border-radius:3px; transition: width 0.3s ease;"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:5px;">
+        <span>£2.00 per team</span>
+        <span style="color:var(--green); font-weight:700;">£40.00 Winner • £40.00 Branch</span>
+      </div>
+    </div>
+
+    <!-- HUD Card 3: Unified Match Spotlight (Home / Away / Cup / Europe) -->
+    <div class="card" style="border-top:3px solid var(--safc-red); margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span id="hud-match-type-pill" style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">NEXT MATCH • HOME</span>
+        <span id="hud-next-match-date" style="font-size:11px; color:var(--text-muted);">Sat 21 Nov • 15:00</span>
+      </div>
+
+      <h3 id="hud-next-match-title" style="font-size:16px; font-weight:800; margin-bottom:2px;">Sunderland vs Coventry City</h3>
+      <p id="hud-next-match-venue" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Stadium of Light • Championship</p>
+
+      <!-- Live Bus Departure Countdown Box -->
+      <div id="hud-countdown-box" style="background:#0f172a; border:1px solid #334155; padding:8px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-size:9px; color:var(--safc-gold); font-weight:700; text-transform:uppercase;">⏱️ Bus Departure Countdown</div>
+          <div id="hud-countdown-text" style="font-size:13px; font-weight:800; font-family:monospace; color:#fff;">Calculating...</div>
+        </div>
+        <div id="hud-countdown-stop" style="font-size:10px; color:#94a3b8; text-align:right;">Coxhoe Red Lion</div>
+      </div>
+
+      <!-- Kickoff Weather Forecast Pill -->
+      <div id="hud-weather-box" style="background:#0f172a; border:1px solid #334155; padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span id="hud-weather-icon" style="font-size:14px;">🌤️</span>
+          <span id="hud-weather-summary">Stadium of Light: 8°C, Wind 12mph NW</span>
+        </div>
+        <span id="hud-weather-rain" style="color:#60a5fa; font-weight:700;">10% Rain</span>
+      </div>
+
+      <!-- Contextual Action Button (Book Coach / View Pass / Away Ballot) -->
+      <div id="hud-travel-card-status" style="background:#1e293b; padding:8px 10px; border-radius:6px; font-size:11px; line-height:1.5;"></div>
+    </div>
+
+    <!-- Urgent Action Box (if dues lapsed or child unapproved) -->
+    <div id="hud-actions-box" class="card" style="display:none; border-left:3px solid var(--safc-gold); margin-bottom:8px;">
+      <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:4px;">⚡ ACTION REQUIRED / NOTIFICATIONS</strong>
       <div id="hud-actions-list" style="font-size:11px; line-height:1.5;"></div>
     </div>
 
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <!-- Official Branch Announcements Feed -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; margin-top:4px;">
       <strong style="font-size:12px;">Branch Announcements</strong>
       <span style="font-size:10px; color:var(--text-muted);">Official Feed</span>
     </div>
@@ -118,7 +182,16 @@
 
   <!-- 3. TRAVEL & AWAY TICKETS -->
   <section id="view-travel" class="tab-view">
-    <!-- Home Coach Booking Card -->
+
+    <!-- Card 1: Home Coach Fixture Selector -->
+    <div class="card" style="margin-bottom: 8px;">
+      <label class="form-label" style="color: var(--safc-gold); font-size: 11px; margin-bottom: 4px; display: block;">
+        📅 SELECT HOME MATCH FIXTURE
+      </label>
+      <select id="member-home-fixture-select" class="form-select" onchange="window.handleMemberFixtureSelect(this.value)"></select>
+    </div>
+
+    <!-- Card 2: Home Coach Booking Card -->
     <div class="card">
       <div class="flex-between">
         <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">HOME COACH BOOKING</span>
@@ -127,66 +200,75 @@
       <h3 id="travel-coach-title" style="font-size:16px; font-weight:800; margin-top:6px;">Sunderland vs Coventry City</h3>
       <p id="travel-coach-subtitle" class="text-xs text-muted">Official Branch Travel • Stadium of Light</p>
 
-      <div style="background:#0f172a; padding:8px; border-radius:6px; margin:8px 0; font-size:11px;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-          <span id="travel-bus-count-label">Fleet: 1 Coach</span>
-          <span id="seats-status" style="color:var(--green);">42 / 53 Booked</span>
-        </div>
-        <div style="height:4px; background:#334155; border-radius:2px;"><div id="seats-bar" style="width:79%; height:100%; background:var(--safc-red);"></div></div>
+      <!-- Staged Draft Notice (Shown when match is DRAFT) -->
+      <div id="travel-draft-notice" style="display: none; background: #0f172a; border: 1px dashed #475569; padding: 14px; border-radius: 8px; text-align: center; margin: 10px 0;">
+        <h4 id="travel-draft-title" style="color: var(--safc-gold); font-size: 13px; margin: 0 0 6px 0;">⏳ Coach Travel Not Open Yet</h4>
+        <p id="travel-draft-msg" style="font-size: 11px; color: #94a3b8; line-height: 1.5; margin: 0;">
+          The committee is currently drafting travel logistics and coach hire quotes for this fixture. Departure timetables and seat bookings will unlock once confirmed.
+        </p>
       </div>
 
-      <!-- Coach Selector if Multiple Buses are Provisioned -->
-      <div id="booking-bus-selector-group" class="form-group" style="display:none;">
-        <label class="form-label">Select Coach</label>
-        <select id="booking-bus-select" class="form-select" onchange="window.updateBookingCoachUI()"></select>
-      </div>
-
-      <!-- Confirmed Bookings for this Match (With dynamic stop & cancel button) -->
-      <div id="my-active-bookings-summary" style="margin-bottom:10px;"></div>
-
-      <!-- Party / Multi-Passenger Booking Box -->
-      <div id="booking-party-selection-section" style="background:#1e293b; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #334155;">
-        <label class="form-label" style="color:var(--safc-gold); font-size:11px; margin-bottom:6px;">👥 Select Passengers for Coach</label>
-
-        <!-- Dynamic Traveling Party Checklist -->
-        <div id="party-passengers-list" style="margin-bottom:8px;"></div>
-
-        <!-- Add Other Branch Member (Autocomplete) -->
-        <div style="position:relative; margin-bottom:6px;">
-          <label class="form-label" style="font-size:9px;">Add Another Branch Member</label>
-          <div style="display:flex; gap:4px;">
-            <input type="text" id="party-search-member-input" class="form-input" placeholder="Type name or member #..." style="font-size:11px; padding:5px;" oninput="window.handlePartyMemberSearch(this.value)" />
+      <!-- Live Booking Controls (Hidden when in Draft) -->
+      <div id="travel-active-booking-controls">
+        <div style="background:#0f172a; padding:8px; border-radius:6px; margin:8px 0; font-size:11px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span id="travel-bus-count-label">Fleet: 1 Coach</span>
+            <span id="seats-status" style="color:var(--green);">42 / 53 Booked</span>
           </div>
-          <div id="party-member-autocomplete-box" class="autocomplete-dropdown" style="display:none;"></div>
-        </div>
-
-        <!-- Add Non-Member Guest -->
-        <div style="margin-bottom:8px;">
-          <label class="form-label" style="font-size:9px;">Add Non-Member Guest</label>
-          <div style="display:flex; gap:4px;">
-            <input type="text" id="party-guest-name-input" class="form-input" placeholder="Guest Full Name..." style="font-size:11px; padding:5px; flex:2;" />
-            <select id="party-guest-type-select" class="form-select" style="font-size:11px; padding:5px; flex:1;">
-              <option value="Adult">Adult</option>
-              <option value="Junior">Junior</option>
-            </select>
-            <button class="btn btn-outline btn-sm" style="font-size:10px;" onclick="window.addPartyGuestPassenger()">+ Add</button>
+          <div style="height:4px; background:#334155; border-radius:2px;">
+            <div id="seats-bar" style="width:79%; height:100%; background:var(--safc-red);"></div>
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:6px;">
-          <label class="form-label">Pickup Point</label>
-          <select id="booking-stop" class="form-select" onchange="window.updatePartyStopSelection()"></select>
+        <!-- Coach Selector if Multiple Buses Provisioned -->
+        <div id="booking-bus-selector-group" class="form-group" style="display:none;">
+          <label class="form-label">Select Coach</label>
+          <select id="booking-bus-select" class="form-select" onchange="window.updateBookingCoachUI()"></select>
         </div>
 
-        <div id="party-fare-breakdown" style="background:#0f172a; padding:6px 8px; border-radius:4px; font-size:11px; margin-bottom:8px;">
-          Total Fare: <strong id="party-total-fare-text" style="color:var(--safc-gold);">£0.00</strong>
-        </div>
+        <!-- Confirmed Bookings for this Match -->
+        <div id="my-active-bookings-summary" style="margin-bottom:10px;"></div>
 
-        <button id="btn-book-seat" class="btn btn-red btn-sm" style="width:100%;" onclick="window.openBookingModal()">Book Coach Seat(s)</button>
+        <!-- Party Selection Box -->
+        <div id="booking-party-selection-section" style="background:#1e293b; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #334155;">
+          <label class="form-label" style="color:var(--safc-gold); font-size:11px; margin-bottom:6px;">👥 Select Passengers for Coach</label>
+          <div id="party-passengers-list" style="margin-bottom:8px;"></div>
+
+          <div style="position:relative; margin-bottom:6px;">
+            <label class="form-label" style="font-size:9px;">Add Another Branch Member</label>
+            <div style="display:flex; gap:4px;">
+              <input type="text" id="party-search-member-input" class="form-input" placeholder="Type name or member #..." style="font-size:11px; padding:5px;" oninput="window.handlePartyMemberSearch(this.value)" />
+            </div>
+            <div id="party-member-autocomplete-box" class="autocomplete-dropdown" style="display:none;"></div>
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <label class="form-label" style="font-size:9px;">Add Non-Member Guest</label>
+            <div style="display:flex; gap:4px;">
+              <input type="text" id="party-guest-name-input" class="form-input" placeholder="Guest Full Name..." style="font-size:11px; padding:5px; flex:2;" />
+              <select id="party-guest-type-select" class="form-select" style="font-size:11px; padding:5px; flex:1;">
+                <option value="Adult">Adult</option>
+                <option value="Junior">Junior</option>
+              </select>
+              <button class="btn btn-outline btn-sm" style="font-size:10px;" onclick="window.addPartyGuestPassenger()">+ Add</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:6px;">
+            <label class="form-label">Pickup Point</label>
+            <select id="booking-stop" class="form-select" onchange="window.updatePartyStopSelection()"></select>
+          </div>
+
+          <div id="party-fare-breakdown" style="background:#0f172a; padding:6px 8px; border-radius:4px; font-size:11px; margin-bottom:8px;">
+            Total Fare: <strong id="party-total-fare-text" style="color:var(--safc-gold);">£0.00</strong>
+          </div>
+
+          <button id="btn-book-seat" class="btn btn-red btn-sm" style="width:100%;" onclick="window.openBookingModal()">Book Coach Seat(s)</button>
+        </div>
       </div>
     </div>
 
-    <!-- Away Match Ticket Application & Season Selector Card -->
+    <!-- Card 3: Away Match Ticket Application & Season Selector Card -->
     <div class="card">
       <div class="flex-between">
         <span style="background:#4338ca; color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">AWAY MATCH TICKETS</span>
@@ -202,29 +284,56 @@
 
       <div id="member-away-status-card" class="admin-card mt-2"></div>
     </div>
+
   </section>
 
-  <!-- 4. FUNDRAISER -->
-  <section id="view-fundraising" class="tab-view">
-    <div class="card">
-      <div class="card-title">
-        <span id="card-teams-count-label">⚽ 40-Team Football Card</span>
-        <span id="card-prize-label" style="color:var(--safc-gold); font-size:12px;">£50 Prize</span>
+ <!-- 4. FUNDRAISER -->
+ <section id="view-fundraising" class="tab-view">
+
+  <!-- Fundraiser Hub Header -->
+  <div class="card" style="border-top: 3px solid var(--safc-gold); margin-bottom: 8px;">
+    <div class="flex-between">
+      <div>
+        <span style="font-size:9px; font-weight:800; color:var(--safc-gold); text-transform:uppercase;">Official Branch Fundraising</span>
+        <h2 style="font-size:16px; font-weight:800; margin:2px 0;">Matchday Football Card</h2>
       </div>
-      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-bottom:8px;">
-        <span id="card-price-label">£2.00/sq</span>
-        <span id="card-sold-summary" style="color:var(--safc-gold); font-weight:700;">0 Sold</span>
-      </div>
-      <div id="football-grid" class="grid-40"></div>
+      <span class="badge-gold">100% Branch Funded</span>
     </div>
-    <div class="card">
-      <div class="card-title">
-        <span>🎱 Bonus Ball Registry (1–59)</span>
-        <span style="color:var(--green); font-size:12px;">£30 Weekly</span>
-      </div>
-      <div id="bonus-grid" class="grid-bonus"></div>
+    <p class="text-xs text-muted mt-1">All profits directly subsidize branch travel and junior member initiatives.</p>
+  </div>
+
+  <!-- ⚽ 40-SQUARE FOOTBALL SCRATCH CARD -->
+  <div class="card">
+    <div class="flex-between" style="margin-bottom:6px;">
+      <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">MATCHDAY SPECIAL</span>
+      <span id="card-sold-summary" class="badge-gold">2 / 40 Claimed</span>
     </div>
-  </section>
+
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:8px;">
+      <div>
+        <h3 id="football-card-title" style="font-size:16px; font-weight:800; margin:0;">40-Team Scratch Card</h3>
+        <p class="text-xs text-muted" style="margin-top:2px;">£2.00 per team • £40 to winner • £40 to branch funds</p>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase;">Winner Prize</div>
+        <div style="font-size:16px; font-weight:800; color:var(--green);">£40.00</div>
+      </div>
+    </div>
+
+    <!-- 40 Squares Grid -->
+    <div id="football-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:10px;"></div>
+
+    <!-- Claim Team Action Bar -->
+    <div id="football-card-action-bar" style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div id="football-selected-team-name" style="font-size:11px; font-weight:700;">Select an available team</div>
+        <div style="font-size:10px; color:var(--text-muted);">Cost: £2.00 deducted from wallet balance</div>
+      </div>
+      <button id="btn-claim-football-team" class="btn btn-red btn-sm" disabled onclick="window.confirmFootballTeamPurchase()">Claim Team</button>
+    </div>
+  </div>
+
+</section>
 
   <!-- 5. COMMS -->
   <section id="view-comms" class="tab-view">
@@ -286,7 +395,7 @@
 
   <!-- 6. MY PASS & MEMBER PROFILE -->
   <section id="view-profile" class="tab-view">
-    <!-- Editable Member Profile Card -->
+    <!-- Card 1: Editable Member Profile Card -->
     <div class="card" style="border-top:3px solid var(--safc-gold);">
       <div class="profile-header-card">
         <div class="profile-avatar-container">
@@ -332,7 +441,60 @@
       <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="width:100%;">Log Out</button>
     </div>
 
-    <!-- Friends & Family Network -->
+    <!-- Card 2: 🎨 Kit Theme Engine & Display Preferences -->
+    <div class="card" style="border-top:3px solid var(--safc-gold);">
+      <div class="flex-between" style="margin-bottom:6px;">
+        <strong style="font-size:12px;">🎨 Kit Theme & Display Settings</strong>
+        <span id="theme-badge-label" class="badge-gold" style="font-size:9px;">1990 Vaux Home</span>
+      </div>
+      <p class="text-xs text-muted mb-2">Personalize the app interface using classic and modern SAFC kit palettes.</p>
+
+      <!-- Kit Theme Selector -->
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label" style="font-size:10px; color:var(--safc-gold);">Select SAFC Kit Theme</label>
+        <select id="theme-kit-select" class="form-select" style="font-size:11px; padding:6px;" onchange="window.handleThemeSelectChange(this.value)">
+          <option value="1990-vaux-home">1. 1990 Vaux Home (Roker Scarlet, White & Amber)</option>
+          <option value="1990-vaux-away">2. 1990 Vaux Away (White & Blue Chevrons)</option>
+          <option value="1986-patrick-away">3. 1986 Patrick Away (Canary Yellow & Black)</option>
+          <option value="1992-fa-cup-away">4. 1992 FA Cup Final Away (Retro Turquoise & Cherry)</option>
+          <option value="1994-avec-gk">5. 1994 Avec Goalkeeper (Neon Yellow & Cobalt Mosaic)</option>
+          <option value="1998-lambtons-away">6. 1998 Lambton's Away (105-Point Navy & Gold Ale)</option>
+          <option value="2000-reg-vardy">7. 2000 Reg Vardy Home (Super Kev Premier Crimson)</option>
+          <option value="2023-stealth-third">8. 2023 Stealth Third (Blackout Graphite & Volt Neon)</option>
+          <option value="2024-mining-heritage">9. 2024 Mining Heritage (Durham Pithead Navy & Cyan)</option>
+          <option value="2026-hummel-elvis">10. 2026 Hummel Elvis Away (Bubblegum Terrace Pink)</option>
+        </select>
+      </div>
+
+      <!-- Color Swatch Strip -->
+      <div id="theme-swatch-box" style="display:flex; height:12px; border-radius:6px; overflow:hidden; border:1px solid #334155; margin-bottom:10px;">
+        <div id="swatch-c1" style="flex:2; background:#dc2626;"></div>
+        <div id="swatch-c2" style="flex:1; background:#ffffff;"></div>
+        <div id="swatch-c3" style="flex:1; background:#facc15;"></div>
+      </div>
+
+      <!-- Display & Privacy Toggles -->
+      <div style="background:#0f172a; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #334155;">
+        <strong style="font-size:10px; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:6px;">Display & Privacy Preferences</strong>
+        
+        <label style="display:flex; align-items:center; justify-content:space-between; font-size:11px; margin-bottom:6px; cursor:pointer;">
+          <span>High-Contrast Matchday Text Mode (Sunlight)</span>
+          <input type="checkbox" id="pref-high-contrast" onchange="window.toggleHighContrastMode(this.checked)" />
+        </label>
+
+        <label style="display:flex; align-items:center; justify-content:space-between; font-size:11px; margin-bottom:6px; cursor:pointer;">
+          <span>Show Branch Nickname on Public Manifest</span>
+          <input type="checkbox" id="pref-public-nickname" checked onchange="window.saveDisplayPreferences()" />
+        </label>
+
+        <label style="display:flex; align-items:center; justify-content:space-between; font-size:11px; cursor:pointer;">
+          <span>Matchday & Away Ticket Push Alerts</span>
+          <input type="checkbox" id="pref-notifications" checked onchange="window.saveDisplayPreferences()" />
+        </label>
+      </div>
+    </div>
+
+    <!-- Card 3: Friends & Family Network -->
     <div class="card">
       <div class="flex-between" style="margin-bottom:8px;">
         <strong style="font-size:12px;">Friends & Family Network</strong>
@@ -356,7 +518,7 @@
       </div>
     </div>
 
-    <!-- Financial Statement & Ledger -->
+    <!-- Card 4: Financial Statement & Ledger -->
     <div class="card">
       <div class="card-title">
         <span id="wallet-statement-title">💳 Wallet Statement</span>
@@ -543,8 +705,42 @@
 
       <!-- PANE 2: MEMBERSHIP SUBS ROSTER -->
       <div id="admin-pane-subs" class="admin-pane hidden">
-        <h4>💳 Membership Subs Roster (2026/27)</h4>
-        <p class="text-xs text-muted">Toggle dues status (£10) to permit or lock travel booking rights.</p>
+        <h4>💳 Membership Subs & AGM Governance</h4>
+        <p class="text-xs text-muted">Configure annual season dues voted at the AGM, set due dates, notify members, and toggle individual dues status.</p>
+
+        <!-- AGM Seasonal Dues Configuration Suite -->
+        <div class="admin-card" style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:6px;">🏛️ AGM Seasonal Dues Setup</strong>
+          
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+            <div>
+              <label class="form-label" style="font-size:9px;">Season</label>
+              <input type="text" id="agm-season-input" class="form-input" style="padding:5px; font-size:11px;" value="2026/27" />
+            </div>
+            <div>
+              <label class="form-label" style="font-size:9px;">Payment Due Date</label>
+              <input type="date" id="agm-due-date-input" class="form-input" style="padding:5px; font-size:11px;" value="2026-08-31" />
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:8px;">
+            <div>
+              <label class="form-label" style="font-size:9px;">Adult Subs (£)</label>
+              <input type="number" id="agm-adult-fee" class="form-input" style="padding:5px; font-size:11px;" value="10.00" step="1.00" />
+            </div>
+            <div>
+              <label class="form-label" style="font-size:9px;">Junior Subs (£)</label>
+              <input type="number" id="agm-junior-fee" class="form-input" style="padding:5px; font-size:11px;" value="5.00" step="1.00" />
+            </div>
+            <div>
+              <label class="form-label" style="font-size:9px;">Senior Subs (£)</label>
+              <input type="number" id="agm-senior-fee" class="form-input" style="padding:5px; font-size:11px;" value="5.00" step="1.00" />
+            </div>
+          </div>
+
+          <button class="btn btn-gold btn-block btn-sm" style="font-size:10px; width:100%;" onclick="window.adminSubmitAGMDues()">📢 Publish Dues & Dispatch Push Alerts</button>
+        </div>
+
         <div id="admin-subs-roster"></div>
       </div>
 

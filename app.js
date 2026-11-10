@@ -3636,3 +3636,1508 @@ window.onload = function() {
     initSupabaseCloudSync();
   }
 };
+// ========================================================
+// SECTION 3: TRAVEL FIXTURE STAGING & GATING LOGIC
+// ========================================================
+
+// 1. Ensure Upcoming Home Fixtures Exist with Staging Status
+(function seedHomeFixtures() {
+  if (typeof appState === "undefined" || !appState) return;
+  if (!appState.homeMatches) appState.homeMatches = [];
+
+  var coventry = appState.homeMatches.find(function(m) { 
+    return m.opponent && m.opponent.indexOf("Coventry") !== -1; 
+  });
+  if (!coventry) {
+    appState.homeMatches.push({
+      id: 101,
+      opponent: "Coventry City",
+      date: "Sat 21 Nov 2026",
+      time: "15:00",
+      bookingStatus: "open",
+      buses: [{ busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS }]
+    });
+  } else if (!coventry.bookingStatus) {
+    coventry.bookingStatus = "open";
+  }
+
+  var hasSheffield = appState.homeMatches.some(function(m) { 
+    return m.opponent && m.opponent.indexOf("Sheffield") !== -1; 
+  });
+  if (!hasSheffield) {
+    appState.homeMatches.push({
+      id: 102,
+      opponent: "Sheffield United",
+      date: "Sat 05 Dec 2026",
+      time: "15:00",
+      bookingStatus: "draft",
+      buses: [{ busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS }]
+    });
+  }
+
+  var hasBurnley = appState.homeMatches.some(function(m) { 
+    return m.opponent && m.opponent.indexOf("Burnley") !== -1; 
+  });
+  if (!hasBurnley) {
+    appState.homeMatches.push({
+      id: 103,
+      opponent: "Burnley",
+      date: "Sat 19 Dec 2026",
+      time: "15:00",
+      bookingStatus: "draft",
+      buses: [{ busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS }]
+    });
+  }
+})();
+
+// Helper: Safely locate active match across string, int, or fallback
+function getResolvedActiveMatch() {
+  if (typeof appState === "undefined" || !appState || !appState.homeMatches) return null;
+  var matchSelect = document.getElementById("admin-bus-match-select");
+  var targetVal = matchSelect ? matchSelect.value : appState.selectedHomeMatchId;
+
+  var match = appState.homeMatches.find(function(m) {
+    return String(m.id) === String(targetVal) || m.id == targetVal;
+  });
+
+  if (!match && appState.selectedHomeMatchId) {
+    match = appState.homeMatches.find(function(m) {
+      return String(m.id) === String(appState.selectedHomeMatchId);
+    });
+  }
+
+  return match || appState.homeMatches[0] || null;
+}
+
+// 2. Member Fixture Selection Handler
+window.handleMemberFixtureSelect = function(matchId) {
+  if (typeof appState === "undefined" || !appState) return;
+  appState.selectedHomeMatchId = parseInt(matchId) || matchId;
+  safePersistState();
+  if (typeof renderBusBookingView === "function") renderBusBookingView();
+};
+
+// Safe persistence wrapper (prevents crashes if function doesn't exist)
+function safePersistState() {
+  try {
+    if (typeof saveState === "function") saveState();
+    else if (typeof saveAppState === "function") saveAppState();
+    else if (typeof save === "function") save();
+  } catch (err) {
+    console.warn("Storage warning:", err);
+  }
+}
+
+// 3. Admin Fixture Booking Toggle (Draft vs Open)
+window.adminToggleBookingStatus = function() {
+  try {
+    var match = getResolvedActiveMatch();
+    if (!match) {
+      alert("Please select a fixture first.");
+      return;
+    }
+
+    // Toggle status
+    match.bookingStatus = (match.bookingStatus === "open") ? "draft" : "open";
+    safePersistState();
+
+    var isOpen = match.bookingStatus === "open";
+
+    // Immediate Alert
+    if (isOpen) {
+      alert("🟢 Bookings are now OPEN for Sunderland vs " + match.opponent + "!\nMembers can now view and book seats.");
+    } else {
+      alert("⚪ Sunderland vs " + match.opponent + " set to DRAFT.\nBookings are now locked for members.");
+    }
+
+    // Re-render UI
+    if (typeof window.renderAdminBusesTool === "function") window.renderAdminBusesTool();
+    if (typeof window.renderBusBookingView === "function") window.renderBusBookingView();
+
+  } catch (err) {
+    console.error("Toggle error:", err);
+    alert("Error updating status: " + err.message);
+  }
+};
+
+// 4. Hook into Admin Buses Tool to Show Booking Status & Match Sync
+var _baseRenderAdminBuses = window.renderAdminBusesTool;
+window.renderAdminBusesTool = function() {
+  var matchSelect = document.getElementById("admin-bus-match-select");
+  if (matchSelect && appState && appState.homeMatches) {
+    var curVal = matchSelect.value || appState.selectedHomeMatchId;
+    matchSelect.innerHTML = "";
+    appState.homeMatches.forEach(function(m) {
+      var opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.opponent + " (H) • " + m.date + " [" + (m.bookingStatus === "open" ? "🟢 Open" : "⚪ Draft") + "]";
+      if (String(m.id) === String(curVal)) opt.selected = true;
+      matchSelect.appendChild(opt);
+    });
+    appState.selectedHomeMatchId = matchSelect.value;
+  }
+
+  if (_baseRenderAdminBuses) _baseRenderAdminBuses();
+
+  var container = document.getElementById("admin-match-buses-container");
+  if (!container) return;
+
+  var match = getResolvedActiveMatch();
+  if (!match) return;
+
+  var isOpen = match.bookingStatus === "open";
+  var statusCard = 
+    "<div id='admin-staging-status-box' style='background:#0f172a; border:1px solid #334155; border-left:3px solid " + (isOpen ? "var(--green, #10b981)" : "var(--safc-gold, #facc15)") + "; padding:10px; border-radius:6px; margin-bottom:10px;'>" +
+      "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+        "<div>" +
+          "<strong style='font-size:11px;'>Booking Status:</strong> " +
+          "<span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; background:" + (isOpen ? "#065f46; color:#34d399;" : "#334155; color:#94a3b8;") + "'>" +
+            (isOpen ? "🟢 OPEN FOR BOOKING" : "⚪ DRAFT (Closed)") +
+          "</span>" +
+        "</div>" +
+        "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:3px 8px;' onclick='window.adminToggleBookingStatus()'>" +
+          (isOpen ? "Switch to Draft ⚪" : "Open for Booking 🟢") +
+        "</button>" +
+      "</div>" +
+      "<div style='font-size:10px; color:#94a3b8; margin-top:4px;'>" +
+        (isOpen ? "✓ Members can view and book coach seats for this fixture." : "Members cannot book coach travel while set to Draft.") +
+      "</div>" +
+    "</div>";
+
+  var oldBox = document.getElementById("admin-staging-status-box");
+  if (oldBox) oldBox.remove();
+  container.insertAdjacentHTML("afterbegin", statusCard);
+};
+
+// 5. Hook into Member Travel View to Enforce Gating
+var _baseRenderBusBookingView = window.renderBusBookingView;
+window.renderBusBookingView = function() {
+  var fixSelect = document.getElementById("member-home-fixture-select");
+  var activeMatch = getResolvedActiveMatch();
+
+  if (fixSelect && appState && appState.homeMatches && appState.homeMatches.length > 0) {
+    var curVal = activeMatch ? activeMatch.id : appState.homeMatches[0].id;
+    fixSelect.innerHTML = "";
+    appState.homeMatches.forEach(function(m) {
+      var opt = document.createElement("option");
+      opt.value = m.id;
+      var tag = (m.bookingStatus === "open") ? "🟢 Open" : "⚪ Draft";
+      opt.textContent = m.opponent + " (H) • " + m.date + " [" + tag + "]";
+      if (String(m.id) === String(curVal)) opt.selected = true;
+      fixSelect.appendChild(opt);
+    });
+  }
+
+  if (_baseRenderBusBookingView) _baseRenderBusBookingView();
+
+  if (!activeMatch) return;
+
+  var draftNotice = document.getElementById("travel-draft-notice");
+  var activeControls = document.getElementById("travel-active-booking-controls");
+  var titleElem = document.getElementById("travel-coach-title");
+  var draftMsg = document.getElementById("travel-draft-msg");
+
+  if (titleElem) titleElem.textContent = "Sunderland vs " + activeMatch.opponent;
+
+  if (activeMatch.bookingStatus === "open") {
+    if (draftNotice) draftNotice.style.display = "none";
+    if (activeControls) activeControls.style.display = "block";
+  } else {
+    if (draftNotice) {
+      draftNotice.style.display = "block";
+      if (draftMsg) {
+        draftMsg.innerHTML = "The committee is currently drafting coach logistics for <strong>Sunderland vs " + activeMatch.opponent + "</strong>.<br>Departure times and bookings will unlock once confirmed.";
+      }
+    }
+    if (activeControls) activeControls.style.display = "none";
+  }
+};
+
+// ========================================================
+// SECTION 4: AGM DUES GOVERNANCE & NOTIFICATION DISPATCH
+// ========================================================
+
+// 1. Initialize default AGM season configuration in state
+(function initAGMConfig() {
+  if (typeof appState === "undefined" || !appState) return;
+  if (!appState.agmConfig) {
+    appState.agmConfig = {
+      season: "2026/27",
+      dueDate: "2026-08-31",
+      fees: { adult: 10.00, junior: 5.00, senior: 5.00 },
+      published: true
+    };
+  }
+})();
+
+// 2. Submit AGM Dues, Apply Season Rollover & Dispatch Alerts
+window.adminSubmitAGMDues = function() {
+  try {
+    var seasonInput = document.getElementById("agm-season-input");
+    var dueDateInput = document.getElementById("agm-due-date-input");
+    var adultFeeInput = document.getElementById("agm-adult-fee");
+    var juniorFeeInput = document.getElementById("agm-junior-fee");
+    var seniorFeeInput = document.getElementById("agm-senior-fee");
+
+    var season = seasonInput ? seasonInput.value.trim() : "2026/27";
+    var dueDate = dueDateInput ? dueDateInput.value : "2026-08-31";
+    var adultFee = adultFeeInput ? parseFloat(adultFeeInput.value) || 10.00 : 10.00;
+    var juniorFee = juniorFeeInput ? parseFloat(juniorFeeInput.value) || 5.00 : 5.00;
+    var seniorFee = seniorFeeInput ? parseFloat(seniorFeeInput.value) || 5.00 : 5.00;
+
+    // Save configuration to state
+    appState.agmConfig = {
+      season: season,
+      dueDate: dueDate,
+      fees: { adult: adultFee, junior: juniorFee, senior: seniorFee },
+      published: true,
+      lastUpdated: new Date().toISOString()
+    };
+
+    // Format display date (e.g. 31 Aug 2026)
+    var dateParts = dueDate.split("-");
+    var formattedDueDate = dueDate;
+    if (dateParts.length === 3) {
+      var d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+      formattedDueDate = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    }
+
+    // Grandfathering: Ensure existing active members stay active; mark others as requiring subs
+    if (appState.members && Array.isArray(appState.members)) {
+      appState.members.forEach(function(member) {
+        // Members already marked active or paid remain protected
+        if (!member.subsStatus) {
+          member.subsStatus = "active";
+        }
+      });
+    }
+
+    // Dispatch broadcast announcement to Branch News feed
+    var alertHeadline = "AGM Notice: " + season + " Membership Dues Published";
+    var alertMessage = "Branch subs for season " + season + " were ratified at the AGM: Adult £" + adultFee.toFixed(2) + " • Junior £" + juniorFee.toFixed(2) + " • Senior £" + seniorFee.toFixed(2) + ". Payment is due by " + formattedDueDate + ". Active members already paid for this season are fully grandfathered.";
+
+    if (appState.announcements && Array.isArray(appState.announcements)) {
+      appState.announcements.unshift({
+        id: "agm-" + Date.now(),
+        title: alertHeadline,
+        body: alertMessage,
+        date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+        category: "Dues",
+        pinned: true
+      });
+    }
+
+    safePersistState();
+
+    // Re-render UI views
+    if (typeof renderHUDView === "function") renderHUDView();
+    if (typeof renderAdminSubsRoster === "function") renderAdminSubsRoster();
+
+    alert(
+      "🏛️ AGM DUES RATIFIED & PUBLISHED!\n\n" +
+      "• Season: " + season + "\n" +
+      "• Adult: £" + adultFee.toFixed(2) + " | Junior: £" + juniorFee.toFixed(2) + " | Senior: £" + seniorFee.toFixed(2) + "\n" +
+      "• Payment Deadline: " + formattedDueDate + "\n\n" +
+      "📢 Broadcast alert dispatched to member home feeds & notification queue."
+    );
+
+  } catch (err) {
+    console.error("AGM Dues submit error:", err);
+    alert("Error publishing dues: " + err.message);
+  }
+};
+// // ========================================================
+// SECTION 5: ENRICHED HOME HUD, UNIFIED FIXTURES & COUNTDOWN
+// ========================================================
+
+// 1. Unified Master Schedule (Home, Away, Cup & Europe)
+(function seedMasterFixtures() {
+  if (typeof appState === "undefined" || !appState) return;
+
+  if (!appState.masterFixtures || appState.masterFixtures.length === 0) {
+    appState.masterFixtures = [
+      {
+        id: "fix-101",
+        opponent: "Coventry City",
+        type: "HOME",
+        competition: "Championship",
+        venue: "Stadium of Light",
+        dateTime: "2026-11-21T15:00:00",
+        dateDisplay: "Sat 21 Nov • 15:00",
+        kickoffTime: "15:00",
+        coordinates: { lat: 54.9146, lon: -1.3882 } // Stadium of Light, Sunderland
+      },
+      {
+        id: "fix-102",
+        opponent: "Millwall",
+        type: "AWAY",
+        competition: "Championship",
+        venue: "The Den, London",
+        dateTime: "2026-11-28T15:00:00",
+        dateDisplay: "Sat 28 Nov • 15:00",
+        kickoffTime: "15:00",
+        coordinates: { lat: 51.4859, lon: -0.0507 } // The Den, London
+      },
+      {
+        id: "fix-103",
+        opponent: "Sheffield United",
+        type: "HOME",
+        competition: "Championship",
+        venue: "Stadium of Light",
+        dateTime: "2026-12-05T15:00:00",
+        dateDisplay: "Sat 05 Dec • 15:00",
+        kickoffTime: "15:00",
+        coordinates: { lat: 54.9146, lon: -1.3882 }
+      },
+      {
+        id: "fix-104",
+        opponent: "Leeds United",
+        type: "AWAY",
+        competition: "Championship",
+        venue: "Elland Road",
+        dateTime: "2026-12-12T15:00:00",
+        dateDisplay: "Sat 12 Dec • 15:00",
+        kickoffTime: "15:00",
+        coordinates: { lat: 53.7778, lon: -1.5730 } // Elland Road, Leeds
+      }
+    ];
+  }
+})();
+
+// 2. Kickoff Countdown Timer Engine
+window._hudCountdownTimer = null;
+
+function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
+  if (window._hudCountdownTimer) clearInterval(window._hudCountdownTimer);
+
+  var targetTime = new Date(targetIsoDate).getTime();
+
+  function updateTimer() {
+    var timerElem = document.getElementById("hud-countdown-text");
+    var stopElem = document.getElementById("hud-countdown-stop");
+    if (!timerElem) return;
+
+    // Safely update the header label above the clock without wiping out the timer element
+    if (timerElem.previousElementSibling) {
+      timerElem.previousElementSibling.textContent = "⏱️ MATCH KICKOFF COUNTDOWN";
+    }
+
+    var now = new Date().getTime();
+    var diff = targetTime - now;
+
+    if (isNaN(diff) || diff <= 0) {
+      timerElem.textContent = "MATCH IN PROGRESS / FT";
+      timerElem.style.color = "var(--safc-gold, #facc15)";
+      if (stopElem) stopElem.textContent = "Kickoff Passed";
+      return;
+    }
+
+    var days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    var hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    var minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    var seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    var displayStr = "";
+    if (days > 0) displayStr += days + "d ";
+    displayStr += (hours < 10 ? "0" : "") + hours + "h ";
+    displayStr += (minutes < 10 ? "0" : "") + minutes + "m ";
+    displayStr += (seconds < 10 ? "0" : "") + seconds + "s";
+
+    timerElem.textContent = displayStr;
+    timerElem.style.color = "#ffffff";
+    if (stopElem) stopElem.textContent = "Kickoff @ " + (kickoffTimeDisplay || "15:00");
+  }
+
+  updateTimer();
+  window._hudCountdownTimer = setInterval(updateTimer, 1000);
+}
+
+// 3. Accurate Football Card Sold Count
+function getAccurateFootballCardCount() {
+  var totalSquares = 40;
+  var sold = 0;
+
+  var cardArray = appState.footballCard || appState.footballCards || appState.cardSquares || appState.cardTeams;
+  if (cardArray && Array.isArray(cardArray) && cardArray.length > 0) {
+    totalSquares = cardArray.length;
+    sold = cardArray.filter(function(sq) {
+      return sq && (sq.claimedBy || sq.owner || sq.member || sq.claimed || sq.buyer || sq.user || sq.taken);
+    }).length;
+    return { sold: sold, total: totalSquares };
+  }
+
+  var summaryElem = document.getElementById("card-sold-summary");
+  if (summaryElem && summaryElem.textContent) {
+    var match = summaryElem.textContent.match(/(\d+)/);
+    if (match) sold = parseInt(match[1]);
+  }
+
+  var grid = document.getElementById("football-grid");
+  if (grid) {
+    var claimedButtons = grid.querySelectorAll(".claimed, [disabled], .taken, .sold");
+    if (claimedButtons && claimedButtons.length > 0) {
+      sold = claimedButtons.length;
+    }
+  }
+
+  return { sold: sold, total: totalSquares };
+}
+
+// 4. Live Open-Meteo Weather Service Engine
+window._weatherCache = window._weatherCache || {};
+
+function getWmoWeatherIcon(wmoCode) {
+  if (wmoCode === 0) return "☀️";
+  if (wmoCode === 1 || wmoCode === 2) return "🌤️";
+  if (wmoCode === 3) return "☁️";
+  if (wmoCode >= 45 && wmoCode <= 48) return "🌫️";
+  if (wmoCode >= 51 && wmoCode <= 67) return "🌧️";
+  if (wmoCode >= 71 && wmoCode <= 77) return "🌨️";
+  if (wmoCode >= 80 && wmoCode <= 82) return "🌦️";
+  if (wmoCode >= 95 && wmoCode <= 99) return "⛈️";
+  return "🌤️";
+}
+
+function getCompassDirection(deg) {
+  var sectors = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  var idx = Math.round(deg / 22.5) % 16;
+  return sectors[idx] || "NW";
+}
+
+function fetchLiveMatchWeather(venueName, coords, targetDateTime) {
+  var lat = (coords && coords.lat) ? coords.lat : 54.9146;
+  var lon = (coords && coords.lon) ? coords.lon : -1.3882;
+  var cacheKey = lat.toFixed(3) + "_" + lon.toFixed(3);
+
+  var now = Date.now();
+  if (window._weatherCache[cacheKey] && (now - window._weatherCache[cacheKey].timestamp < 600000)) {
+    applyWeatherToDOM(venueName, window._weatherCache[cacheKey].data);
+    return;
+  }
+
+  var url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + 
+            "&current=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m" + 
+            "&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m" + 
+            "&wind_speed_unit=mph&timezone=Europe%2FLondon";
+
+  fetch(url)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data) return;
+
+      var weatherResult = null;
+
+      if (data.hourly && data.hourly.time && targetDateTime) {
+        var matchHourPrefix = targetDateTime.substring(0, 13);
+        var idx = data.hourly.time.findIndex(function(t) { return t.indexOf(matchHourPrefix) === 0; });
+        if (idx !== -1) {
+          weatherResult = {
+            temp: Math.round(data.hourly.temperature_2m[idx]) + "°C",
+            wind: Math.round(data.hourly.wind_speed_10m[idx]) + "mph " + getCompassDirection(data.hourly.wind_direction_10m[idx]),
+            rain: (data.hourly.precipitation_probability[idx] || 0) + "% Rain",
+            icon: getWmoWeatherIcon(data.hourly.weather_code[idx])
+          };
+        }
+      }
+
+      if (!weatherResult && data.current) {
+        weatherResult = {
+          temp: Math.round(data.current.temperature_2m) + "°C",
+          wind: Math.round(data.current.wind_speed_10m) + "mph " + getCompassDirection(data.current.wind_direction_10m),
+          rain: (data.current.precipitation > 0 ? "Rain Active" : "0% Rain"),
+          icon: getWmoWeatherIcon(data.current.weather_code)
+        };
+      }
+
+      if (weatherResult) {
+        window._weatherCache[cacheKey] = { timestamp: now, data: weatherResult };
+        applyWeatherToDOM(venueName, weatherResult);
+      }
+    })
+    .catch(function(err) {
+      console.warn("Live weather fetch note:", err.message);
+    });
+}
+
+function applyWeatherToDOM(venueName, weather) {
+  var iconElem = document.getElementById("hud-weather-icon");
+  var sumElem = document.getElementById("hud-weather-summary");
+  var rainElem = document.getElementById("hud-weather-rain");
+
+  if (iconElem) iconElem.textContent = weather.icon;
+  if (sumElem) sumElem.textContent = venueName + ": " + weather.temp + ", Wind " + weather.wind;
+  if (rainElem) rainElem.textContent = weather.rain;
+}
+
+// 5. Master Enriched HUD Render Function
+window.renderHUDView = function() {
+  if (typeof appState === "undefined" || !appState) return;
+
+  var user = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
+  if (!user && appState.currentUser) {
+    user = { name: appState.currentUser, balance: 35.00, memberNo: "COX-084", subsStatus: "active" };
+  }
+  if (!user) return;
+
+  // --- A. Member Identity & Wallet Snapshot ---
+  var nameElem = document.getElementById("hud-member-name");
+  var noElem = document.getElementById("hud-member-no");
+  var balElem = document.getElementById("hud-wallet-balance");
+  var badgeElem = document.getElementById("hud-subs-badge");
+  var avatarElem = document.getElementById("hud-user-avatar");
+
+  if (nameElem) nameElem.textContent = user.nickname ? user.name + " (" + user.nickname + ")" : user.name;
+  if (noElem) noElem.textContent = "Member #" + (user.memberNo || "COX-084");
+  if (balElem) balElem.textContent = "£" + (parseFloat(user.balance) || 0).toFixed(2);
+  if (avatarElem && user.avatarUrl) avatarElem.src = user.avatarUrl;
+
+  if (badgeElem) {
+    var isActive = (user.subsStatus === "active");
+    badgeElem.textContent = isActive ? "● 2026/27 Active" : "⚠️ Subs Due";
+    badgeElem.className = isActive ? "badge-gold" : "badge-red";
+  }
+
+  // --- B. Accurate Fundraiser Pulse Bar ---
+  var cardData = getAccurateFootballCardCount();
+  var soldCountElem = document.getElementById("hud-pulse-card-sold");
+  var barElem = document.getElementById("hud-pulse-card-bar");
+
+  if (soldCountElem) soldCountElem.textContent = cardData.sold + "/" + cardData.total;
+  if (barElem) {
+    var pct = Math.min(100, Math.round((cardData.sold / cardData.total) * 100));
+    barElem.style.width = pct + "%";
+  }
+
+  // --- C. Resolve Immediate Next Fixture ---
+  var nextFixture = (appState.masterFixtures && appState.masterFixtures.length > 0) 
+    ? appState.masterFixtures[0] 
+    : {
+        opponent: "Coventry City",
+        type: "HOME",
+        competition: "Championship",
+        venue: "Stadium of Light",
+        dateTime: "2026-11-21T15:00:00",
+        dateDisplay: "Sat 21 Nov • 15:00",
+        kickoffTime: "15:00",
+        coordinates: { lat: 54.9146, lon: -1.3882 }
+      };
+
+  var typePill = document.getElementById("hud-match-type-pill");
+  var dateElem = document.getElementById("hud-next-match-date");
+  var titleElem = document.getElementById("hud-next-match-title");
+  var venueElem = document.getElementById("hud-next-match-venue");
+
+  if (typePill) {
+    if (nextFixture.type === "HOME") {
+      typePill.textContent = "NEXT MATCH • HOME";
+      typePill.style.background = "var(--safc-red, #dc2626)";
+    } else if (nextFixture.type === "AWAY") {
+      typePill.textContent = "NEXT MATCH • AWAY";
+      typePill.style.background = "#4338ca";
+    } else {
+      typePill.textContent = "NEXT MATCH • " + nextFixture.type;
+      typePill.style.background = "var(--safc-gold, #facc15)";
+      typePill.style.color = "#000";
+    }
+  }
+
+  if (dateElem) dateElem.textContent = nextFixture.dateDisplay;
+  if (titleElem) {
+    titleElem.textContent = (nextFixture.type === "HOME") 
+      ? "Sunderland vs " + nextFixture.opponent 
+      : nextFixture.opponent + " vs Sunderland";
+  }
+  if (venueElem) venueElem.textContent = nextFixture.venue + " • " + nextFixture.competition;
+
+  // --- D. Start Match Kickoff Countdown Timer ---
+  startKickoffCountdown(nextFixture.dateTime, nextFixture.kickoffTime || "15:00");
+
+  // --- E. Trigger Live Open-Meteo Weather Fetch ---
+  fetchLiveMatchWeather(nextFixture.venue, nextFixture.coordinates, nextFixture.dateTime);
+
+  // --- F. Contextual Travel Status Card ---
+  var bookedBus = (appState.busBookings && Array.isArray(appState.busBookings)) 
+    ? appState.busBookings.find(function(b) { return b.member === user.name; }) 
+    : null;
+  var userStop = bookedBus ? bookedBus.stop : "Pickup Confirmed";
+
+  var statusCard = document.getElementById("hud-travel-card-status");
+  if (statusCard) {
+    if (nextFixture.type === "HOME") {
+      if (bookedBus) {
+        statusCard.innerHTML = 
+          "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+            "<div><strong style='color:var(--green, #10b981);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + userStop + " • Bus 1</div></div>" +
+            "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:2px 8px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
+          "</div>";
+      } else {
+        statusCard.innerHTML = 
+          "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+            "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £12 Adult / £8 Junior</div></div>" +
+            "<button class='btn btn-red btn-sm' style='font-size:10px; padding:3px 8px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
+          "</div>";
+      }
+    } else {
+      statusCard.innerHTML = 
+        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+          "<div><strong>Branch Away Ticket Application</strong><div style='font-size:10px; color:#94a3b8;'>Allocation quota pending committee ballot</div></div>" +
+          "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:3px 8px;' onclick=\"switchTab('view-travel')\">Away Tickets</button>" +
+        "</div>";
+    }
+  }
+
+  // --- G. Render Announcements Feed ---
+  var newsContainer = document.getElementById("hud-news-feed");
+  if (newsContainer && appState.announcements && Array.isArray(appState.announcements)) {
+    newsContainer.innerHTML = "";
+    appState.announcements.forEach(function(item) {
+      var itemCard = document.createElement("div");
+      itemCard.className = "card";
+      itemCard.style.cssText = "margin-bottom:6px; padding:10px; background:#0f172a; border-left:3px solid var(--safc-gold);";
+      itemCard.innerHTML = 
+        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>" +
+          "<strong style='font-size:12px; color:#fff;'>" + item.title + "</strong>" +
+          "<span style='font-size:9px; color:var(--text-muted);'>" + (item.date || "Recent") + "</span>" +
+        "</div>" +
+        "<div style='font-size:11px; color:#cbd5e1; line-height:1.4;'>" + item.body + "</div>";
+      newsContainer.appendChild(itemCard);
+    });
+  }
+};
+
+// Auto-run HUD on tab switch
+var _origSwitchTab = window.switchTab;
+window.switchTab = function(tabId, el) {
+  if (_origSwitchTab) _origSwitchTab(tabId, el);
+  if (tabId === "view-hud") {
+    setTimeout(function() { window.renderHUDView(); }, 50);
+  }
+};
+
+// Initial HUD render on script load
+setTimeout(function() {
+  if (typeof window.renderHUDView === "function") window.renderHUDView();
+}, 100);
+
+// // ========================================================
+// SECTION 6: 10-KIT THEME ENGINE & DISPLAY PREFERENCES
+// ========================================================
+
+// 1. Master SAFC Kit Theme Color Palettes (Primary, Secondary, Accent)
+var SAFC_KIT_THEMES = {
+  "1990-vaux-home": {
+    name: "1990 Vaux Home",
+    c1: "#dc2626", // Roker Scarlet Red
+    c2: "#ffffff", // Clean White
+    c3: "#f59e0b"  // Vaux Amber Gold
+  },
+  "1990-vaux-away": {
+    name: "1990 Vaux Away",
+    c1: "#2563eb", // Royal Blue Hummel Chevrons
+    c2: "#ffffff", // Crisp White
+    c3: "#dc2626"  // Red Contrast
+  },
+  "1986-patrick-away": {
+    name: "1986 Patrick Away",
+    c1: "#eab308", // Canary Yellow
+    c2: "#0f172a", // Tuborg Black Block
+    c3: "#ffffff"  // White Trim
+  },
+  "1992-fa-cup-away": {
+    name: "1992 FA Cup Final Away",
+    c1: "#0d9488", // Malcolm Crosby Retro Teal/Turquoise
+    c2: "#be123c", // Cherry Red
+    c3: "#ffffff"  // White Detail
+  },
+  "1994-avec-gk": {
+    name: "1994 Avec Goalkeeper",
+    c1: "#a3e635", // Alec Chamberlain Neon Yellow Mosaic
+    c2: "#1d4ed8", // Cobalt Blue
+    c3: "#38bdf8"  // Electric Cyan
+  },
+  "1998-lambtons-away": {
+    name: "1998 Lambton's Away",
+    c1: "#1e3a8a", // 105-Point Title Deep Navy
+    c2: "#d97706", // Lambton's Ale Gold
+    c3: "#ffffff"  // White Trim
+  },
+  "2000-reg-vardy": {
+    name: "2000 Reg Vardy Home",
+    c1: "#b91c1c", // Super Kev Premier League Crimson
+    c2: "#94a3b8", // Platinum Slate
+    c3: "#ffffff"  // Pure White
+  },
+  "2023-stealth-third": {
+    name: "2023 Stealth Third",
+    c1: "#18181b", // Blackout Graphite
+    c2: "#84cc16", // Electric Volt Neon
+    c3: "#a3e635"  // Lime Glow
+  },
+  "2024-mining-heritage": {
+    name: "2024 Mining Heritage",
+    c1: "#0f172a", // Durham Coalfield Navy
+    c2: "#06b6d4", // Pithead Cyan
+    c3: "#eab308"  // Luminary Amber
+  },
+  "2026-hummel-elvis": {
+    name: "2026 Hummel Elvis Away",
+    c1: "#ec4899", // Terrace Anthem Bubblegum Pink
+    c2: "#18181b", // Contrast Black
+    c3: "#fb7185"  // Rose Sheen
+  }
+};
+
+// 2. Apply Kit Theme to CSS Variables & DOM Elements
+window.applyTheme = function(themeKey) {
+  var theme = SAFC_KIT_THEMES[themeKey] || SAFC_KIT_THEMES["1990-vaux-home"];
+  var root = document.documentElement;
+
+  // Dynamically update core CSS variables across the app
+  root.style.setProperty("--safc-red", theme.c1);
+  root.style.setProperty("--safc-gold", theme.c3);
+  root.style.setProperty("--safc-accent", theme.c2);
+
+  // Update live preview swatches and badge
+  var s1 = document.getElementById("swatch-c1");
+  var s2 = document.getElementById("swatch-c2");
+  var s3 = document.getElementById("swatch-c3");
+  var badgeLabel = document.getElementById("theme-badge-label");
+
+  if (s1) s1.style.background = theme.c1;
+  if (s2) s2.style.background = theme.c2;
+  if (s3) s3.style.background = theme.c3;
+  if (badgeLabel) badgeLabel.textContent = theme.name;
+
+  if (typeof appState !== "undefined" && appState) {
+    appState.activeTheme = themeKey;
+  }
+  try {
+    localStorage.setItem("safc_active_theme", themeKey);
+  } catch (e) {}
+};
+
+// 3. Dropdown Change Listener
+window.handleThemeSelectChange = function(themeKey) {
+  window.applyTheme(themeKey);
+};
+
+// 4. High-Contrast Matchday Outdoor Mode Toggle
+window.toggleHighContrastMode = function(isEnabled) {
+  var styleTag = document.getElementById("outdoor-contrast-style");
+
+  if (isEnabled) {
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = "outdoor-contrast-style";
+      styleTag.textContent = 
+        ".card { border: 2px solid #ffffff !important; background: #000000 !important; }" +
+        ".text-muted { color: #f1f5f9 !important; font-weight: 600 !important; }" +
+        "body { background: #000000 !important; color: #ffffff !important; }" +
+        ".form-input, .form-select { border: 2px solid var(--safc-gold) !important; color: #fff !important; }";
+      document.head.appendChild(styleTag);
+    }
+  } else {
+    if (styleTag) styleTag.remove();
+  }
+
+  try {
+    localStorage.setItem("safc_high_contrast", isEnabled ? "1" : "0");
+  } catch (e) {}
+};
+
+// 5. Save Member Display & Privacy Preferences
+window.saveDisplayPreferences = function() {
+  var showNick = document.getElementById("pref-public-nickname");
+  var alerts = document.getElementById("pref-notifications");
+
+  var prefs = {
+    showNickname: showNick ? showNick.checked : true,
+    notifications: alerts ? alerts.checked : true
+  };
+
+  try {
+    localStorage.setItem("safc_display_prefs", JSON.stringify(prefs));
+  } catch (e) {}
+};
+
+// 6. Restore Preferences & Theme on App Initialization
+(function restoreMemberPreferences() {
+  try {
+    // Purge any lingering light mode styles or storage artifacts
+    var lightStyle = document.getElementById("safc-light-mode-style");
+    if (lightStyle) lightStyle.remove();
+    localStorage.removeItem("safc_color_mode");
+
+    // A. Restore Theme
+    var savedTheme = localStorage.getItem("safc_active_theme") || "1990-vaux-home";
+    var selectElem = document.getElementById("theme-kit-select");
+    if (selectElem) selectElem.value = savedTheme;
+    window.applyTheme(savedTheme);
+
+    // B. Restore High-Contrast Mode
+    var savedContrast = localStorage.getItem("safc_high_contrast") === "1";
+    var contrastCheckbox = document.getElementById("pref-high-contrast");
+    if (contrastCheckbox) {
+      contrastCheckbox.checked = savedContrast;
+      window.toggleHighContrastMode(savedContrast);
+    }
+
+    // C. Restore Privacy Preferences
+    var rawPrefs = localStorage.getItem("safc_display_prefs");
+    if (rawPrefs) {
+      var parsed = JSON.parse(rawPrefs);
+      var nickBox = document.getElementById("pref-public-nickname");
+      var alertBox = document.getElementById("pref-notifications");
+      if (nickBox && typeof parsed.showNickname !== "undefined") nickBox.checked = parsed.showNickname;
+      if (alertBox && typeof parsed.notifications !== "undefined") alertBox.checked = parsed.notifications;
+    }
+  } catch (err) {
+    console.warn("Preference restoration note:", err);
+  }
+})();
+
+// // ========================================================
+// SECTION 7: MATCHDAY FOOTBALL CARD FUNDRAISER & ADMIN ENGINE
+// ========================================================
+
+// Master 40 Teams Reference
+var DEFAULT_40_TEAMS = [
+  "Sunderland", "Newcastle", "Middlesbrough", "Leeds United",
+  "Coventry City", "Burnley", "Sheffield United", "Hull City",
+  "Blackburn Rovers", "Preston North End", "Stoke City", "Derby County",
+  "West Brom", "Bristol City", "Swansea City", "Cardiff City",
+  "Watford", "Luton Town", "Norwich City", "Millwall",
+  "QPR", "Plymouth Argyle", "Portsmouth", "Oxford United",
+  "Arsenal", "Aston Villa", "Chelsea", "Everton",
+  "Fulham", "Liverpool", "Man City", "Man United",
+  "Brighton", "Brentford", "Tottenham", "West Ham",
+  "Celtic", "Rangers", "Aberdeen", "Hearts"
+];
+
+// 1. Initialize & Synchronize Football Card State with LocalStorage
+(function initFootballCardState() {
+  if (typeof appState === "undefined" || !appState) return;
+
+  if (appState.bonusBall) delete appState.bonusBall;
+
+  var savedCard = null;
+  var savedMeta = null;
+  try {
+    var rawCard = localStorage.getItem("coxhoe_football_card_v20");
+    if (rawCard) savedCard = JSON.parse(rawCard);
+    var rawMeta = localStorage.getItem("coxhoe_card_meta_v20");
+    if (rawMeta) savedMeta = JSON.parse(rawMeta);
+  } catch (e) {}
+
+  if (savedCard && Array.isArray(savedCard) && savedCard.length === 40) {
+    appState.footballCard = savedCard;
+  } else if (!appState.footballCard || !Array.isArray(appState.footballCard) || appState.footballCard.length !== 40) {
+    appState.footballCard = DEFAULT_40_TEAMS.map(function(teamName, idx) {
+      var claimed = null;
+      if (idx === 0) claimed = "Gary Miller";
+      if (idx === 6) claimed = "Graham Croft";
+      return { id: idx + 1, team: teamName, price: 2.00, claimedBy: claimed };
+    });
+  }
+
+  if (savedMeta && savedMeta.status) {
+    appState.activeCardMeta = savedMeta;
+  } else if (!appState.activeCardMeta) {
+    appState.activeCardMeta = {
+      cardId: 1,
+      title: "Matchday 40-Team Scratch Card #1",
+      status: "active", // "active" | "completed"
+      pricePerTeam: 2.00,
+      winnerPrize: 40.00,
+      branchPrize: 40.00,
+      winnerTeam: null,
+      winnerMember: null
+    };
+  }
+
+  syncFootballCardState();
+})();
+
+// Helper: Synchronize counts & bidirectional state across structures
+function syncFootballCardState() {
+  if (!appState || !appState.footballCard) return { sold: 0, total: 40 };
+
+  var soldCount = appState.footballCard.filter(function(sq) { return !!sq.claimedBy; }).length;
+
+  if (appState.activeCardMeta) {
+    appState.activeCardMeta.sold = soldCount;
+  }
+
+  if (!appState.cardClaims) appState.cardClaims = {};
+  appState.footballCard.forEach(function(sq) {
+    if (sq.claimedBy) {
+      appState.cardClaims[sq.team] = sq.claimedBy;
+    } else {
+      delete appState.cardClaims[sq.team];
+    }
+  });
+
+  return { sold: soldCount, total: 40 };
+}
+
+function persistFootballCard() {
+  try {
+    if (appState.footballCard) {
+      localStorage.setItem("coxhoe_football_card_v20", JSON.stringify(appState.footballCard));
+    }
+    if (appState.activeCardMeta) {
+      localStorage.setItem("coxhoe_card_meta_v20", JSON.stringify(appState.activeCardMeta));
+    }
+    if (typeof saveState === "function") saveState();
+  } catch (e) {
+    console.warn("Storage notice:", e);
+  }
+}
+
+// Multi-Selection State Cache
+window._selectedFootballTeamIds = [];
+
+// 2. Member Grid: Multi-Selection Toggle
+window.toggleFootballTeamSelection = function(teamId) {
+  var meta = appState.activeCardMeta || {};
+  if (meta.status === "completed") return; // Locked once drawn
+
+  var idx = window._selectedFootballTeamIds.indexOf(teamId);
+  if (idx !== -1) {
+    window._selectedFootballTeamIds.splice(idx, 1);
+  } else {
+    window._selectedFootballTeamIds.push(teamId);
+  }
+  window.renderFootballGrid();
+};
+
+// 3. Render 40-Square Football Card Grid for Members
+window.renderFootballGrid = function() {
+  var grid = document.getElementById("football-grid");
+  var summary = document.getElementById("card-sold-summary");
+  var actionTeamName = document.getElementById("football-selected-team-name");
+  var claimBtn = document.getElementById("btn-claim-football-team");
+  var cardTitleElem = document.getElementById("football-card-title");
+
+  if (!grid || !appState || !appState.footballCard) return;
+
+  var user = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
+  var userName = user ? user.name : (appState.currentUser ? appState.currentUser.name : "Gary Miller");
+
+  var cards = appState.footballCard;
+  var stats = syncFootballCardState();
+  var meta = appState.activeCardMeta || { status: "active", title: "40-Team Scratch Card #1" };
+  var isCompleted = (meta.status === "completed");
+
+  if (cardTitleElem) {
+    cardTitleElem.textContent = meta.title || "40-Team Scratch Card";
+  }
+
+  if (summary) {
+    if (isCompleted) {
+      summary.className = "badge-red";
+      summary.textContent = "🏆 DRAWN & COMPLETED";
+    } else {
+      summary.className = "badge-gold";
+      summary.textContent = stats.sold + " / 40 Claimed";
+    }
+  }
+
+  grid.innerHTML = "";
+
+  // Insert Winner Banner at the top of the grid if card has been drawn
+  var existingWinnerBanner = document.getElementById("football-member-winner-banner");
+  if (existingWinnerBanner) existingWinnerBanner.remove();
+
+  if (isCompleted && meta.winnerTeam && meta.winnerMember) {
+    var winnerBanner = document.createElement("div");
+    winnerBanner.id = "football-member-winner-banner";
+    winnerBanner.style.cssText = 
+      "background: linear-gradient(135deg, #78350f 0%, #b45309 50%, #f59e0b 100%); " +
+      "border: 2px solid var(--safc-gold, #facc15); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; color: #fff; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.4);";
+    winnerBanner.innerHTML = 
+      "<div style='font-size:10px; font-weight:800; text-transform:uppercase; color:#fde68a; letter-spacing:0.8px;'>🏆 OFFICIAL CARD RESULT</div>" +
+      "<div style='font-size:16px; font-weight:900; margin:3px 0; color:#fff;'>Winning Team: " + meta.winnerTeam + "</div>" +
+      "<div style='font-size:12px; font-weight:700; color:#fef3c7;'>" + meta.winnerMember + " won £" + (meta.winnerPrize || 0).toFixed(2) + "!</div>" +
+      "<div style='font-size:10px; color:#fef08a; margin-top:3px;'>Prize deposited directly to wallet • 50/50 branch fund contribution</div>";
+    grid.parentNode.insertBefore(winnerBanner, grid);
+  }
+
+  cards.forEach(function(sq) {
+    var sqBtn = document.createElement("button");
+    sqBtn.type = "button";
+    var isClaimed = !!sq.claimedBy;
+    var isMine = isClaimed && (sq.claimedBy === userName);
+    var isSelected = (window._selectedFootballTeamIds.indexOf(sq.id) !== -1);
+    var isWinnerSquare = isCompleted && (sq.team === meta.winnerTeam);
+
+    sqBtn.style.cssText = 
+      "display: flex; flex-direction: column; align-items: center; justify-content: center; " +
+      "padding: 6px 4px; min-height: 48px; border-radius: 6px; font-size: 10px; border: 1px solid #334155; " +
+      "cursor: " + (isClaimed || isCompleted ? "default" : "pointer") + "; text-align: center; position: relative;";
+
+    if (isWinnerSquare) {
+      // Golden Highlighting for the Winning Team
+      sqBtn.style.background = "linear-gradient(135deg, #facc15 0%, #eab308 100%)";
+      sqBtn.style.border = "2px solid #ffffff";
+      sqBtn.style.color = "#000000";
+      sqBtn.style.transform = "scale(1.04)";
+      sqBtn.style.boxShadow = "0 0 12px rgba(250, 204, 21, 0.7)";
+      sqBtn.style.zIndex = "2";
+      sqBtn.innerHTML = 
+        "<strong style='font-size:10px; color:#000;'>👑 " + sq.team + "</strong>" +
+        "<span style='font-size:8px; font-weight:900; color:#000;'>WINNER</span>" +
+        "<span style='font-size:7px; font-weight:800; color:#78350f;'>£" + (meta.winnerPrize || 0).toFixed(2) + "</span>";
+    } else if (isMine) {
+      sqBtn.style.background = "#065f46";
+      sqBtn.style.borderColor = "#10b981";
+      sqBtn.style.color = "#34d399";
+      sqBtn.innerHTML = "<strong style='font-size:10px;'>" + sq.team + "</strong><span style='font-size:8px;'>✓ YOU</span>";
+    } else if (isClaimed) {
+      sqBtn.style.background = "#1e293b";
+      sqBtn.style.borderColor = "#334155";
+      sqBtn.style.color = "#64748b";
+      var shortOwner = sq.claimedBy.split(" ")[0];
+      sqBtn.innerHTML = "<span>" + sq.team + "</span><span style='font-size:7px; text-transform:uppercase;'>" + shortOwner + "</span>";
+      sqBtn.disabled = true;
+    } else if (isSelected) {
+      sqBtn.style.background = "var(--safc-gold, #facc15)";
+      sqBtn.style.borderColor = "var(--safc-gold, #facc15)";
+      sqBtn.style.color = "#000000";
+      sqBtn.innerHTML = "<strong style='font-size:10px; color:#000;'>" + sq.team + "</strong><span style='font-size:8px; font-weight:800; color:#000;'>✓ SELECTED</span>";
+      sqBtn.onclick = function() { window.toggleFootballTeamSelection(sq.id); };
+    } else {
+      sqBtn.style.background = "#0f172a";
+      sqBtn.style.color = "#ffffff";
+      sqBtn.innerHTML = "<strong>" + sq.team + "</strong><span style='font-size:8px; color:#94a3b8;'>£2.00</span>";
+      if (!isCompleted) {
+        sqBtn.onclick = function() { window.toggleFootballTeamSelection(sq.id); };
+      } else {
+        sqBtn.disabled = true;
+      }
+    }
+
+    grid.appendChild(sqBtn);
+  });
+
+  // Action Bar Update
+  if (isCompleted) {
+    if (actionTeamName) {
+      actionTeamName.innerHTML = 
+        "<span style='color:var(--safc-gold); font-weight:700;'>Card completed & drawn!</span>" +
+        "<div style='font-size:10px; color:#94a3b8;'>Winner: " + meta.winnerMember + " (" + meta.winnerTeam + ") • £" + (meta.winnerPrize || 0).toFixed(2) + " paid</div>";
+    }
+    if (claimBtn) {
+      claimBtn.textContent = "Card Completed 🏆";
+      claimBtn.disabled = true;
+    }
+  } else {
+    var selCount = window._selectedFootballTeamIds.length;
+    if (selCount > 0) {
+      var selectedTeams = cards.filter(function(x) { 
+        return window._selectedFootballTeamIds.indexOf(x.id) !== -1; 
+      }).map(function(x) { return x.team; });
+
+      var totalCost = selCount * 2.00;
+
+      if (actionTeamName) {
+        actionTeamName.innerHTML = 
+          "Selected (" + selCount + "): <strong style='color:var(--safc-gold);'>" + selectedTeams.join(", ") + "</strong>" +
+          "<div style='font-size:10px; color:#94a3b8;'>Total: £" + totalCost.toFixed(2) + " (£2.00 per team)</div>";
+      }
+      if (claimBtn) {
+        claimBtn.textContent = "Claim " + selCount + " " + (selCount === 1 ? "Team" : "Teams") + " (£" + totalCost.toFixed(2) + ")";
+        claimBtn.disabled = false;
+      }
+    } else {
+      if (actionTeamName) {
+        actionTeamName.innerHTML = "Select one or more available teams<div style='font-size:10px; color:#94a3b8;'>Cost: £2.00 per team deducted from wallet</div>";
+      }
+      if (claimBtn) {
+        claimBtn.textContent = "Claim Teams";
+        claimBtn.disabled = true;
+      }
+    }
+  }
+};
+
+// 4. Member Multi-Team Purchase Confirmation
+window.confirmFootballTeamPurchase = function() {
+  var meta = appState.activeCardMeta || {};
+  if (meta.status === "completed") {
+    alert("⚠️ This card has already been drawn. Please wait for the committee to launch a new card.");
+    return;
+  }
+
+  var selCount = window._selectedFootballTeamIds.length;
+  if (selCount === 0) return;
+
+  var user = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
+  if (!user && appState.currentUser) {
+    user = { name: appState.currentUser.name || appState.currentUser, balance: 35.00 };
+  }
+  if (!user) {
+    alert("Please log in to purchase.");
+    return;
+  }
+
+  var totalCost = selCount * 2.00;
+  if (user.balance < totalCost) {
+    alert("⚠️ Insufficient Wallet Balance!\n\nTotal Cost: £" + totalCost.toFixed(2) + "\nCurrent Balance: £" + user.balance.toFixed(2) + "\n\nPlease top up your wallet via 'My Pass' first.");
+    return;
+  }
+
+  user.balance -= totalCost;
+
+  var claimedNames = [];
+  window._selectedFootballTeamIds.forEach(function(teamId) {
+    var sq = appState.footballCard.find(function(x) { return x.id === teamId; });
+    if (sq && !sq.claimedBy) {
+      sq.claimedBy = user.name;
+      claimedNames.push(sq.team);
+    }
+  });
+
+  if (typeof logForensicTransaction === "function") {
+    logForensicTransaction(
+      user.name,
+      "Member",
+      "Branch Lottery",
+      "CARD",
+      "Football Card (" + selCount + " teams): " + claimedNames.join(", "),
+      totalCost,
+      0,
+      totalCost
+    );
+  }
+
+  syncFootballCardState();
+  persistFootballCard();
+
+  alert("⚽ TEAMS SECURED!\n\nYou have claimed " + selCount + " teams:\n" + claimedNames.join(", ") + "\n\nTotal Deducted: £" + totalCost.toFixed(2) + "\nRemaining Wallet: £" + user.balance.toFixed(2) + "\n\nGood luck in the official draw!");
+
+  window._selectedFootballTeamIds = [];
+
+  if (typeof window.updateBalanceDisplay === "function") window.updateBalanceDisplay();
+  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
+  if (typeof window.renderHUDView === "function") window.renderHUDView();
+  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
+};
+
+// 5. Admin Panel: Management Suite & Gating Engine
+window.renderAdminFootballCardManager = function() {
+  var pane = document.getElementById("admin-pane-footballcard");
+  if (!pane) return;
+
+  var stats = syncFootballCardState();
+  var meta = appState.activeCardMeta || { status: "active", cardId: 1, title: "Card #1", pricePerTeam: 2.00 };
+  var isActive = (meta.status === "active");
+
+  var price = meta.pricePerTeam || 2.00;
+  var actualPot = stats.sold * price;
+  var winnerCalculatedPrize = (actualPot * 0.50);
+  var branchCalculatedProfit = (actualPot * 0.50);
+
+  var pct = Math.round((stats.sold / 40) * 100);
+
+  pane.innerHTML = 
+    "<h4>⚽ Football Card Fundraiser Suite</h4>" +
+    "<p class='text-xs text-muted mb-2'>Manage active matchday scratch card, track team sales, enforce single 50/50 payout, and dispatch push alerts.</p>" +
+
+    "<div class='admin-card' style='background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
+      "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>" +
+        "<div>" +
+          "<span style='font-size:9px; font-weight:800; color:var(--safc-gold); text-transform:uppercase;'>BRANCH FUNDRAISER GOVERNANCE</span>" +
+          "<h4 style='margin:2px 0; font-size:14px; font-weight:800; color:#fff;'>" + (meta.title || "Matchday 40-Team Scratch Card") + "</h4>" +
+        "</div>" +
+        "<span style='padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; background:" + (isActive ? "#065f46; color:#34d399;" : "#334155; color:#94a3b8;") + "'>" +
+          (isActive ? "🟢 ACTIVE CARD" : "⚪ DRAWN & ARCHIVED") +
+        "</span>" +
+      "</div>" +
+
+      // Live Sold & 50/50 Revenue Metrics
+      "<div style='background:#1e293b; padding:10px; border-radius:6px; margin-bottom:10px; border:1px solid #334155;'>" +
+        "<div style='display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;'>" +
+          "<span>Teams Claimed: <strong style='color:var(--safc-gold); font-size:13px;'>" + stats.sold + " / 40</strong></span>" +
+          "<span style='color:var(--green); font-weight:700;'>Total Pot: £" + actualPot.toFixed(2) + "</span>" +
+        "</div>" +
+        "<div style='height:6px; background:#0f172a; border-radius:3px; overflow:hidden; margin-bottom:4px;'>" +
+          "<div style='width:" + pct + "%; height:100%; background:var(--safc-red); transition:width 0.3s ease;'></div>" +
+        "</div>" +
+        "<div style='display:flex; justify-content:space-between; font-size:9px; color:#94a3b8;'>" +
+          "<span>Winner Share (50%): <strong style='color:var(--safc-gold);'>£" + (isActive ? winnerCalculatedPrize.toFixed(2) : (meta.winnerPrize || 0).toFixed(2)) + "</strong></span>" +
+          "<span>Branch Funds (50%): <strong style='color:var(--green);'>£" + (isActive ? branchCalculatedProfit.toFixed(2) : (meta.branchProfit || 0).toFixed(2)) + "</strong></span>" +
+        "</div>" +
+      "</div>" +
+
+      // Committee Scratch / Draw & Manifest Controls
+      "<div style='display:flex; gap:6px; margin-bottom:10px;'>" +
+        (isActive ? 
+          "<button class='btn btn-gold btn-sm' style='flex:1; font-size:11px;' onclick='window.adminDrawFootballCardWinner()'>" +
+            "🏆 Scratch & Draw Winner (£" + winnerCalculatedPrize.toFixed(2) + ")" +
+          "</button>" : 
+          "<button class='btn btn-outline btn-sm' style='flex:1; font-size:11px; opacity:0.5; cursor:not-allowed;' disabled>" +
+            "✓ Winner Paid: " + meta.winnerMember + " (£" + (meta.winnerPrize || 0).toFixed(2) + ")" +
+          "</button>"
+        ) +
+        "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px;' onclick='window.toggleAdminClaimManifest()'>" +
+          "📋 View Buyers" +
+        "</button>" +
+      "</div>" +
+
+      // Buyer Manifest Container (Toggleable)
+      "<div id='admin-football-manifest-box' style='display:none; max-height:160px; overflow-y:auto; background:#1e293b; padding:8px; border-radius:6px; font-size:10px; border:1px solid #334155; margin-bottom:10px;'>" +
+        "<div style='font-weight:700; color:var(--safc-gold); margin-bottom:4px;'>Claimed Teams Manifest:</div>" +
+        (function() {
+          var claimed = appState.footballCard.filter(function(x) { return x.claimedBy; });
+          if (claimed.length === 0) return "<div style='color:#94a3b8;'>No teams claimed yet.</div>";
+          return claimed.map(function(x) {
+            return "<div style='display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #334155;'>" +
+              "<span>" + x.team + "</span><strong style='color:#fff;'>" + x.claimedBy + "</strong>" +
+            "</div>";
+          }).join("");
+        })() +
+      "</div>" +
+
+      // Gated "Launch New Card" Suite
+      "<div style='border-top:1px solid #334155; padding-top:10px;'>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>" +
+          "<strong style='font-size:11px; color:var(--safc-gold);'>🚀 Launch New Scratch Card</strong>" +
+          "<span style='font-size:9px; font-weight:700; color:" + (isActive ? "#f87171;" : "#34d399;") + "'>" +
+            (isActive ? "🔒 LOCKED (Card Active)" : "🟢 UNLOCKED") +
+          "</span>" +
+        "</div>" +
+
+        (isActive 
+          ? "<div style='background:#7f1d1d26; border:1px dashed #ef4444; border-radius:6px; padding:8px 10px; font-size:10px; color:#fca5a5; line-height:1.4; margin-bottom:8px;'>" +
+              "⚠️ <strong>A scratch card is currently in progress (" + stats.sold + "/40 teams sold).</strong><br>" +
+              "To protect integrity, a new card cannot be launched until this card is completed and a winner is drawn." +
+            "</div>"
+          : "<div style='background:#065f4626; border:1px dashed #10b981; border-radius:6px; padding:8px 10px; font-size:10px; color:#6ee7b7; line-height:1.4; margin-bottom:8px;'>" +
+              "✓ The previous card has been drawn and archived. You can now launch a fresh 40-team card." +
+            "</div>"
+        ) +
+
+        "<div style='display:grid; grid-template-columns:2fr 1fr; gap:6px; margin-bottom:8px; opacity:" + (isActive ? "0.4" : "1") + ";'>" +
+          "<div>" +
+            "<label class='form-label' style='font-size:9px;'>New Card Title</label>" +
+            "<input type='text' id='admin-new-card-title' class='form-input' value='Matchday Scratch Card #" + ((meta.cardId || 1) + 1) + "' style='padding:5px; font-size:11px;' " + (isActive ? "disabled" : "") + " />" +
+          "</div>" +
+          "<div>" +
+            "<label class='form-label' style='font-size:9px;'>Team Price</label>" +
+            "<input type='text' class='form-input' value='£2.00' style='padding:5px; font-size:11px;' disabled />" +
+          "</div>" +
+        "</div>" +
+
+        "<button id='btn-admin-launch-card' class='btn btn-red btn-sm' style='width:100%; font-size:11px; opacity:" + (isActive ? "0.4" : "1") + "; cursor:" + (isActive ? "not-allowed" : "pointer") + ";' " + (isActive ? "disabled" : "") + " onclick='window.adminLaunchNewFootballCard()'>" +
+          (isActive ? "🔒 Launch Disabled (Card in Progress)" : "🚀 Launch New 40-Team Scratch Card") +
+        "</button>" +
+      "</div>" +
+    "</div>";
+};
+
+// 6. Admin Action: Toggle Buyer Manifest
+window.toggleAdminClaimManifest = function() {
+  var box = document.getElementById("admin-football-manifest-box");
+  if (box) {
+    box.style.display = (box.style.display === "none") ? "block" : "none";
+  }
+};
+
+// 7. Admin Action: Scratch & Draw Winner (Enforces Single Payout & 50/50 Split)
+window.adminDrawFootballCardWinner = function() {
+  var meta = appState.activeCardMeta || {};
+
+  // HARD GUARD: Prevent multiple payouts on the same card
+  if (meta.status === "completed") {
+    alert("⚠️ CARD ALREADY ARCHIVED:\n\nThis scratch card has already been drawn and paid out to " + meta.winnerMember + " (£" + (meta.winnerPrize || 0).toFixed(2) + ").\n\nA card cannot be paid out twice. Launch a fresh card below.");
+    return;
+  }
+
+  var claimed = appState.footballCard.filter(function(x) { return !!x.claimedBy; });
+  if (claimed.length === 0) {
+    alert("⚠️ No teams have been claimed on this card yet.");
+    return;
+  }
+
+  var stats = syncFootballCardState();
+  var pricePerTeam = meta.pricePerTeam || 2.00;
+  var totalCollected = stats.sold * pricePerTeam;
+
+  // AUTOMATIC 50/50 SPLIT OF ACTUAL SOLD AMOUNT
+  var winnerPrize = totalCollected * 0.50;
+  var branchShare = totalCollected * 0.50;
+
+  var confirmMsg = (stats.sold < 40)
+    ? "⚠️ PARTIAL CARD 50/50 DRAW:\n\n" +
+      "• Teams Sold: " + stats.sold + " of 40\n" +
+      "• Total Pot Collected: £" + totalCollected.toFixed(2) + "\n\n" +
+      "Under branch rules, the prize recalculates to an exact 50/50 split of the sold pot:\n" +
+      "➔ Winner Payout: £" + winnerPrize.toFixed(2) + " (50%)\n" +
+      "➔ Branch Funds: £" + branchShare.toFixed(2) + " (50%)\n\n" +
+      "Draw the official winning team now?"
+    : "Confirm scratching the card and drawing the official winner?\n\n• Winner Payout (50%): £" + winnerPrize.toFixed(2) + "\n• Branch Share (50%): £" + branchShare.toFixed(2);
+
+  if (!confirm(confirmMsg)) return;
+
+  // Draw winning team randomly from claimed squares
+  var winningSquare = claimed[Math.floor(Math.random() * claimed.length)];
+  var winnerName = winningSquare.claimedBy;
+  var winningTeam = winningSquare.team;
+
+  // Credit winner's wallet exactly once
+  var winnerRecord = null;
+  if (appState.users && Array.isArray(appState.users)) {
+    winnerRecord = appState.users.find(function(m) { return m.name === winnerName; });
+  }
+  if (!winnerRecord && appState.currentUser && appState.currentUser.name === winnerName) {
+    winnerRecord = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
+  }
+  if (winnerRecord) {
+    winnerRecord.balance = (parseFloat(winnerRecord.balance) || 0) + winnerPrize;
+  }
+
+  // Log to Forensic Statement Ledger
+  if (typeof logForensicTransaction === "function") {
+    logForensicTransaction(
+      "Branch",
+      "Admin",
+      winnerName,
+      "PRIZE",
+      "Scratch Card Winner: " + winningTeam + " (50/50 Split)",
+      0,
+      winnerPrize,
+      branchShare
+    );
+  }
+
+  // Collect list of all unique buyers who bought a team
+  var uniqueBuyers = [];
+  claimed.forEach(function(sq) {
+    if (uniqueBuyers.indexOf(sq.claimedBy) === -1) uniqueBuyers.push(sq.claimedBy);
+  });
+
+  // LOCK & ARCHIVE THE CARD
+  meta.status = "completed";
+  meta.winnerTeam = winningTeam;
+  meta.winnerMember = winnerName;
+  meta.winnerPrize = winnerPrize;
+  meta.branchProfit = branchShare;
+  meta.completedAt = new Date().toISOString();
+  meta.buyers = uniqueBuyers;
+
+  // DISPATCH NOTIFICATIONS TO BUYERS
+  // 1. In-App Urgent Broadcast Banner for Home HUD
+  if (appState.announcements && Array.isArray(appState.announcements)) {
+    appState.announcements.unshift({
+      id: "card-win-" + Date.now(),
+      title: "🏆 Scratch Card Result: " + winningTeam + " Wins!",
+      body: "Congratulations to " + winnerName + " who won £" + winnerPrize.toFixed(2) + " on the branch scratch card! £" + branchShare.toFixed(2) + " retained for branch travel funds.",
+      date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      category: "Lottery",
+      pinned: true
+    });
+  }
+
+  // 2. Web Push Notification to Device (if permitted)
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification("🏆 SAFC Scratch Card Winner Drawn!", {
+        body: winnerName + " won £" + winnerPrize.toFixed(2) + " with " + winningTeam + "! (50/50 pot split)",
+        icon: "icon-192.png"
+      });
+    } catch (pushErr) {}
+  }
+
+  persistFootballCard();
+
+  alert(
+    "🎉 WINNER SCRATCHED & RATIFIED!\n\n" +
+    "• Winning Team: " + winningTeam + "\n" +
+    "• Winner: " + winnerName + "\n" +
+    "• Prize Paid: £" + winnerPrize.toFixed(2) + " (50% of pot)\n" +
+    "• Branch Funds: £" + branchShare.toFixed(2) + "\n\n" +
+    "📢 Push alert & feed announcement sent to all " + uniqueBuyers.length + " participant buyers.\n" +
+    "🔒 Card locked & archived. The 'Launch New Card' facility is now unlocked!"
+  );
+
+  // Instant Refresh
+  if (typeof window.updateBalanceDisplay === "function") window.updateBalanceDisplay();
+  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
+  if (typeof window.renderHUDView === "function") window.renderHUDView();
+  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
+};
+
+// 8. Admin Action: Launch New Card
+window.adminLaunchNewFootballCard = function() {
+  var meta = appState.activeCardMeta || {};
+  if (meta.status === "active") {
+    alert("⚠️ An active card is already in progress. Draw a winner or complete the card before launching a new one.");
+    return;
+  }
+
+  var titleInput = document.getElementById("admin-new-card-title");
+  var newTitle = titleInput ? titleInput.value.trim() : "Matchday Scratch Card #" + ((meta.cardId || 1) + 1);
+
+  if (!confirm("Launch '" + newTitle + "' for all branch members?")) return;
+
+  // Reset to fresh 40 teams
+  appState.footballCard = DEFAULT_40_TEAMS.map(function(teamName, idx) {
+    return { id: idx + 1, team: teamName, price: 2.00, claimedBy: null };
+  });
+
+  appState.activeCardMeta = {
+    cardId: (meta.cardId || 1) + 1,
+    title: newTitle,
+    status: "active",
+    pricePerTeam: 2.00,
+    winnerPrize: 40.00,
+    branchPrize: 40.00,
+    winnerTeam: null,
+    winnerMember: null
+  };
+
+  syncFootballCardState();
+  persistFootballCard();
+
+  alert("🚀 NEW SCRATCH CARD LIVE!\n\n'" + newTitle + "' is now active and available on member home HUDs and fundraiser boards.");
+
+  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
+  if (typeof window.renderHUDView === "function") window.renderHUDView();
+  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
+};
+
+// 9. OVERRIDE ALL LEGACY FUNCTION CALLS & AUTO-RENDER HOOKS
+window.renderAdminFootballCard = window.renderAdminFootballCardManager;
+window.renderFootballCard = window.renderFootballGrid;
+window.drawCardWinner = window.adminDrawFootballCardWinner;
+window.launchNewFootballCard = window.adminLaunchNewFootballCard;
+
+var _fundraiserOrigSwitchTab = window.switchTab;
+window.switchTab = function(tabId, el) {
+  if (_fundraiserOrigSwitchTab) _fundraiserOrigSwitchTab(tabId, el);
+  if (tabId === "view-fundraising") {
+    setTimeout(function() {
+      if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
+    }, 50);
+  }
+};
+
+var _origSwitchAdminTool = window.switchAdminTool;
+window.switchAdminTool = function(toolId) {
+  if (_origSwitchAdminTool) _origSwitchAdminTool(toolId);
+  if (toolId === "footballcard") {
+    setTimeout(function() {
+      if (typeof window.renderAdminFootballCardManager === "function") {
+        window.renderAdminFootballCardManager();
+      }
+    }, 50);
+  }
+};
+
+// Mount initial sync on script load
+setTimeout(function() {
+  syncFootballCardState();
+  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
+  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
+}, 150);
