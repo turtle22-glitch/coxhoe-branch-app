@@ -30,10 +30,10 @@
   <header>
     <div class="header-content">
       <div class="brand">
-        <div class="crest-badge">SAFC</div>
+        <div id="header-crest-badge" class="crest-badge">SAFC</div>
         <div>
-          <div class="brand-title">Coxhoe Branch</div>
-          <div class="brand-sub">Supporters Club</div>
+          <div id="header-brand-title" class="brand-title">Coxhoe Branch</div>
+          <div id="header-brand-sub" class="brand-sub">Supporters Club</div>
         </div>
       </div>
       <div id="user-header-info" style="display: none; text-align: right;">
@@ -120,7 +120,7 @@
     </div>
 
     <!-- HUD Card 2: Full-Width Matchday Football Card Pulse Bar -->
-    <div class="card" style="margin-bottom:8px; padding:10px 12px; background:#1e293b; border:1px solid #334155; cursor:pointer;" onclick="switchTab('view-fundraising')">
+    <div id="hud-card-fundraiser-pulse" class="card" style="margin-bottom:8px; padding:10px 12px; background:#1e293b; border:1px solid #334155; cursor:pointer;" onclick="switchTab('view-fundraising')">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
         <span style="font-size:11px; font-weight:700;">⚽ Matchday Football Card</span>
         <span id="hud-pulse-card-sold" style="font-size:10px; color:var(--safc-gold); font-weight:700;">2 / 40 Claimed</span>
@@ -351,8 +351,13 @@
 
     <div id="comms-sub-bus" class="card" style="padding:10px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <strong style="font-size:12px;">Coventry City (H) Bus Chat</strong>
-        <span style="font-size:9px; color:var(--safc-gold); font-weight:700;">EPHEMERAL • PASSENGERS ONLY</span>
+        <div>
+          <strong id="bus-chat-match-title" style="font-size:12px;">Matchday Bus Chat</strong>
+          <div style="font-size:9px; color:var(--safc-gold); font-weight:700;">EPHEMERAL • AUTO-EXPIRES 24H POST-MATCH</div>
+        </div>
+        <div id="bus-chat-admin-actions" style="display:none;">
+          <button class="btn btn-outline btn-sm" style="padding:2px 8px; font-size:9px; color:#f87171; border-color:#ef4444;" onclick="window.adminPurgeMatchdayChat()">🧹 Purge Chat</button>
+        </div>
       </div>
       <div id="bus-chat-status-notice" style="margin-bottom:6px;"></div>
       <div id="bus-chat-messages" style="background:#0f172a; padding:10px; border-radius:8px; height:180px; overflow-y:auto; margin-bottom:8px;"></div>
@@ -589,7 +594,7 @@
 
   <!-- BOTTOM BAR -->
   <nav id="bottom-bar" class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('view-hud', this)">
+    <button id="nav-home" class="nav-item active" onclick="switchTab('view-hud', this)">
       <span class="nav-icon">🏠</span>
       <span>Home</span>
     </button>
@@ -597,11 +602,11 @@
       <span class="nav-icon">🚌</span>
       <span>Travel</span>
     </button>
-    <button class="nav-item" onclick="switchTab('view-fundraising', this)">
+    <button id="nav-fundraiser" class="nav-item" onclick="switchTab('view-fundraising', this)">
       <span class="nav-icon">🎯</span>
       <span>Fundraiser</span>
     </button>
-    <button class="nav-item" onclick="switchTab('view-comms', this)">
+    <button id="nav-comms" class="nav-item" onclick="switchTab('view-comms', this)">
       <span class="nav-icon">💬</span>
       <span>Comms</span>
       <div class="nav-badges-wrap">
@@ -609,7 +614,7 @@
         <span id="nav-comms-badge-gold" class="badge-gold" style="display:none;">0</span>
       </div>
     </button>
-    <button class="nav-item" onclick="switchTab('view-profile', this)">
+    <button id="nav-profile" class="nav-item" onclick="switchTab('view-profile', this)">
       <span class="nav-icon">🪪</span>
       <span>My Pass</span>
     </button>
@@ -662,6 +667,7 @@
       <div class="admin-tool-picker-card">
         <label class="tool-picker-label">🛠️ SELECT COMMITTEE TOOL</label>
         <select id="admin-tool-select" onchange="switchAdminTool(this.value)">
+          <option value="modules">🧩 Feature Toggles & App Modules</option>
           <option value="buses">🚌 Buses (Fleet, Routes, Allocation & Manifest)</option>
           <option value="subs">💳 Membership Subs Roster</option>
           <option value="approvals">👨‍👧 Friends & Family / Child Approval Queue</option>
@@ -673,6 +679,13 @@
         </select>
       </div>
 
+      <!-- PANE 0: SECTIONAL APP MODULE MANAGER & TOGGLES -->
+      <div id="admin-pane-modules" class="admin-pane">
+        <h4>🧩 Sectional App Modules & Feature Toggles</h4>
+        <p class="text-xs text-muted mb-2">Enable or disable entire functional sections of the app. Disabled features vanish from member navigation and views instantly.</p>
+        <div id="admin-modules-switches-container"></div>
+      </div>
+      
       <!-- PANE 1: CONSOLIDATED BUSES SUITE -->
       <div id="admin-pane-buses" class="admin-pane">
         <h4>🚌 Matchday Buses & Route Operations</h4>
@@ -693,15 +706,48 @@
           <button class="btn btn-gold btn-block mt-2" onclick="window.adminRunAllocationBackup()">⚡ Run Early Allocation Cutoff (Backup Override)</button>
         </div>
 
-        <div class="admin-card mt-3">
+        <!-- Upgraded Door Check-In Console & Offline Manifest Suite -->
+        <div class="admin-card mt-3" style="border-top:3px solid var(--safc-gold);">
           <div class="flex-between">
-            <strong style="font-size:12px;">📋 Passenger Manifest & Door Check-In</strong>
-            <button class="btn btn-outline btn-sm" style="font-size:10px;" onclick="window.exportManifestCSV()">📥 Export CSV</button>
+            <div>
+              <strong style="font-size:12px;">📋 Door Check-In & Manifest</strong>
+              <div id="manifest-sync-indicator" style="font-size:9px; color:var(--green); font-weight:700; margin-top:2px;">
+                ● Cloud Connected (Realtime Sync)
+              </div>
+            </div>
+            <button class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px;" onclick="window.exportManifestCSV()">
+              📥 Export CSV
+            </button>
           </div>
-          <p class="text-xs text-muted mt-1">Tap passenger to toggle them as boarded onto their allocated coach.</p>
+          <p class="text-xs text-muted mt-1 mb-2">Tap passenger to check them in at coach door. Works offline with automatic cloud reconciliation.</p>
+
+          <!-- Search & Filter Controls -->
+          <div style="background:#0f172a; padding:8px; border-radius:6px; margin-bottom:8px; border:1px solid #334155;">
+            <div class="form-group" style="margin-bottom:6px;">
+              <input type="text" id="manifest-search-input" class="form-input" placeholder="🔍 Search passenger name..." style="padding:6px; font-size:11px;" oninput="window.filterAdminManifest()" />
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+              <div>
+                <label class="form-label" style="font-size:9px;">Filter Stop</label>
+                <select id="manifest-stop-filter" class="form-select" style="padding:5px; font-size:11px;" onchange="window.filterAdminManifest()">
+                  <option value="ALL">All Pickup Stops</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:9px;">Status</label>
+                <select id="manifest-status-filter" class="form-select" style="padding:5px; font-size:11px;" onchange="window.filterAdminManifest()">
+                  <option value="ALL">All Passengers</option>
+                  <option value="UNBOARDED" selected>⏳ Awaiting (Unchecked)</option>
+                  <option value="BOARDED">✓ Boarded Only</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Manifest List Mount -->
           <div id="admin-manifest-summary" class="mt-2"></div>
         </div>
-      </div>
 
       <!-- PANE 2: MEMBERSHIP SUBS ROSTER -->
       <div id="admin-pane-subs" class="admin-pane hidden">
