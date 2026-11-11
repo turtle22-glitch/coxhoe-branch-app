@@ -1,11 +1,11 @@
 // ========================================================
-// COXHOE BRANCH SAFC - APP.JS (PART 1 OF 4)
-// Supabase Client, Core Data Structures & State Engine
+// COXHOE BRANCH SAFC - MASTER APPLICATION CORE
+// Supabase Sync, Modular State, White-Label & Branch Ops
 // ========================================================
 
 // --- SUPABASE CLIENT INITIALIZATION ---
 var SUPABASE_URL = "https://nitzzfwtcfzgjqmbxkwn.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_9GSFeMOaqVmW7p_t19eNEQ_uUMCMBSz"; // Replace with your anon key
+var SUPABASE_ANON_KEY = "sb_publishable_9GSFeMOaqVmW7p_t19eNEQ_uUMCMBSz";
 
 var sbClient = null;
 if (window.supabase && typeof window.supabase.createClient === "function") {
@@ -34,14 +34,13 @@ var DEFAULT_STOPS = [
   { id: 4, name: "Quarrington Hill", time: "13:10" }
 ];
 
-// Season Home Matches with independent coach timetable stops
 var SEASON_HOME_MATCHES = [
   {
     id: "H-01",
     opponent: "Coventry City",
     date: "Sat 21 Nov 2026",
     time: "15:00",
-    status: "Open",
+    bookingStatus: "open",
     buses: [
       {
         busId: 1,
@@ -51,12 +50,7 @@ var SEASON_HOME_MATCHES = [
         adultFare: 12.00,
         juniorFare: 8.00,
         isFreeBus: false,
-        stops: [
-          { id: 1, name: "Coxhoe Red Lion", time: "12:45" },
-          { id: 2, name: "Blackgate / The Avenue", time: "12:50" },
-          { id: 3, name: "Bowburn Cooperage", time: "13:00" },
-          { id: 4, name: "Quarrington Hill", time: "13:10" }
-        ]
+        stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
       }
     ]
   },
@@ -65,7 +59,7 @@ var SEASON_HOME_MATCHES = [
     opponent: "Burnley",
     date: "Sat 5 Dec 2026",
     time: "15:00",
-    status: "Upcoming",
+    bookingStatus: "draft",
     buses: [
       {
         busId: 1,
@@ -75,12 +69,7 @@ var SEASON_HOME_MATCHES = [
         adultFare: 12.00,
         juniorFare: 8.00,
         isFreeBus: false,
-        stops: [
-          { id: 1, name: "Coxhoe Red Lion", time: "12:45" },
-          { id: 2, name: "Blackgate / The Avenue", time: "12:50" },
-          { id: 3, name: "Bowburn Cooperage", time: "13:00" },
-          { id: 4, name: "Quarrington Hill", time: "13:10" }
-        ]
+        stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
       }
     ]
   },
@@ -89,7 +78,7 @@ var SEASON_HOME_MATCHES = [
     opponent: "Leeds United",
     date: "Sat 26 Dec 2026",
     time: "12:30",
-    status: "Upcoming",
+    bookingStatus: "draft",
     buses: [
       {
         busId: 1,
@@ -120,17 +109,17 @@ var SEASON_AWAY_FIXTURES = [
   { id: "A-07", opponent: "Watford", date: "Sat 13 Feb 2027", time: "15:00", allocation: 20, status: "Upcoming" }
 ];
 
-var MASTER_CLUBS = [
-  "Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton", "Chelsea",
-  "Crystal Palace", "Everton", "Fulham", "Ipswich Town", "Leicester City", "Liverpool",
-  "Man City", "Man United", "Newcastle Utd", "Nottingham Forest", "Southampton", "Tottenham",
-  "West Ham", "Wolves", "Sunderland", "Leeds United", "Burnley", "Sheffield Utd",
-  "West Brom", "Middlesbrough", "Blackburn", "Norwich City", "Watford", "Coventry City",
-  "Derby County", "Millwall", "Swansea City", "Bristol City", "QPR", "Stoke City",
-  "Preston", "Sheff Wed", "Hull City", "Plymouth Argyle", "Portsmouth", "Oxford United",
-  "Cardiff City", "Luton Town", "Bolton", "Wigan", "Blackpool", "Barnsley",
-  "Reading", "Birmingham", "Huddersfield", "Charlton", "Wrexham", "Stockport",
-  "Wycombe", "Lincoln City", "Peterborough", "Mansfield", "Bradford City", "Rotherham"
+var DEFAULT_40_TEAMS = [
+  "Sunderland", "Newcastle", "Middlesbrough", "Leeds United",
+  "Coventry City", "Burnley", "Sheffield United", "Hull City",
+  "Blackburn Rovers", "Preston North End", "Stoke City", "Derby County",
+  "West Brom", "Bristol City", "Swansea City", "Cardiff City",
+  "Watford", "Luton Town", "Norwich City", "Millwall",
+  "QPR", "Plymouth Argyle", "Portsmouth", "Oxford United",
+  "Arsenal", "Aston Villa", "Chelsea", "Everton",
+  "Fulham", "Liverpool", "Man City", "Man United",
+  "Brighton", "Brentford", "Tottenham", "West Ham",
+  "Celtic", "Rangers", "Aberdeen", "Hearts"
 ];
 
 var BASE_PROFANITIES = [
@@ -171,27 +160,7 @@ function detectAbuseOrProfanity(rawText) {
   return { flagged: false };
 }
 
-function shuffleArray(arr) {
-  var cp = arr.slice();
-  for (var i = cp.length - 1; i > 0; i--) {
-    var j = Math.floor(Math.random() * (i + 1));
-    var temp = cp[i]; cp[i] = cp[j]; cp[j] = temp;
-  }
-  return cp;
-}
-
-function getInitialBonusRegistry() {
-  var reg = {};
-  var names = ["Dave Kelly", "Sarah Taylor", "Micky Gray", "John O'Shea", "Gary Miller", "Billy Thompson"];
-  for (var i = 1; i <= 59; i++) {
-    if (i === 10) reg[i] = { owner: "Gary Miller", status: "locked", applicants: [] };
-    else if (i === 24) reg[i] = { owner: null, status: "ballot_open", applicants: ["Dave Kelly"] };
-    else reg[i] = { owner: names[i % names.length], status: "locked", applicants: [] };
-  }
-  return reg;
-}
-
-// --- STATE MANAGEMENT ---
+// --- MASTER STATE CONTAINER ---
 var appState = {
   currentUser: { name: "Gary Miller", role: "member", memberNo: "COX-084", category: "Adult" },
   users: JSON.parse(localStorage.getItem("coxhoe_users_v20")) || MASTER_MEMBERS,
@@ -214,57 +183,27 @@ var appState = {
   
   duesConfig: JSON.parse(localStorage.getItem("coxhoe_dues_config_v20")) || {
     activeSeason: "2026/27",
-    adultFee: 15.00,
+    dueDate: "2026-08-31",
+    adultFee: 10.00,
     juniorFee: 5.00,
-    seniorFee: 10.00,
+    seniorFee: 5.00,
     enforceDuesGate: true
   },
 
   announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v20")) || [
-    { id: 1, title: "Coventry City (H) Coach Departure Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled. Please check the timetable.", reactions: 14, archived: false, readBy: [] },
-    { id: 2, title: "Branch Christmas Social Night Announced", date: "2026-10-28", isUrgent: false, content: "Tickets are now on sale for the annual Christmas branch social at Coxhoe WMC on Friday 18th December. Buffet, guest speaker, and fundraising raffle included.", reactions: 29, archived: false, readBy: [] }
+    { id: 1, title: "Coventry City (H) Coach Departure Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled.", reactions: 14, archived: false, readBy: [] },
+    { id: 2, title: "Branch Christmas Social Night Announced", date: "2026-10-28", isUrgent: false, content: "Tickets are now on sale for the annual Christmas branch social at Coxhoe WMC on Friday 18th December.", reactions: 29, archived: false, readBy: [] }
   ],
 
-  matchdayChat: JSON.parse(localStorage.getItem("coxhoe_bus_chat_v20")) || [
-    { id: 1, sender: "Dave Kelly", time: "11:30", text: "What time are we meeting at the Red Lion?" },
-    { id: 2, sender: "Sarah Taylor", time: "11:35", text: "Departure is 12:30 sharp because of roadworks on A1." },
-    { id: 3, sender: "Micky Gray", time: "11:38", text: "Has anyone got spare tickets for Leeds away?" },
-    { id: 4, sender: "Dave Kelly", time: "11:42", text: "Registered my away interest in the app lads." },
-    { id: 5, sender: "Sarah Taylor", time: "11:43", text: "Club shop was also sold out of matchday programmes." }
-  ],
+  matchdayChat: JSON.parse(localStorage.getItem("coxhoe_bus_chat_v20")) || [],
+
+  directMessages: JSON.parse(localStorage.getItem("coxhoe_dms_v20")) || [],
 
   moderation: JSON.parse(localStorage.getItem("coxhoe_moderation_v20")) || {
     strikes: {},
     mutedMembers: ["Billy Thompson"],
     revokedMembers: [],
-    incidents: [
-      {
-        id: "INC-881",
-        member: "Billy Thompson",
-        timestamp: "2026-10-31 11:45",
-        status: "active_ban",
-        reason: "Hostile confrontation in Matchday Bus Chat",
-        offendingText: "Shut your mouth you useless bastards",
-        transcriptContext: [
-          "Dave Kelly (11:30): What time are we meeting at the Red Lion?",
-          "Sarah Taylor (11:35): Departure is 12:30 sharp because of roadworks on A1.",
-          "Micky Gray (11:38): Has anyone got spare tickets for Leeds away?",
-          "Dave Kelly (11:42): Registered my away interest in the app lads.",
-          "Sarah Taylor (11:43): Club shop was also sold out of matchday programmes.",
-          "Billy Thompson (11:45): Shut your mouth you useless bastards [FLAGGED - BAN TRIGGER]"
-        ],
-        internalDiscussion: [
-          { author: "Graham (Secretary)", time: "11:50", text: "Spoke to Billy by phone. Claimed frustration over ticket allocations. Reinstatement requires 2 committee votes." }
-        ],
-        votes: {}
-      }
-    ]
-  },
-
-  committeeOnCall: JSON.parse(localStorage.getItem("coxhoe_comm_oncall_v20")) || {
-    "Graham (Secretary)": true,
-    "Dave Kelly": true,
-    "Sarah Taylor": true
+    incidents: []
   },
 
   helpdeskTickets: JSON.parse(localStorage.getItem("coxhoe_helpdesk_v20")) || [
@@ -275,41 +214,58 @@ var appState = {
       status: "open",
       escalatedToGraham: true,
       created: "2026-10-31 14:00",
-      messages: [{ id: "m1", sender: "Dave Kelly", time: "14:00", text: "Can I pick up at Metal Bridge instead of Red Lion next week?" }],
-      internalNotes: [{ id: "n1", author: "Sarah Taylor", time: "14:05", text: "Escalated to Graham: does the coach route go past Metal Bridge on 21st?" }]
+      messages: [{ id: "m1", sender: "Dave Kelly", time: "14:00", text: "Can I pick up at Bowburn instead of Red Lion next week?" }],
+      internalNotes: [{ id: "n1", author: "Sarah Taylor", time: "14:05", text: "Escalated to Graham: can we add Bowburn stop for Dave?" }]
     }
   ],
 
   readTracker: JSON.parse(localStorage.getItem("coxhoe_read_tracker_v20")) || {
-    "Gary Miller": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
-    "Graham (Secretary)": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
-    "Dave Kelly": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: [] },
-    "Sarah Taylor": { busChatCount: 5, readMsgIds: ["m1"], readNoteIds: ["n1"] }
+    "Gary Miller": { busChatCount: 0, readMsgIds: ["m1"], readNoteIds: [] },
+    "Graham (Secretary)": { busChatCount: 0, readMsgIds: ["m1"], readNoteIds: [] }
   },
-
-  cardConfig: JSON.parse(localStorage.getItem("coxhoe_card_config_v20")) || {
-    size: 40,
-    pricePerSquare: 2.00,
-    prizeMode: "percentage",
-    prizePct: 50,
-    prizeFixed: 50.00,
-    activeClubs: MASTER_CLUBS.slice(0, 40)
-  },
-  cardClaims: JSON.parse(localStorage.getItem("coxhoe_card_claims_v20")) || {
-    "Blackburn": "Dave Kelly",
-    "Leeds United": "Sarah Taylor"
-  },
-  bonusRegistry: JSON.parse(localStorage.getItem("coxhoe_bonus_reg_v20")) || getInitialBonusRegistry(),
 
   awayFixtures: JSON.parse(localStorage.getItem("coxhoe_away_fixtures_v20")) || SEASON_AWAY_FIXTURES,
   awayRegistrations: JSON.parse(localStorage.getItem("coxhoe_away_regs_v20")) || [
-    { fixtureId: "A-01", memberName: "Gary Miller", party: ["Gary Miller (Adult)", "Phoebe Miller (Child)"], allocated: true },
-    { fixtureId: "A-01", memberName: "Dave Kelly", party: ["Dave Kelly (Adult)"], allocated: false }
+    { fixtureId: "A-01", memberName: "Gary Miller", party: ["Gary Miller (Adult)", "Phoebe Miller (Child)"], allocated: true }
   ],
 
   masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v20")) || [
-    { txnId: "TXN-1001", timestamp: "2026-10-25 10:00:00", actor: "Gary Miller", role: "Member", target: "Branch", category: "SUBS_DUES", desc: "Annual Membership Subs 2026/27 (Adult)", debit: 15.00, credit: 0, branchImpact: 15.00, balanceAfter: 35.00 }
-  ]
+    { txnId: "TXN-1001", timestamp: "2026-10-25 10:00:00", actor: "Gary Miller", role: "Member", target: "Branch", category: "SUBS_DUES", desc: "Annual Membership Subs 2026/27 (Adult)", debit: 10.00, credit: 0, branchImpact: 10.00, balanceAfter: 35.00 }
+  ],
+
+  // 40-Team Scratch Card State
+  footballCard: JSON.parse(localStorage.getItem("coxhoe_football_card_v20")) || DEFAULT_40_TEAMS.map(function(t, idx) {
+    return { id: idx + 1, team: t, price: 2.00, claimedBy: (idx === 0 ? "Gary Miller" : (idx === 6 ? "Graham Croft" : null)) };
+  }),
+
+  activeCardMeta: JSON.parse(localStorage.getItem("coxhoe_card_meta_v20")) || {
+    cardId: 1,
+    title: "Matchday 40-Team Scratch Card #1",
+    status: "active",
+    pricePerTeam: 2.00,
+    winnerPrize: 40.00,
+    branchPrize: 40.00,
+    winnerTeam: null,
+    winnerMember: null
+  },
+
+  // White-Label Club Identity
+  clubIdentity: JSON.parse(localStorage.getItem("coxhoe_club_identity_v20")) || {
+    clubName: "Coxhoe Branch",
+    subTitle: "Supporters Club",
+    badgeInitials: "SAFC",
+    crestLogoUrl: null
+  },
+
+  // Sectional Feature Toggles
+  modules: JSON.parse(localStorage.getItem("coxhoe_modules_v20")) || {
+    travel: true,
+    awayTickets: true,
+    fundraiser: true,
+    commsBusChat: false,
+    commsHelpdesk: true,
+    duesAndPass: true
+  }
 };
 
 function saveState() {
@@ -322,33 +278,24 @@ function saveState() {
   localStorage.setItem("coxhoe_dues_config_v20", JSON.stringify(appState.duesConfig));
   localStorage.setItem("coxhoe_announcements_v20", JSON.stringify(appState.announcements));
   localStorage.setItem("coxhoe_bus_chat_v20", JSON.stringify(appState.matchdayChat));
+  localStorage.setItem("coxhoe_dms_v20", JSON.stringify(appState.directMessages));
   localStorage.setItem("coxhoe_moderation_v20", JSON.stringify(appState.moderation));
-  localStorage.setItem("coxhoe_comm_oncall_v20", JSON.stringify(appState.committeeOnCall));
   localStorage.setItem("coxhoe_helpdesk_v20", JSON.stringify(appState.helpdeskTickets));
   localStorage.setItem("coxhoe_read_tracker_v20", JSON.stringify(appState.readTracker));
-  localStorage.setItem("coxhoe_card_config_v20", JSON.stringify(appState.cardConfig));
-  localStorage.setItem("coxhoe_card_claims_v20", JSON.stringify(appState.cardClaims));
-  localStorage.setItem("coxhoe_bonus_reg_v20", JSON.stringify(appState.bonusRegistry));
   localStorage.setItem("coxhoe_away_fixtures_v20", JSON.stringify(appState.awayFixtures));
   localStorage.setItem("coxhoe_away_regs_v20", JSON.stringify(appState.awayRegistrations));
   localStorage.setItem("coxhoe_audit_v20", JSON.stringify(appState.masterAuditTrail));
+  localStorage.setItem("coxhoe_football_card_v20", JSON.stringify(appState.footballCard));
+  localStorage.setItem("coxhoe_card_meta_v20", JSON.stringify(appState.activeCardMeta));
+  localStorage.setItem("coxhoe_club_identity_v20", JSON.stringify(appState.clubIdentity));
+  localStorage.setItem("coxhoe_modules_v20", JSON.stringify(appState.modules));
 }
 
-// ==========================================
-// END OF PART 1 OF 4
-// ==========================================
-
-// ========================================================
-// COXHOE BRANCH SAFC - APP.JS (PART 2 OF 4)
-// Cloud Sync, Safeguarding, Auth & Home HUD
-// ========================================================
-
-// --- UNIFIED SUPABASE CLOUD SYNC & REALTIME DISPATCHER ---
+// --- SUPABASE CLOUD HYDRATION & REALTIME DISPATCHER ---
 async function initSupabaseCloudSync() {
   if (!sbClient) return;
 
   try {
-    // 1. Hydrate Members & Balances from Supabase
     var mRes = await sbClient.from("members").select("*");
     if (mRes.data && mRes.data.length > 0) {
       appState.users = mRes.data.map(function(row) {
@@ -357,21 +304,19 @@ async function initSupabaseCloudSync() {
           memberNo: row.member_no,
           name: row.name,
           nickname: row.nickname,
-          dob: row.dob,
           category: row.category,
           balance: parseFloat(row.balance) || 0,
-          registeredDaysAgo: row.registered_days_ago,
-          messagingAllowed: row.messaging_allowed,
-          membershipStatus: row.membership_status,
-          membershipTier: row.membership_tier,
-          membershipSeason: row.membership_season,
-          validUntil: row.valid_until,
+          registeredDaysAgo: row.registered_days_ago || 30,
+          messagingAllowed: row.messaging_allowed !== false,
+          membershipStatus: row.membership_status || "active",
+          membershipTier: row.membership_tier || "Adult",
+          membershipSeason: row.membership_season || "2026/27",
+          validUntil: row.valid_until || "2027-07-31",
           hasAppAccount: true
         };
       });
     }
 
-    // 2. Hydrate Bus Bookings
     var bRes = await sbClient.from("bus_bookings").select("*");
     if (bRes.data && bRes.data.length > 0) {
       appState.bookings = bRes.data.map(function(row) {
@@ -389,7 +334,6 @@ async function initSupabaseCloudSync() {
       });
     }
 
-    // 3. Hydrate Master Audit Ledger (Financial Statement)
     var lRes = await sbClient.from("audit_ledger").select("*").order("timestamp", { ascending: false }).limit(100);
     if (lRes.data && lRes.data.length > 0) {
       appState.masterAuditTrail = lRes.data.map(function(row) {
@@ -409,49 +353,11 @@ async function initSupabaseCloudSync() {
       });
     }
 
-    // 4. Hydrate Announcements
-    var aRes = await sbClient.from("announcements").select("*").order("id", { ascending: false });
-    if (aRes.data && aRes.data.length > 0) {
-      appState.announcements = aRes.data.map(function(row) {
-        return {
-          id: row.id,
-          title: row.title,
-          date: row.date,
-          isUrgent: row.is_urgent,
-          content: row.content,
-          reactions: row.reactions || 0,
-          archived: row.archived || false,
-          readBy: Array.isArray(row.read_by) ? row.read_by : []
-        };
-      });
-    }
-
-    // 5. Hydrate Chat
-    var cRes = await sbClient.from("matchday_chat").select("*").order("id", { ascending: true }).limit(50);
-    if (cRes.data && cRes.data.length > 0) {
-      appState.matchdayChat = cRes.data;
-    }
-
-    // 6. Hydrate Away Registrations
-    var arRes = await sbClient.from("away_registrations").select("*");
-    if (arRes.data && arRes.data.length > 0) {
-      appState.awayRegistrations = arRes.data.map(function(row) {
-        return {
-          fixtureId: row.fixture_id,
-          memberName: row.member_name,
-          party: Array.isArray(row.party) ? row.party : [],
-          allocated: row.allocated
-        };
-      });
-    }
-
     saveState();
     window.refreshAllViews();
 
-    // 7. REALTIME BROADCAST DISPATCHER
     sbClient
       .channel("branch-master-sync")
-      // Bus Bookings Synced Live
       .on("postgres_changes", { event: "*", schema: "public", table: "bus_bookings" }, function(payload) {
         if (payload.eventType === "INSERT") {
           var exists = appState.bookings.some(function(b) { return b.id === payload.new.id; });
@@ -477,7 +383,6 @@ async function initSupabaseCloudSync() {
         saveState();
         window.refreshAllViews();
       })
-      // Members & Balances Synced Live
       .on("postgres_changes", { event: "*", schema: "public", table: "members" }, function(payload) {
         if (payload.new && payload.new.member_no) {
           var m = appState.users.find(function(u) { return u.memberNo === payload.new.member_no; });
@@ -486,79 +391,22 @@ async function initSupabaseCloudSync() {
             m.membershipStatus = payload.new.membership_status || m.membershipStatus;
             saveState();
             window.updateBalanceDisplay();
-            if (typeof renderProfilePassView === "function") renderProfilePassView();
-            if (typeof renderHUDView === "function") renderHUDView();
-            if (typeof renderAdminSubs === "function") renderAdminSubs();
+            window.refreshAllViews();
           }
         }
       })
-      // Statement Ledger Synced Live
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "audit_ledger" }, function(payload) {
-        var exists = appState.masterAuditTrail.some(function(t) { return t.txnId === payload.new.txn_id; });
-        if (!exists) {
-          appState.masterAuditTrail.unshift({
-            txnId: payload.new.txn_id,
-            timestamp: payload.new.timestamp,
-            actor: payload.new.actor,
-            role: payload.new.role,
-            target: payload.new.target,
-            category: payload.new.category,
-            desc: payload.new.description,
-            debit: parseFloat(payload.new.debit) || 0,
-            credit: parseFloat(payload.new.credit) || 0,
-            branchImpact: parseFloat(payload.new.branch_impact) || 0,
-            balanceAfter: parseFloat(payload.new.balance_after) || 0
-          });
-          saveState();
-          if (typeof renderWalletStatement === "function") renderWalletStatement();
-          if (typeof renderAdminTreasury === "function") renderAdminTreasury();
-        }
-      })
-      // Chat Messages Synced Live
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "matchday_chat" }, function(payload) {
-        var exists = appState.matchdayChat.some(function(m) { return m.id === payload.new.id; });
-        if (!exists) {
-          appState.matchdayChat.push(payload.new);
-          saveState();
-          if (typeof renderMatchdayBusChat === "function") renderMatchdayBusChat();
-          updateCommsBadge();
-        }
-      })
-      // Away Registrations Synced Live
-      .on("postgres_changes", { event: "*", schema: "public", table: "away_registrations" }, function(payload) {
-        if (payload.eventType === "INSERT") {
-          appState.awayRegistrations.push({
-            fixtureId: payload.new.fixture_id,
-            memberName: payload.new.member_name,
-            party: Array.isArray(payload.new.party) ? payload.new.party : [],
-            allocated: payload.new.allocated
-          });
-        } else if (payload.eventType === "UPDATE") {
-          var reg = appState.awayRegistrations.find(function(r) {
-            return r.fixtureId === payload.new.fixture_id && r.memberName === payload.new.member_name;
-          });
-          if (reg) reg.allocated = payload.new.allocated;
-        }
-        saveState();
-        renderMemberAwayView();
-        renderHUDView();
-        if (typeof renderAdminAwayFixture === "function") renderAdminAwayFixture();
-      })
-      // Announcements Synced Live
-      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, function() {
-        initSupabaseCloudSync();
-      })
       .subscribe();
-
   } catch (syncErr) {
     console.warn("Supabase Realtime initial connection fallback:", syncErr);
   }
 }
 
+// --- USER & AUTH UTILITIES ---
 function getCurrentUserRecord() {
-  var found = appState.users.find(function(u) { return u.name.toLowerCase() === appState.currentUser.name.toLowerCase(); });
+  var curName = (typeof appState.currentUser === "string") ? appState.currentUser : (appState.currentUser ? appState.currentUser.name : "Gary Miller");
+  var found = appState.users.find(function(u) { return u.name.toLowerCase() === curName.toLowerCase(); });
   if (!found) {
-    found = { id: Date.now(), name: appState.currentUser.name, memberNo: appState.currentUser.memberNo, category: "Adult", hasAppAccount: true, balance: 35.00, registeredDaysAgo: 1, messagingAllowed: true, membershipStatus: "active", membershipTier: "Adult", membershipSeason: "2026/27", validUntil: "2027-07-31" };
+    found = { id: Date.now(), name: curName, memberNo: "COX-084", category: "Adult", hasAppAccount: true, balance: 35.00, registeredDaysAgo: 1, messagingAllowed: true, membershipStatus: "active", membershipTier: "Adult", membershipSeason: "2026/27", validUntil: "2027-07-31" };
     appState.users.push(found);
   }
   return found;
@@ -569,6 +417,10 @@ window.updateBalanceDisplay = function() {
   var elem = document.getElementById("display-balance");
   if (elem && user) {
     elem.textContent = "£" + user.balance.toFixed(2);
+  }
+  var hudBal = document.getElementById("hud-wallet-balance");
+  if (hudBal && user) {
+    hudBal.textContent = "£" + user.balance.toFixed(2);
   }
 };
 
@@ -587,7 +439,6 @@ function logForensicTransaction(actor, role, target, category, desc, debit, cred
   window.updateBalanceDisplay();
   if (typeof renderWalletStatement === "function") renderWalletStatement();
 
-  // Broadcast to Supabase audit_ledger
   if (sbClient) {
     sbClient.from("audit_ledger").insert([{
       txn_id: txn.txnId,
@@ -601,9 +452,7 @@ function logForensicTransaction(actor, role, target, category, desc, debit, cred
       credit: txn.credit,
       branch_impact: txn.branchImpact,
       balance_after: txn.balanceAfter
-    }]).then(function(res) {
-      if (res.error) console.error("Ledger sync error:", res.error);
-    });
+    }]).then(function() {});
   }
 }
 
@@ -614,7 +463,7 @@ function checkChildCompliance(user) {
            (f.targetName === user.name && (f.relation === "Daughter" || f.relation === "Son" || f.relation === "Child") && f.status === "approved");
   });
   if (hasParent) return { compliant: true, linkedParent: true };
-  var daysRemaining = 7 - user.registeredDaysAgo;
+  var daysRemaining = 7 - (user.registeredDaysAgo || 0);
   if (daysRemaining <= 0) return { compliant: false, deactivated: true, daysPast: Math.abs(daysRemaining) };
   return { compliant: true, pendingWarning: true, daysRemaining: daysRemaining };
 }
@@ -623,13 +472,13 @@ function verifyMembershipAccess(actionName) {
   if (!appState.duesConfig.enforceDuesGate) return true;
   var user = getCurrentUserRecord();
   if (user.membershipStatus === "lapsed") {
-    alert("⛔ ACCESS RESTRICTED: Annual Membership Overdue\n\nUnder branch rules, your " + appState.duesConfig.activeSeason + " membership subs must be settled before you can " + actionName + ".\n\nPlease renew via the Home HUD or My Pass tab.");
+    alert("⛔ ACCESS RESTRICTED: Annual Membership Overdue\n\nYour " + appState.duesConfig.activeSeason + " membership subs must be settled before you can " + actionName + ".\n\nPlease renew via the Home HUD or My Pass tab.");
     return false;
   }
   return true;
 }
 
-// --- CALIBRATED DUAL-BADGE ENGINE ---
+// --- COMMS DUAL-BADGE ENGINE ---
 function computeUserBadges(userName, role) {
   if (!appState.readTracker[userName]) {
     appState.readTracker[userName] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
@@ -639,8 +488,6 @@ function computeUserBadges(userName, role) {
   if (!tracker.readNoteIds) tracker.readNoteIds = [];
 
   var redCount = 0;
-
-  // Only count bus chat towards red badge if the module is enabled
   if (appState.modules && appState.modules.commsBusChat) {
     var totalChat = (appState.matchdayChat || []).length;
     if (totalChat > tracker.busChatCount) {
@@ -648,7 +495,6 @@ function computeUserBadges(userName, role) {
     }
   }
 
-  // Count unread public helpdesk messages
   if (appState.modules && appState.modules.commsHelpdesk && appState.helpdeskTickets) {
     appState.helpdeskTickets.forEach(function(t) {
       (t.messages || []).forEach(function(m) {
@@ -662,7 +508,6 @@ function computeUserBadges(userName, role) {
     });
   }
 
-  // Count unread internal committee notes (Gold Badge)
   var goldCount = 0;
   if (role === "admin" && appState.modules && appState.modules.commsHelpdesk && appState.helpdeskTickets) {
     appState.helpdeskTickets.forEach(function(t) {
@@ -734,7 +579,7 @@ function updateAdminDrawerBadge() {
   }
 }
 
-// --- NAVIGATION & AUTH ---
+// --- AUTH & NAVIGATION ---
 window.setUserSession = function(name, role, memberNo) {
   var matched = appState.users.find(function(u) { return u.name.toLowerCase() === name.toLowerCase(); });
   var category = matched ? matched.category : "Adult";
@@ -745,7 +590,7 @@ window.setUserSession = function(name, role, memberNo) {
   var deactBanner = document.getElementById("child-deactivated-guard");
   if (!compliance.compliant && compliance.deactivated) {
     deactBanner.style.display = "block";
-    document.getElementById("deact-msg").textContent = "Account Locked: " + name + " has been registered for " + userRecord.registeredDaysAgo + " days without a verified parent linkage. Link a parent via Friends & Family to activate.";
+    document.getElementById("deact-msg").textContent = "Account Locked: " + name + " requires a verified parent linkage. Link a parent via Friends & Family to activate.";
   } else {
     deactBanner.style.display = "none";
   }
@@ -762,7 +607,8 @@ window.setUserSession = function(name, role, memberNo) {
     adminBar.style.display = (role === "admin") ? "flex" : "none";
   }
 
-  if (typeof window.applyAppModules === "function") window.applyAppModules();
+  window.applyAppModules();
+  window.applyClubIdentity();
   window.refreshAllViews();
 };
 
@@ -788,18 +634,18 @@ window.handleLogout = function() {
   document.getElementById("child-deactivated-guard").style.display = "none";
 
   var views = document.querySelectorAll(".tab-view");
-  for (var i = 0; i < views.length; i++) { views[i].classList.remove("active"); }
+  views.forEach(function(v) { v.classList.remove("active"); });
   document.getElementById("view-login").classList.add("active");
 };
 
 window.switchTab = function(viewId, btn) {
   var views = document.querySelectorAll(".tab-view");
-  for (var i = 0; i < views.length; i++) { views[i].classList.remove("active"); }
+  views.forEach(function(v) { v.classList.remove("active"); });
   var target = document.getElementById(viewId);
   if (target) target.classList.add("active");
 
   var items = document.querySelectorAll(".nav-item");
-  for (var j = 0; j < items.length; j++) { items[j].classList.remove("active"); }
+  items.forEach(function(item) { item.classList.remove("active"); });
   if (btn) btn.classList.add("active");
 
   if (viewId === "view-comms") {
@@ -822,1586 +668,203 @@ window.refreshAllViews = function() {
   if (typeof renderProfilePassView === "function") renderProfilePassView();
   if (typeof renderWalletStatement === "function") renderWalletStatement();
   if (typeof renderCommsTabs === "function") renderCommsTabs();
-  if (typeof renderAdminDrawer === "function") renderAdminDrawer();
   if (typeof applyClubIdentity === "function") applyClubIdentity();
   if (typeof applyAppModules === "function") applyAppModules();
   updateCommsBadge();
 };
 
-// --- DYNAMIC TIMETABLE RESOLVER ---
-function getDynamicStopDisplay(matchId, busId, rawStop) {
-  if (!rawStop) return "Pickup TBA";
-  var cleanName = rawStop.split("(")[0].trim();
-  var match = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(matchId); });
-  if (match && match.buses) {
-    var bus = match.buses.find(function(b) { return b.busId === (busId || 1); }) || match.buses[0];
-    if (bus && bus.stops) {
-      var foundStop = bus.stops.find(function(s) {
-        return s.name.trim().toLowerCase() === cleanName.toLowerCase();
-      });
-      if (foundStop) {
-        return foundStop.name + " (" + foundStop.time + ")";
-      }
-    }
-  }
-  return rawStop;
-}
+// --- WHITE-LABEL BRANDING & SECTIONAL MODULES ---
+window.applyClubIdentity = function() {
+  if (!appState || !appState.clubIdentity) return;
+  var id = appState.clubIdentity;
 
-window.reactAnnouncement = function(postId) {
-  var post = (appState.announcements || []).find(function(a) { return a.id === postId; });
-  if (post) {
-    post.reactions = (post.reactions || 0) + 1;
-    saveState();
-    if (typeof renderHUDView === "function") renderHUDView();
-    if (sbClient) {
-      sbClient.from("announcements").update({ reactions: post.reactions }).eq("id", postId).then(function() {});
+  var crestElem = document.getElementById("header-crest-badge");
+  var titleElem = document.getElementById("header-brand-title");
+  var subElem = document.getElementById("header-brand-sub");
+
+  if (crestElem) {
+    if (id.crestLogoUrl) {
+      crestElem.innerHTML = "<img src='" + id.crestLogoUrl + "' style='width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;' alt='Club Crest' />";
+      crestElem.style.padding = "0";
+      crestElem.style.overflow = "hidden";
+      crestElem.style.background = "#0f172a";
+      crestElem.style.border = "2px solid var(--safc-gold, #facc15)";
+    } else {
+      crestElem.innerHTML = id.badgeInitials || "SAFC";
+      crestElem.style.padding = "";
+      crestElem.style.overflow = "";
+      crestElem.style.background = "";
+      crestElem.style.border = "2px solid var(--safc-gold, #facc15)";
     }
   }
+
+  if (titleElem && id.clubName) titleElem.textContent = id.clubName;
+  if (subElem && id.subTitle) subElem.textContent = id.subTitle;
+  document.title = (id.clubName || "Club Portal") + " - " + (id.badgeInitials || "Branch");
 };
 
-window.dismissAnnouncement = function(postId) {
-  var post = (appState.announcements || []).find(function(a) { return a.id === postId; });
-  if (post) {
-    if (!post.readBy) post.readBy = [];
-    var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-    if (post.readBy.indexOf(cur) === -1) {
-      post.readBy.push(cur);
-    }
-    saveState();
-    if (typeof renderHUDView === "function") renderHUDView();
-    if (sbClient) {
-      sbClient.from("announcements").update({ read_by: post.readBy }).eq("id", postId).then(function() {});
-    }
-  }
-};
+window.applyAppModules = function() {
+  if (!appState || !appState.modules) return;
+  var mods = appState.modules;
 
-window.promptPayMembershipDues = function() {
-  var user = getCurrentUserRecord();
-  var fee = (user.category === "Child" ? appState.duesConfig.juniorFee : appState.duesConfig.adultFee);
-  if (user.membershipTier === "Senior") fee = appState.duesConfig.seniorFee;
-  if (user.membershipTier === "Life") fee = 0.00;
+  var navTravel = document.getElementById("nav-travel");
+  var navFundraiser = document.getElementById("nav-fundraiser");
+  var navComms = document.getElementById("nav-comms");
+  var navProfile = document.getElementById("nav-profile");
 
-  if (user.balance < fee) {
-    alert("Insufficient balance! You need £" + fee.toFixed(2) + " to settle annual dues, but balance is £" + user.balance.toFixed(2) + ".\nPlease top up your wallet.");
-    return;
-  }
+  if (navTravel) navTravel.style.display = mods.travel ? "flex" : "none";
+  if (navFundraiser) navFundraiser.style.display = mods.fundraiser ? "flex" : "none";
+  if (navProfile) navProfile.style.display = mods.duesAndPass ? "flex" : "none";
 
-  window.showConfirmDialog(
-    "Renew Annual Membership Subs",
-    "<strong>Season:</strong> " + appState.duesConfig.activeSeason + "<br><strong>Tier:</strong> " + user.membershipTier + "<br><strong>Total to Pay:</strong> £" + fee.toFixed(2) + "<br><br>Settle annual dues to restore travel and ticket privileges.",
-    function() {
-      user.balance -= fee;
-      user.membershipStatus = "active";
-      user.membershipSeason = appState.duesConfig.activeSeason;
-      user.validUntil = "2027-07-31";
-      logForensicTransaction(user.name, "Member", "Branch", "SUBS_DUES", "Paid " + appState.duesConfig.activeSeason + " Annual Dues (" + user.membershipTier + ")", fee, 0, fee);
-      saveState();
-      window.refreshAllViews();
-      alert("🎉 Membership Renewed! Your " + appState.duesConfig.activeSeason + " Season Pass is now ACTIVE.");
-    }
-  );
-};
+  var commsAny = mods.commsBusChat || mods.commsHelpdesk;
+  if (navComms) navComms.style.display = commsAny ? "flex" : "none";
 
-// --- MULTI-PASSENGER PARTY COACH BOOKING ENGINE ---
-var currentBookingParty = [];
-
-function initBookingParty() {
-  var user = getCurrentUserRecord();
-  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-
-  var leadAlreadyBooked = (appState.bookings || []).some(function(b) {
-    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(user.name) !== -1;
+  var navItems = document.querySelectorAll(".bottom-nav .nav-item");
+  navItems.forEach(function(item) {
+    item.style.flex = "1";
+    item.style.width = "auto";
   });
 
-  currentBookingParty = [
-    {
-      id: "lead-" + user.name,
-      name: user.name,
-      type: user.category || "Adult",
-      isLead: true,
-      alreadyBooked: leadAlreadyBooked,
-      checked: !leadAlreadyBooked
-    }
+  var hudFundraiserCard = document.getElementById("hud-card-fundraiser-pulse");
+  if (hudFundraiserCard) hudFundraiserCard.style.display = mods.fundraiser ? "block" : "none";
+
+  var hudTravelCard = document.getElementById("hud-travel-card-status");
+  if (hudTravelCard && !mods.travel) hudTravelCard.style.display = "none";
+
+  var awayCard = document.getElementById("member-away-status-card");
+  if (awayCard && awayCard.parentElement) awayCard.parentElement.style.display = mods.awayTickets ? "block" : "none";
+
+  var btnBus = document.getElementById("btn-sub-bus");
+  var btnDesk = document.getElementById("btn-sub-desk");
+
+  if (btnBus) btnBus.style.display = mods.commsBusChat ? "block" : "none";
+  if (btnDesk) btnDesk.style.display = mods.commsHelpdesk ? "block" : "none";
+
+  if (!mods.commsBusChat && mods.commsHelpdesk) {
+    if (typeof switchCommsSubTab === "function") switchCommsSubTab("desk");
+  } else if (mods.commsBusChat && !mods.commsHelpdesk) {
+    if (typeof switchCommsSubTab === "function") switchCommsSubTab("bus");
+  }
+};
+
+window.renderAdminModulesManager = function() {
+  var container = document.getElementById("admin-modules-switches-container");
+  if (!container || !appState) return;
+
+  var mods = appState.modules || {};
+  var id = appState.clubIdentity || { clubName: "Coxhoe Branch", subTitle: "Supporters Club", badgeInitials: "SAFC", crestLogoUrl: null };
+  var currentLogo = id.crestLogoUrl;
+
+  var html = 
+    "<div class='admin-card' style='background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
+      "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:4px;'>🏢 Club & Branch Identity (White-Label)</strong>" +
+      "<p class='text-xs text-muted mb-2'>Re-skin header branding and upload official club crest logo.</p>" +
+
+      "<div style='background:#1e293b; padding:10px; border-radius:6px; margin-bottom:10px; border:1px solid #334155;'>" +
+        "<label class='form-label' style='font-size:10px; color:var(--safc-gold); margin-bottom:6px;'>Club Crest Photo</label>" +
+        "<div style='display:flex; align-items:center; gap:12px;'>" +
+          "<div id='admin-crest-preview-box' style='width:52px; height:52px; border-radius:50%; border:2px solid var(--safc-gold); background:#0f172a; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;'>" +
+            (currentLogo 
+              ? "<img id='admin-crest-preview-img' src='" + currentLogo + "' style='width:100%; height:100%; object-fit:cover;' alt='Crest Preview' />"
+              : "<span style='font-weight:900; font-size:12px; color:var(--safc-gold);'>SAFC</span>") +
+          "</div>" +
+          "<div style='flex:1;'>" +
+            "<input type='file' id='admin-crest-file-input' accept='image/*' style='display:none;' onchange='window.handleClubCrestUpload(event)' />" +
+            "<div style='display:flex; gap:6px;'>" +
+              "<button type='button' class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px;' onclick='document.getElementById(\"admin-crest-file-input\").click()'>📷 Upload Photo</button>" +
+              (currentLogo ? "<button type='button' class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px; color:#ef4444; border-color:#ef4444;' onclick='window.removeClubCrestPhoto()'>Remove</button>" : "") +
+            "</div>" +
+            "<span style='font-size:9px; color:#94a3b8; display:block; margin-top:4px;'>PNG, JPG or SVG (Max 2MB). Fits circular crest.</span>" +
+          "</div>" +
+        "</div>" +
+      "</div>" +
+
+      "<div class='form-group' style='margin-bottom:6px;'>" +
+        "<label class='form-label' style='font-size:9px;'>Club / Branch Name</label>" +
+        "<input type='text' id='admin-branding-name' class='form-input' value='" + (id.clubName || "") + "' style='padding:6px; font-size:11px;' />" +
+      "</div>" +
+
+      "<div class='form-group' style='margin-bottom:8px;'>" +
+        "<label class='form-label' style='font-size:9px;'>Sub-Heading / Tagline</label>" +
+        "<input type='text' id='admin-branding-sub' class='form-input' value='" + (id.subTitle || "") + "' style='padding:6px; font-size:11px;' />" +
+      "</div>" +
+
+      "<button class='btn btn-gold btn-sm' style='width:100%; font-size:10px;' onclick='window.saveClubBranding()'>💾 Save Club Identity</button>" +
+    "</div>" +
+
+    "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:6px;'>🧩 Functional Feature Toggles</strong>";
+
+  var moduleDefs = [
+    { key: "travel", icon: "🚌", title: "Coach Travel & Bus Fleet", desc: "Manages matchday coach booking, parties, stops, and manifest door check-in." },
+    { key: "awayTickets", icon: "🎟️", title: "Away Match Tickets", desc: "Allows members to submit expressions of interest for club away ticket ballots." },
+    { key: "fundraiser", icon: "⚽", title: "Matchday Scratch Card (Fundraiser)", desc: "40-team multi-selection card with 50/50 prize splitting and winner reveals." },
+    { key: "commsBusChat", icon: "💬", title: "Matchday Bus Chat", desc: "Passenger chatter tethered to active fixture with 24h auto-expiry." },
+    { key: "commsHelpdesk", icon: "🛡️", title: "Committee Helpdesk & Mailbox", desc: "Member query routing with dual red/gold notification badges." },
+    { key: "duesAndPass", icon: "🪪", title: "Membership Passes & Wallet Ledger", desc: "Digital cards, annual dues renewal gates, and audit trail statements." }
   ];
 
-  var myFriends = (appState.friendsAndFamily || []).filter(function(f) {
-    return f.owner === user.name && f.status === "approved";
-  });
-
-  myFriends.forEach(function(f) {
-    var friendBooked = (appState.bookings || []).some(function(b) {
-      return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(f.targetName) !== -1;
-    });
-    currentBookingParty.push({
-      id: "fnf-" + f.targetName,
-      name: f.targetName,
-      type: f.type || "Adult",
-      relation: f.relation,
-      isLinked: true,
-      alreadyBooked: friendBooked,
-      checked: false
-    });
-  });
-}
-
-function renderBusBookingView() {
-  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  var buses = (activeMatch && activeMatch.buses) ? activeMatch.buses : [];
-
-  var busSelectorGroup = document.getElementById("booking-bus-selector-group");
-  var busSelectElem = document.getElementById("booking-bus-select");
-
-  if (busSelectorGroup && busSelectElem) {
-    if (buses.length > 1) {
-      busSelectorGroup.style.display = "block";
-      var currentBusVal = parseInt(busSelectElem.value) || appState.selectedBookingBusId;
-      busSelectElem.innerHTML = "";
-      buses.forEach(function(b) {
-        var opt = document.createElement("option");
-        opt.value = b.busId;
-        opt.textContent = b.title + " (" + (b.capacity || 53) + " Seats)";
-        if (b.busId === currentBusVal) opt.selected = true;
-        busSelectElem.appendChild(opt);
-      });
-      appState.selectedBookingBusId = parseInt(busSelectElem.value) || buses[0].busId;
-    } else {
-      busSelectorGroup.style.display = "none";
-      appState.selectedBookingBusId = buses[0] ? buses[0].busId : 1;
-    }
-  }
-
-  initBookingParty();
-  window.updateBookingCoachUI();
-}
-
-window.updateBookingCoachUI = function() {
-  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  if (!activeMatch) return;
-  var buses = activeMatch.buses || [];
-
-  var busSelectElem = document.getElementById("booking-bus-select");
-  if (busSelectElem && buses.length > 1) {
-    appState.selectedBookingBusId = parseInt(busSelectElem.value) || 1;
-  }
-
-  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
-    busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS
-  };
-
-  var titleElem = document.getElementById("travel-coach-title");
-  var subElem = document.getElementById("travel-coach-subtitle");
-  var pricePill = document.getElementById("travel-coach-price-pill");
-  var busCountLabel = document.getElementById("travel-bus-count-label");
-
-  if (titleElem) titleElem.textContent = "Sunderland vs " + activeMatch.opponent;
-  if (subElem) subElem.textContent = selectedBus.subtitle || (selectedBus.title + " • Official Branch Travel");
-  if (busCountLabel) busCountLabel.textContent = "Fleet: " + buses.length + " Coach" + (buses.length > 1 ? "es" : "");
-
-  if (selectedBus.isFreeBus) {
-    if (pricePill) pricePill.textContent = "FREE BUS (Branch Sponsored)";
-  } else {
-    if (pricePill) pricePill.textContent = "£" + selectedBus.adultFare.toFixed(2) + " Adult • £" + selectedBus.juniorFare.toFixed(2) + " Junior";
-  }
-
-  var stopSelect = document.getElementById("booking-stop");
-  if (stopSelect) {
-    var prevVal = stopSelect.value;
-    stopSelect.innerHTML = "";
-    var coachStops = selectedBus.stops || DEFAULT_STOPS;
-    coachStops.forEach(function(s) {
-      var opt = document.createElement("option");
-      opt.value = s.name;
-      opt.textContent = s.name + " (" + s.time + ")";
-      if (prevVal && prevVal === s.name) opt.selected = true;
-      stopSelect.appendChild(opt);
-    });
-  }
-
-  var busBookings = (appState.bookings || []).filter(function(b) {
-    return String(b.matchId) === String(activeMatch.id) && (b.busId || 1) === selectedBus.busId;
-  });
-  var totalBooked = 0;
-  busBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
-
-  var cap = selectedBus.capacity || 53;
-  var rem = cap - totalBooked;
-  var statusElem = document.getElementById("seats-status");
-  var barElem = document.getElementById("seats-bar");
-  if (statusElem) statusElem.textContent = rem > 0 ? rem + " / " + cap + " Seats on " + selectedBus.title : selectedBus.title + " FULL";
-  if (barElem) barElem.style.width = Math.min(100, Math.round((totalBooked / (cap || 1)) * 100)) + "%";
-
-  renderActiveBookingsSummary(activeMatch);
-  renderPartyPassengersList();
-  window.updatePartyFareCalculation();
-};
-
-function renderActiveBookingsSummary(activeMatch) {
-  var container = document.getElementById("my-active-bookings-summary");
-  if (!container) return;
-
-  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var myBookings = (appState.bookings || []).filter(function(b) {
-    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(cur) !== -1;
-  });
-
-  if (myBookings.length === 0) {
-    container.innerHTML = "";
-    return;
-  }
-
-  var html = "<div style='font-size:11px; font-weight:800; color:var(--green); margin-bottom:6px;'>✓ YOUR CONFIRMED SEATS FOR THIS MATCH:</div>";
-  myBookings.forEach(function(b) {
-    var resolvedStop = getDynamicStopDisplay(activeMatch.id, b.busId, b.stop);
-    var seats = (b.adults || 0) + (b.juniors || 0);
-
+  moduleDefs.forEach(function(mod) {
+    var isEnabled = !!mods[mod.key];
     html += 
-      "<div style='background:#064e3b; border:1px solid #10b981; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; color:#fff;'>" +
-        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-          "<strong>" + b.name + " (" + seats + " Seat" + (seats > 1 ? "s" : "") + ")</strong>" +
-          "<span style='font-weight:700; color:var(--safc-gold);'>Bus #" + (b.busId || 1) + "</span>" +
+      "<div class='admin-card' style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:10px 12px; margin-bottom:8px; border-left:3px solid " + (isEnabled ? "var(--green)" : "#475569") + ";'>" +
+        "<div style='flex:1; padding-right:12px;'>" +
+          "<div style='display:flex; align-items:center; gap:6px;'><span style='font-size:14px;'>" + mod.icon + "</span><strong style='font-size:12px; color:#fff;'>" + mod.title + "</strong></div>" +
+          "<p style='font-size:10px; color:#94a3b8; margin:3px 0 0 0; line-height:1.4;'>" + mod.desc + "</p>" +
         "</div>" +
-        "<div style='margin-top:2px; font-size:10px;'>🚏 Pickup: <strong>" + resolvedStop + "</strong></div>" +
-        "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px;'>" +
-          "<span style='font-size:10px; color:#a7f3d0;'>Status: " + (b.boarded ? "Boarded ✓" : "Seat Reserved") + "</span>" +
-          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px; color:#f87171; border-color:#f87171;' onclick='window.cancelMyBooking(" + b.id + ")'>Cancel & Refund (£" + b.total.toFixed(2) + ")</button>" +
-        "</div>" +
+        "<div><button class='btn btn-sm " + (isEnabled ? "btn-gold" : "btn-outline") + "' style='min-width:70px; font-weight:800; font-size:10px; padding:6px 8px; border-color:" + (isEnabled ? "var(--safc-gold)" : "#64748b") + "; color:" + (isEnabled ? "#000" : "#94a3b8") + ";' onclick='window.toggleAppModule(\"" + mod.key + "\")'>" + (isEnabled ? "✓ ACTIVE" : "OFF") + "</button></div>" +
       "</div>";
   });
 
   container.innerHTML = html;
-}
-
-function renderPartyPassengersList() {
-  var listContainer = document.getElementById("party-passengers-list");
-  if (!listContainer) return;
-  listContainer.innerHTML = "";
-
-  currentBookingParty.forEach(function(p, idx) {
-    var row = document.createElement("div");
-    var rowClass = "party-member-row";
-    if (p.isLead) rowClass += " lead";
-    else if (p.isGuest) rowClass += " guest";
-    row.className = rowClass;
-
-    var badgeText = p.isLead ? "Lead" : (p.relation ? p.relation : (p.isGuest ? "Guest" : "Member"));
-    var disabledAttr = p.alreadyBooked ? "disabled" : "";
-    var checkedAttr = p.checked ? "checked" : "";
-
-    row.innerHTML = 
-      "<div style='display:flex; align-items:center; gap:8px;'>" +
-        "<input type='checkbox' " + checkedAttr + " " + disabledAttr + " onchange='window.togglePartyPassenger(" + idx + ", this.checked)' />" +
-        "<div>" +
-          "<strong>" + p.name + "</strong> " +
-          "<span style='font-size:9px; color:var(--safc-gold);'>(" + p.type + " • " + badgeText + ")</span>" +
-          (p.alreadyBooked ? "<span style='display:block; font-size:9px; color:var(--green); font-weight:700;'>✓ Seat Already Confirmed</span>" : "") +
-        "</div>" +
-      "</div>" +
-      (!p.isLead && !p.isLinked ? "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.removePartyPassenger(" + idx + ")'>✕</button>" : "");
-
-    listContainer.appendChild(row);
-  });
-}
-
-window.togglePartyPassenger = function(idx, isChecked) {
-  if (currentBookingParty[idx]) {
-    currentBookingParty[idx].checked = isChecked;
-    window.updatePartyFareCalculation();
-  }
 };
 
-window.removePartyPassenger = function(idx) {
-  currentBookingParty.splice(idx, 1);
-  renderPartyPassengersList();
-  window.updatePartyFareCalculation();
-};
-
-window.updatePartyStopSelection = function() {
-  window.updatePartyFareCalculation();
-};
-
-window.updatePartyFareCalculation = function() {
-  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  var buses = (activeMatch && activeMatch.buses) ? activeMatch.buses : [];
-  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
-    adultFare: 12.00, juniorFare: 8.00, isFreeBus: false
-  };
-
-  var adultCount = 0;
-  var juniorCount = 0;
-
-  currentBookingParty.forEach(function(p) {
-    if (p.checked && !p.alreadyBooked) {
-      if (p.type === "Junior" || p.type === "Child") juniorCount++;
-      else adultCount++;
-    }
-  });
-
-  var totalFare = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
-
-  var fareText = document.getElementById("party-total-fare-text");
-  var bookBtn = document.getElementById("btn-book-seat");
-
-  if (fareText) {
-    fareText.innerHTML = selectedBus.isFreeBus ? 
-      "<span style='color:var(--green);'>FREE (Branch Sponsored)</span>" : 
-      "£" + totalFare.toFixed(2) + " <span style='font-size:10px; color:#94a3b8;'>(" + adultCount + " Adult" + (adultCount !== 1 ? "s" : "") + ", " + juniorCount + " Junior" + (juniorCount !== 1 ? "s" : "") + ")</span>";
-  }
-
-  if (bookBtn) {
-    var totalSelected = adultCount + juniorCount;
-    if (totalSelected === 0) {
-      bookBtn.textContent = "Select At Least 1 Passenger";
-      bookBtn.disabled = true;
-    } else {
-      bookBtn.textContent = "Book " + totalSelected + " Seat" + (totalSelected > 1 ? "s" : "") + " (" + (selectedBus.isFreeBus ? "FREE" : "£" + totalFare.toFixed(2)) + ")";
-      bookBtn.disabled = false;
-    }
-  }
-};
-
-window.handlePartyMemberSearch = function(query) {
-  var box = document.getElementById("party-member-autocomplete-box");
-  if (!box) return;
-
-  var q = (query || "").trim().toLowerCase();
-  if (q.length < 2) {
-    box.style.display = "none";
-    return;
-  }
-
-  var existingNames = currentBookingParty.map(function(p) { return p.name.toLowerCase(); });
-  var matches = (appState.users || []).filter(function(u) {
-    var matchName = u.name.toLowerCase().indexOf(q) !== -1;
-    var matchNo = u.memberNo && u.memberNo.toLowerCase().indexOf(q) !== -1;
-    var notInParty = existingNames.indexOf(u.name.toLowerCase()) === -1;
-    return (matchName || matchNo) && notInParty;
-  });
-
-  if (matches.length === 0) {
-    box.innerHTML = "<div style='padding:6px 10px; font-size:10px; color:#94a3b8;'>No members match '" + query + "'</div>";
-    box.style.display = "block";
-    return;
-  }
-
-  var html = "";
-  matches.slice(0, 6).forEach(function(m) {
-    html += 
-      "<div class='autocomplete-item' onclick='window.selectPartyMember(\"" + m.name.replace(/'/g, "\\'") + "\", \"" + (m.category || "Adult") + "\")'>" +
-        "<strong>" + m.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + m.memberNo + " • " + m.category + ")</span>" +
-      "</div>";
-  });
-
-  box.innerHTML = html;
-  box.style.display = "block";
-};
-
-window.selectPartyMember = function(memberName, category) {
-  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  var isBooked = (appState.bookings || []).some(function(b) {
-    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(memberName) !== -1;
-  });
-
-  currentBookingParty.push({
-    id: "member-" + memberName,
-    name: memberName,
-    type: category || "Adult",
-    isMember: true,
-    alreadyBooked: isBooked,
-    checked: !isBooked
-  });
-
-  var input = document.getElementById("party-search-member-input");
-  var box = document.getElementById("party-member-autocomplete-box");
-  if (input) input.value = "";
-  if (box) box.style.display = "none";
-
-  renderPartyPassengersList();
-  window.updatePartyFareCalculation();
-};
-
-window.addPartyGuestPassenger = function() {
-  var nameInput = document.getElementById("party-guest-name-input");
-  var typeSelect = document.getElementById("party-guest-type-select");
-  var guestName = nameInput ? nameInput.value.trim() : "";
-  var guestType = typeSelect ? typeSelect.value : "Adult";
-
-  if (!guestName) {
-    alert("Please enter the guest passenger's name.");
-    return;
-  }
-
-  currentBookingParty.push({
-    id: "guest-" + Date.now(),
-    name: guestName + " (Guest)",
-    type: guestType,
-    isGuest: true,
-    alreadyBooked: false,
-    checked: true
-  });
-
-  if (nameInput) nameInput.value = "";
-  renderPartyPassengersList();
-  window.updatePartyFareCalculation();
-};
-
-window.openBookingModal = function() {
-  if (!verifyMembershipAccess("book matchday coach travel")) return;
-
-  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  var buses = activeMatch.buses || [];
-  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
-    busId: 1, title: "Bus 1", adultFare: 12.00, juniorFare: 8.00, isFreeBus: false
-  };
-
-  var selectedPassengers = currentBookingParty.filter(function(p) { return p.checked && !p.alreadyBooked; });
-  if (selectedPassengers.length === 0) {
-    alert("Please select at least 1 passenger to book.");
-    return;
-  }
-
-  var adultCount = 0;
-  var juniorCount = 0;
-  var passengerNames = [];
-
-  selectedPassengers.forEach(function(p) {
-    passengerNames.push(p.name + (p.type === "Junior" || p.type === "Child" ? " (Junior)" : ""));
-    if (p.type === "Junior" || p.type === "Child") juniorCount++;
-    else adultCount++;
-  });
-
-  var stop = document.getElementById("booking-stop").value;
-  var total = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
-
-  var user = getCurrentUserRecord();
-  if (user.balance < total) {
-    alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2) + ".\nPlease top up your wallet.");
-    return;
-  }
-
-  var resolvedStop = getDynamicStopDisplay(activeMatch.id, selectedBus.busId, stop);
-
-  window.showConfirmDialog(
-    "Confirm Coach Party Booking",
-    "<strong>Fixture:</strong> Sunderland vs " + activeMatch.opponent + "<br>" +
-    "<strong>Coach:</strong> " + selectedBus.title + "<br>" +
-    "<strong>Pickup Point:</strong> " + resolvedStop + "<br>" +
-    "<strong>Traveling Party (" + selectedPassengers.length + "):</strong> " + passengerNames.join(", ") + "<br>" +
-    "<strong>Total Fare:</strong> " + (selectedBus.isFreeBus ? "<span style='color:var(--green); font-weight:800;'>FREE (Branch Sponsored)</span>" : "£" + total.toFixed(2)),
-    function() {
-      if (total > 0) user.balance -= total;
-      logForensicTransaction(
-        appState.currentUser.name,
-        "Member",
-        "Branch",
-        "BUS_BOOKING",
-        "Coach vs " + activeMatch.opponent + " (" + selectedBus.title + "): " + passengerNames.join(", ") + " [" + stop + "]",
-        total,
-        0,
-        total
-      );
-
-      var newBooking = {
-        id: Date.now(),
-        matchId: activeMatch.id,
-        busId: selectedBus.busId || 1,
-        name: passengerNames.join(", "),
-        stop: stop,
-        adults: adultCount,
-        juniors: juniorCount,
-        total: total,
-        boarded: false
-      };
-
-      appState.bookings.push(newBooking);
-      saveState();
-      window.refreshAllViews();
-
-      if (sbClient) {
-        sbClient.from("bus_bookings").insert([{
-          id: newBooking.id,
-          match_id: newBooking.matchId,
-          bus_id: newBooking.busId,
-          name: newBooking.name,
-          stop: newBooking.stop,
-          adults: newBooking.adults,
-          juniors: newBooking.juniors,
-          total: newBooking.total,
-          boarded: false
-        }]).then(function() {});
-
-        sbClient.from("members")
-          .update({ balance: user.balance })
-          .eq("member_no", user.memberNo)
-          .then(function() {});
-      }
-
-      alert("✓ Booking confirmed! " + selectedPassengers.length + " seat(s) reserved on " + selectedBus.title + ".");
-    }
-  );
-};
-
-window.cancelMyBooking = function(bookingId) {
-  var bIdx = (appState.bookings || []).findIndex(function(b) { return b.id === bookingId; });
-  if (bIdx === -1) return;
-  var booking = appState.bookings[bIdx];
-
-  window.showConfirmDialog(
-    "Cancel Coach Booking",
-    "Are you sure you want to cancel this booking for <strong>" + booking.name + "</strong>?<br><br>" +
-    "A full refund of <strong>£" + booking.total.toFixed(2) + "</strong> will be credited directly to your branch wallet.",
-    function() {
-      var user = getCurrentUserRecord();
-      if (booking.total > 0) {
-        user.balance += booking.total;
-        logForensicTransaction(
-          "Branch",
-          "System",
-          user.name,
-          "BUS_REFUND",
-          "Refund: Cancelled coach booking #" + booking.id + " (" + booking.name + ")",
-          0,
-          booking.total,
-          -booking.total
-        );
-      }
-
-      appState.bookings.splice(bIdx, 1);
-      saveState();
-      window.refreshAllViews();
-
-      if (sbClient) {
-        sbClient.from("bus_bookings").delete().eq("id", bookingId).then(function() {});
-        sbClient.from("members").update({ balance: user.balance }).eq("member_no", user.memberNo).then(function() {});
-      }
-
-      alert("✓ Coach booking cancelled. £" + booking.total.toFixed(2) + " refunded to your wallet.");
-    }
-  );
-};
-
-// --- AWAY FIXTURE EXPRESSIONS OF INTEREST ---
-function renderMemberAwayView() {
-  var sel = document.getElementById("member-away-game-select");
-  var card = document.getElementById("member-away-status-card");
-  if (!sel || !card) return;
-
-  var currentVal = sel.value;
-  sel.innerHTML = "";
-  (appState.awayFixtures || []).forEach(function(f) {
-    var opt = document.createElement("option");
-    opt.value = f.id;
-    opt.textContent = f.opponent + " (A) • " + f.date;
-    if (currentVal && currentVal === f.id) opt.selected = true;
-    sel.appendChild(opt);
-  });
-  if (!sel.value && appState.awayFixtures && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
-
-  var selectedId = sel.value;
-  var fixture = (appState.awayFixtures || []).find(function(f) { return f.id === selectedId; });
-  if (!fixture) return;
-
-  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var myReg = (appState.awayRegistrations || []).find(function(r) {
-    return r.fixtureId === selectedId && r.memberName === cur;
-  });
-
-  var html = 
-    "<div class='flex-between'>" +
-      "<strong>" + fixture.opponent + " (Away)</strong>" +
-      "<span class='badge-gold'>" + fixture.date + " (" + fixture.time + ")</span>" +
-    "</div>" +
-    "<div class='text-xs text-muted mt-2'>Branch Ticket Quota: <strong>" + fixture.allocation + " Tickets</strong></div>";
-
-  if (myReg) {
-    var allocPill = myReg.allocated ? 
-      "<span style='color:var(--green); font-weight:800;'>✓ TICKET ALLOCATED BY COMMITTEE</span>" : 
-      "<span style='color:var(--safc-gold); font-weight:800;'>⏳ Interest Registered (Awaiting Club Allocation)</span>";
-
-    html += 
-      "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin:10px 0; font-size:11px;'>" +
-        "<div>Status: " + allocPill + "</div>" +
-        "<div style='color:#cbd5e1; margin-top:4px;'>Party: " + myReg.party.join(", ") + "</div>" +
-      "</div>" +
-      "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Expression of Interest</button>";
-  } else {
-    var lead = getCurrentUserRecord();
-    var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === cur && f.status === "approved"; });
-
-    html += 
-      "<div style='margin-top:10px;'>" +
-        "<label class='form-label'>Traveling Party (Friends & Family)</label>" +
-        "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:11px;'>" +
-          "<input type='checkbox' checked disabled /> <strong>" + lead.name + "</strong> (" + lead.category + " - Lead)" +
-        "</div>";
-
-    myFriends.forEach(function(f) {
-      html += 
-        "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;'>" +
-          "<input type='checkbox' class='away-party-member-cb' data-name='" + f.targetName + "' data-type='" + f.type + "' /> " +
-          "<strong>" + f.targetName + "</strong> (" + f.type + " - " + f.relation + ")" +
-        "</div>";
-    });
-
-    html += 
-        "<button class='btn btn-red btn-sm mt-2' style='width:100%;' onclick='window.registerAwayInterest(\"" + fixture.id + "\")'>Register Expression of Interest</button>" +
-      "</div>";
-  }
-
-  card.innerHTML = html;
-}
-
-window.registerAwayInterest = function(fixtureId) {
-  if (!verifyMembershipAccess("apply for away match tickets")) return;
-
-  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var party = [cur + " (Adult)"];
-  document.querySelectorAll(".away-party-member-cb:checked").forEach(function(cb) {
-    party.push(cb.getAttribute("data-name") + " (" + cb.getAttribute("data-type") + ")");
-  });
-
-  var newReg = {
-    fixtureId: fixtureId,
-    memberName: cur,
-    party: party,
-    allocated: false
-  };
-
-  if (!appState.awayRegistrations) appState.awayRegistrations = [];
-  appState.awayRegistrations.push(newReg);
-  saveState();
-  renderMemberAwayView();
-
-  if (sbClient) {
-    sbClient.from("away_registrations").insert([{
-      fixture_id: newReg.fixtureId,
-      member_name: newReg.memberName,
-      party: newReg.party,
-      allocated: false
-    }]).then(function() {});
-  }
-
-  alert("✓ Expression of Interest registered for party of " + party.length + ".");
-};
-
-window.withdrawAwayInterest = function(fixtureId) {
-  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var idx = (appState.awayRegistrations || []).findIndex(function(r) {
-    return r.fixtureId === fixtureId && r.memberName === cur;
-  });
-  if (idx !== -1) {
-    appState.awayRegistrations.splice(idx, 1);
-    saveState();
-    renderMemberAwayView();
-
-    if (sbClient) {
-      sbClient.from("away_registrations").delete().eq("fixture_id", fixtureId).eq("member_name", cur).then(function() {});
-    }
-
-    alert("✓ Expression of Interest withdrawn.");
-  }
-};
-
-// --- MEMBER PROFILE & IDENTITY PASS ---
-function renderProfilePassView() {
-  var user = getCurrentUserRecord();
-  var cardNameElem = document.getElementById("card-name");
-  var cardNoElem = document.getElementById("card-no");
-  var avatarImg = document.getElementById("profile-avatar-preview");
-
-  var displayNameText = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
-  if (cardNameElem) cardNameElem.textContent = displayNameText;
-  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (user.category || "Adult");
-
-  if (avatarImg) {
-    if (user.photoUrl) {
-      avatarImg.src = user.photoUrl;
-    } else {
-      avatarImg.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
-    }
-  }
-
-  var nickInput = document.getElementById("profile-edit-nickname");
-  var phoneInput = document.getElementById("profile-edit-phone");
-  var emNameInput = document.getElementById("profile-edit-emergency-name");
-  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
-
-  if (nickInput) nickInput.value = user.nickname || "";
-  if (phoneInput) phoneInput.value = user.phone || "";
-  if (emNameInput) emNameInput.value = user.emergencyName || "";
-  if (emPhoneInput) emPhoneInput.value = user.emergencyPhone || "";
-}
-
-window.handleProfilePhotoUpload = function(event) {
+window.handleClubCrestUpload = function(event) {
   var file = event.target.files && event.target.files[0];
   if (!file) return;
-
-  if (file.size > 2 * 1024 * 1024) {
-    alert("Please select a photo smaller than 2MB.");
-    return;
-  }
+  if (file.size > 2 * 1024 * 1024) { alert("Please select a crest image smaller than 2MB."); return; }
 
   var reader = new FileReader();
   reader.onload = function(e) {
-    var dataUrl = e.target.result;
-    var user = getCurrentUserRecord();
-    user.photoUrl = dataUrl;
-
-    var preview = document.getElementById("profile-avatar-preview");
-    if (preview) preview.src = dataUrl;
-
+    appState.clubIdentity.crestLogoUrl = e.target.result;
     saveState();
-    alert("✓ Profile photo updated!");
-
-    if (sbClient) {
-      sbClient.from("members").update({ photo_url: dataUrl }).eq("member_no", user.memberNo).then(function() {});
-    }
+    window.applyClubIdentity();
+    window.renderAdminModulesManager();
   };
   reader.readAsDataURL(file);
 };
 
-window.saveMemberProfile = function() {
-  var user = getCurrentUserRecord();
-  var nickInput = document.getElementById("profile-edit-nickname");
-  var phoneInput = document.getElementById("profile-edit-phone");
-  var emNameInput = document.getElementById("profile-edit-emergency-name");
-  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
+window.removeClubCrestPhoto = function() {
+  appState.clubIdentity.crestLogoUrl = null;
+  saveState();
+  window.applyClubIdentity();
+  window.renderAdminModulesManager();
+};
 
-  user.nickname = nickInput ? nickInput.value.trim() : "";
-  user.phone = phoneInput ? phoneInput.value.trim() : "";
-  user.emergencyName = emNameInput ? emNameInput.value.trim() : "";
-  user.emergencyPhone = emPhoneInput ? emPhoneInput.value.trim() : "";
+window.saveClubBranding = function() {
+  var nameInput = document.getElementById("admin-branding-name");
+  var subInput = document.getElementById("admin-branding-sub");
+
+  if (!appState.clubIdentity) appState.clubIdentity = {};
+  appState.clubIdentity.clubName = nameInput ? nameInput.value.trim() : "Coxhoe Branch";
+  appState.clubIdentity.subTitle = subInput ? subInput.value.trim() : "Supporters Club";
 
   saveState();
-  renderProfilePassView();
-
-  var displayName = document.getElementById("display-name");
-  if (displayName) {
-    displayName.textContent = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
-  }
-
-  if (sbClient) {
-    sbClient.from("members")
-      .update({
-        nickname: user.nickname,
-        phone: user.phone,
-        emergency_name: user.emergencyName,
-        emergency_phone: user.emergencyPhone
-      })
-      .eq("member_no", user.memberNo)
-      .then(function() {});
-  }
-
-  alert("✓ Member profile details saved successfully.");
+  window.applyClubIdentity();
+  window.renderAdminModulesManager();
+  alert("✓ Club branding saved! Header and badge updated.");
 };
 
-function renderFriendsFamilyChecklist() {
-  var container = document.getElementById("fnf-manager-list");
-  if (!container) return;
-  container.innerHTML = "";
-  
-  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var myFriends = (appState.friendsAndFamily || []).filter(function(f) { 
-    return f.owner === cur; 
-  });
-
-  if (myFriends.length === 0) {
-    container.innerHTML = "<div class='text-xs text-muted' style='padding:6px 0;'>No linked friends or family yet. Use the form below to connect family members.</div>";
-    return;
-  }
-
-  myFriends.forEach(function(f) {
-    var row = document.createElement("div");
-    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
-    row.innerHTML = 
-      "<div>" +
-        "<strong>" + f.targetName + "</strong> (" + f.relation + ")<br>" +
-        "<span style='color:var(--safc-gold); font-size:10px;'>" + f.type + " • " + (f.memberNo || "Member") + "</span>" +
-      "</div>" +
-      "<div style='display:flex; align-items:center; gap:6px;'>" +
-        "<span style='color:var(--green); font-size:10px; font-weight:700;'>✓ Active</span>" +
-        "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.unlinkFriendFamily(" + f.id + ")'>Unlink</button>" +
-      "</div>";
-    container.appendChild(row);
-  });
-}
-
-window.unlinkFriendFamily = function(linkId) {
-  var link = (appState.friendsAndFamily || []).find(function(f) { return f.id === linkId; });
-  if (!link) return;
-
-  window.showConfirmDialog(
-    "Unlink Connection",
-    "Are you sure you want to disconnect from <strong>" + link.targetName + "</strong> (" + link.relation + ")?<br><br>You will no longer be able to book travel or away tickets on their behalf.",
-    function() {
-      appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) {
-        var isDirect = (f.owner === link.owner && f.targetName === link.targetName);
-        var isReciprocal = (f.owner === link.targetName && f.targetName === link.owner);
-        return !isDirect && !isReciprocal;
-      });
-      saveState();
-      window.refreshAllViews();
-      alert("✓ Connection removed.");
-    }
-  );
-};
-
-window.requestMemberLink = function() {
-  var searchInput = document.getElementById("fnf-search-input");
-  var relSelect = document.getElementById("fnf-relation-select");
-  var targetName = searchInput ? searchInput.value.trim() : "";
-  var relation = relSelect ? relSelect.value : "Friend";
-
-  if (!targetName) {
-    alert("Please enter a member name or number.");
-    return;
-  }
-
-  var found = (appState.users || []).find(function(u) {
-    return u.name.toLowerCase() === targetName.toLowerCase() || (u.memberNo && u.memberNo.toLowerCase() === targetName.toLowerCase());
-  });
-
-  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var finalName = found ? found.name : targetName;
-  var finalType = (found && found.category === "Child") || relation === "Child" ? "Child" : "Adult";
-  var finalNo = found ? found.memberNo : "COX-" + Math.floor(100 + Math.random() * 900);
-
-  if (finalType === "Child") {
-    if (!appState.pendingLinkRequests) appState.pendingLinkRequests = [];
-    appState.pendingLinkRequests.push({
-      id: Date.now(),
-      requester: cur,
-      targetName: finalName,
-      relation: relation,
-      type: finalType,
-      status: "pending_admin"
-    });
-    alert("🛡️ Safeguarding Verification Submitted:\n\nUnder branch rules, links involving members under 18 must be approved by the Branch Secretary before bookings can be made.");
-  } else {
-    if (!appState.friendsAndFamily) appState.friendsAndFamily = [];
-    appState.friendsAndFamily.push({
-      id: Date.now(),
-      owner: cur,
-      targetName: finalName,
-      relation: relation,
-      type: finalType,
-      memberNo: finalNo,
-      status: "approved"
-    });
-    appState.friendsAndFamily.push({
-      id: Date.now() + 1,
-      owner: finalName,
-      targetName: cur,
-      relation: relation === "Child" ? "Parent" : "Friend",
-      type: "Adult",
-      memberNo: appState.currentUser.memberNo,
-      status: "approved"
-    });
-    alert("✓ Link established with " + finalName + ".");
-  }
-
-  if (searchInput) searchInput.value = "";
+window.toggleAppModule = function(moduleKey) {
+  if (!appState || !appState.modules) return;
+  appState.modules[moduleKey] = !appState.modules[moduleKey];
   saveState();
-  window.refreshAllViews();
-};
-
-// --- WALLET STATEMENT & EXPORT ---
-window.handleStatementTimeframeChange = function(val) {
-  var customBox = document.getElementById("statement-custom-date-box");
-  if (customBox) {
-    customBox.style.display = (val === "CUSTOM") ? "grid" : "none";
-  }
-  renderWalletStatement();
-};
-
-function renderWalletStatement() {
-  var container = document.getElementById("wallet-statement-list");
-  var title = document.getElementById("wallet-statement-title");
-  if (!container) return;
-  container.innerHTML = "";
-
-  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  if (title) title.textContent = "💳 " + current + "'s Statement";
-
-  var categoryFilter = document.getElementById("filter-statement-category") ? document.getElementById("filter-statement-category").value : "ALL";
-  var directionFilter = document.getElementById("filter-statement-direction") ? document.getElementById("filter-statement-direction").value : "ALL";
-  var timeFilter = document.getElementById("filter-statement-time") ? document.getElementById("filter-statement-time").value : "ALL";
-  var searchKeyword = document.getElementById("filter-statement-search") ? document.getElementById("filter-statement-search").value.toLowerCase().trim() : "";
-
-  var customStartDate = document.getElementById("filter-statement-start-date") ? document.getElementById("filter-statement-start-date").value : "";
-  var customEndDate = document.getElementById("filter-statement-end-date") ? document.getElementById("filter-statement-end-date").value : "";
-
-  var now = new Date();
-  var myTxns = (appState.masterAuditTrail || []).filter(function(t) {
-    var isMyDebit = (t.actor === current && t.debit > 0);
-    var isMyCredit = (t.target === current && t.credit > 0);
-    if (!isMyDebit && !isMyCredit) return false;
-
-    if (categoryFilter !== "ALL") {
-      if (categoryFilter === "BUS" && t.category !== "BUS_BOOKING" && t.category !== "BUS_REFUND") return false;
-      if (categoryFilter === "CARD" && t.category !== "CARD" && t.category !== "FOOTBALL_CARD" && t.category !== "CARD_WINNER_PAYOUT") return false;
-      if (categoryFilter === "AWAY" && t.category.indexOf("AWAY") === -1) return false;
-      if (categoryFilter === "BONUS" && t.category.indexOf("BONUS") === -1) return false;
-      if (categoryFilter === "TOPUP" && t.category !== "TOPUP" && t.category !== "MEMBER_TOPUP") return false;
-      if (categoryFilter === "SUBS" && t.category !== "SUBS_DUES") return false;
-      if (categoryFilter === "WITHDRAWAL") {
-        var isWd = (t.category === "CARD_WINNER_PAYOUT" || t.category === "WITHDRAWAL" || t.desc.toLowerCase().indexOf("withdrawal") !== -1 || t.desc.toLowerCase().indexOf("payout") !== -1);
-        if (!isWd) return false;
-      }
-      if (categoryFilter === "PRIZE" && t.category !== "CARD_WINNER_PAYOUT") return false;
-    }
-
-    if (directionFilter === "IN" && !isMyCredit) return false;
-    if (directionFilter === "OUT" && !isMyDebit) return false;
-
-    if (timeFilter !== "ALL") {
-      var txnDate = new Date(t.timestamp.replace(" ", "T"));
-      var diffDays = (now - txnDate) / (1000 * 60 * 60 * 24);
-      if (timeFilter === "7D" && diffDays > 7) return false;
-      if (timeFilter === "30D" && diffDays > 30) return false;
-      if (timeFilter === "YEAR" && diffDays > 365) return false;
-      if (timeFilter === "CUSTOM") {
-        var txnYMD = t.timestamp.substring(0, 10);
-        if (customStartDate && txnYMD < customStartDate) return false;
-        if (customEndDate && txnYMD > customEndDate) return false;
-      }
-    }
-
-    if (searchKeyword) {
-      var matchText = (t.desc + " " + t.category + " " + t.txnId).toLowerCase();
-      if (matchText.indexOf(searchKeyword) === -1) return false;
-    }
-    return true;
-  });
-
-  var filteredIn = 0;
-  var filteredOut = 0;
-  myTxns.forEach(function(t) {
-    if (t.target === current && t.credit > 0) filteredIn += t.credit;
-    if (t.actor === current && t.debit > 0) filteredOut += t.debit;
-  });
-  var netFlow = filteredIn - filteredOut;
-
-  var summaryBox = document.getElementById("statement-filtered-summary");
-  if (summaryBox) {
-    summaryBox.innerHTML = 
-      "<span>In: <strong style='color:var(--green);'>+£" + filteredIn.toFixed(2) + "</strong></span>" +
-      "<span>Out: <strong style='color:#ef4444;'>-£" + filteredOut.toFixed(2) + "</strong></span>" +
-      "<span>Net: <strong style='color:" + (netFlow >= 0 ? "var(--green)" : "#ef4444") + ";'>" + (netFlow >= 0 ? "+£" : "-£") + Math.abs(netFlow).toFixed(2) + "</strong></span>";
-  }
-
-  if (myTxns.length === 0) {
-    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; padding:10px 0; text-align:center;'>No transactions match your active filter criteria.</div>";
-    return;
-  }
-
-  myTxns.slice(0, 25).forEach(function(item) {
-    var row = document.createElement("div");
-    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding:8px 0; font-size:12px;";
-    var isCredit = (item.target === current && item.credit > 0);
-    var color = isCredit ? "var(--green)" : "#ef4444";
-    var prefix = isCredit ? "+£" : "-£";
-    var amt = isCredit ? item.credit : item.debit;
-    row.innerHTML = 
-      "<div><strong>" + item.desc + "</strong><br><span style='font-size:10px; color:#94a3b8;'>" + item.timestamp.substring(0, 16) + " • " + item.txnId + "</span></div>" +
-      "<div style='font-weight:700; color:" + color + ";'>" + prefix + amt.toFixed(2) + "</div>";
-    container.appendChild(row);
-  });
-}
-
-window.exportMyStatementCSV = function() {
-  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var myTxns = (appState.masterAuditTrail || []).filter(function(t) {
-    return t.actor === current || t.target === current;
-  });
-
-  var csv = "Txn ID,Timestamp,Category,Description,Debit (Out),Credit (In),Balance After\n";
-  myTxns.forEach(function(t) {
-    var debitStr = (t.actor === current && t.debit > 0) ? "£" + t.debit.toFixed(2) : "£0.00";
-    var creditStr = (t.target === current && t.credit > 0) ? "£" + t.credit.toFixed(2) : "£0.00";
-    csv += '"' + t.txnId + '","' + t.timestamp + '","' + t.category + '","' + t.desc.replace(/"/g, '""') + '","' + debitStr + '","' + creditStr + '","£' + (t.balanceAfter || 0).toFixed(2) + '"\n';
-  });
-
-  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  var url = window.URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.setAttribute("href", url);
-  a.setAttribute("download", current.replace(/\s+/g, "_") + "_Branch_Statement.csv");
-  a.click();
-};
-
-// --- COMMS & CHAT HUB ---
-window.switchCommsSubTab = function(subId) {
-  var pBus = document.getElementById("comms-sub-bus");
-  var pDm = document.getElementById("comms-sub-dm");
-  var pDesk = document.getElementById("comms-sub-desk");
-
-  if (pBus) pBus.style.display = (subId === "bus") ? "block" : "none";
-  if (pDm) pDm.style.display = (subId === "dm") ? "block" : "none";
-  if (pDesk) pDesk.style.display = (subId === "desk") ? "block" : "none";
-
-  var bBus = document.getElementById("btn-sub-bus");
-  var bDm = document.getElementById("btn-sub-dm");
-  var bDesk = document.getElementById("btn-sub-desk");
-
-  if (bBus) bBus.className = (subId === "bus") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
-  if (bDm) bDm.className = (subId === "dm") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
-  if (bDesk) bDesk.className = (subId === "desk") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
-};
-
-function renderCommsTabs() {
-  if (typeof renderMatchdayBusChat === "function") renderMatchdayBusChat();
-  renderDirectMessagesView();
-  if (typeof renderCommitteeDeskView === "function") renderCommitteeDeskView();
-}
-
-function purgeExpiredMatchdayChat() {
-  if (!appState || !appState.matchdayChat) return;
-  var now = Date.now();
-  var ONE_DAY_MS = 24 * 60 * 60 * 1000;
-  var beforeCount = appState.matchdayChat.length;
-  appState.matchdayChat = appState.matchdayChat.filter(function(msg) {
-    if (!msg.timestamp) return true;
-    return (now - msg.timestamp) < ONE_DAY_MS;
-  });
-  if (appState.matchdayChat.length !== beforeCount) {
-    saveState();
-  }
-}
-
-function renderMatchdayBusChat() {
-  purgeExpiredMatchdayChat();
-  var container = document.getElementById("bus-chat-messages");
-  if (!container) return;
-  container.innerHTML = "";
-
-  var activeMatch = (appState.homeMatches && appState.homeMatches.length > 0)
-    ? (appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0])
-    : { id: "H-01", opponent: "Coventry City" };
-
-  var titleElem = document.getElementById("bus-chat-match-title");
-  if (titleElem) {
-    titleElem.textContent = (activeMatch.opponent || "Matchday") + " (H) Bus Chat";
-  }
-
-  var adminActions = document.getElementById("bus-chat-admin-actions");
-  if (adminActions) {
-    adminActions.style.display = (appState.currentUser && appState.currentUser.role === "admin") ? "block" : "none";
-  }
-
-  var currentMatchMsgs = (appState.matchdayChat || []).filter(function(msg) {
-    return !msg.matchId || String(msg.matchId) === String(activeMatch.id);
-  });
-
-  if (currentMatchMsgs.length === 0) {
-    container.innerHTML = 
-      "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:20px 0;'>" +
-        "🚌 No messages yet for Sunderland vs " + activeMatch.opponent + ".<br>" +
-        "<span style='font-size:9px; color:#64748b;'>Chat is live for travelling passengers only. Messages clear 24h after matchday.</span>" +
-      "</div>";
-  } else {
-    currentMatchMsgs.forEach(function(msg) {
-      var isMe = msg.sender === (appState.currentUser ? appState.currentUser.name : "");
-      var bubble = document.createElement("div");
-      bubble.style.cssText = "margin-bottom:8px; display:flex; flex-direction:column; align-items:" + (isMe ? "flex-end" : "flex-start") + ";";
-      bubble.innerHTML = 
-        "<div style='font-size:9px; color:#94a3b8; margin-bottom:2px;'>" + msg.sender + " • " + msg.time + "</div>" +
-        "<div style='background:" + (isMe ? "var(--safc-red)" : "#1e293b") + "; color:#fff; padding:6px 10px; border-radius:10px; font-size:12px; max-width:80%; line-height:1.4;'>" + msg.text + "</div>";
-      container.appendChild(bubble);
-    });
-    container.scrollTop = container.scrollHeight;
-  }
-
-  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var isMuted = appState.moderation && appState.moderation.mutedMembers && appState.moderation.mutedMembers.indexOf(current) !== -1;
-  var isRevoked = appState.moderation && appState.moderation.revokedMembers && appState.moderation.revokedMembers.indexOf(current) !== -1;
-
-  var input = document.getElementById("bus-chat-input");
-  var sendBtn = document.getElementById("bus-chat-send-btn");
-  var statusNotice = document.getElementById("bus-chat-status-notice");
-
-  if (isRevoked) {
-    if (input) input.disabled = true; 
-    if (sendBtn) sendBtn.disabled = true;
-    if (statusNotice) statusNotice.innerHTML = "<span style='color:#ef4444; font-weight:800;'>⛔ Messaging privileges revoked across branch. Subject to Committee Quorum Vote.</span>";
-  } else if (isMuted) {
-    if (input) input.disabled = true; 
-    if (sendBtn) sendBtn.disabled = true;
-    if (statusNotice) statusNotice.innerHTML = "<span style='color:#facc15; font-weight:800;'>🚫 Chat Muted for language/aggression. Incident forwarded for Committee Review.</span>";
-  } else {
-    if (input) input.disabled = false; 
-    if (sendBtn) sendBtn.disabled = false;
-    if (statusNotice) statusNotice.innerHTML = "<span style='color:#94a3b8; font-size:10px;'>Active Safeguarding Engine: Profanity, aggression & abusive slang moderated.</span>";
-  }
-}
-
-window.sendMatchdayBusMessage = function() {
-  var input = document.getElementById("bus-chat-input");
-  var text = input ? input.value.trim() : "";
-  if (!text) return;
-  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-
-  var activeMatch = (appState.homeMatches && appState.homeMatches.length > 0)
-    ? (appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0])
-    : { id: "H-01", opponent: "Coventry City" };
-
-  var analysis = detectAbuseOrProfanity(text);
-
-  if (analysis.flagged) {
-    if (!appState.moderation.strikes) appState.moderation.strikes = {};
-    if (!appState.moderation.strikes[current]) appState.moderation.strikes[current] = 0;
-    appState.moderation.strikes[current]++;
-    var strikeCount = appState.moderation.strikes[current];
-
-    var fullHistory = (appState.matchdayChat || []).map(function(m) {
-      return m.sender + " (" + m.time + "): " + m.text;
-    });
-    fullHistory.push(current + " (" + new Date().toTimeString().substring(0, 5) + "): " + text + " [FLAGGED - BAN TRIGGER]");
-    input.value = "";
-
-    if (strikeCount === 1) {
-      alert("⚠️ SAFEGUARDING WARNING (STRIKE 1):\n" + analysis.reason + "\n\nProfanity and aggressive talk are strictly prohibited around juniors on branch travel.\n\nNext infraction will immediately mute your account.");
-      return;
-    } else if (strikeCount === 2) {
-      if (!appState.moderation.mutedMembers) appState.moderation.mutedMembers = [];
-      appState.moderation.mutedMembers.push(current);
-      appState.moderation.incidents.unshift({
-        id: "INC-" + Date.now(),
-        member: current,
-        timestamp: new Date().toISOString().substring(0, 16),
-        status: "active_ban",
-        reason: "Repeat infraction (Strike 2): " + analysis.reason,
-        offendingText: text,
-        transcriptContext: fullHistory,
-        internalDiscussion: [],
-        votes: {}
-      });
-      saveState();
-      renderMatchdayBusChat();
-      updateAdminDrawerBadge();
-      alert("🚫 CHAT MUTED (STRIKE 2):\n" + analysis.reason + "\n\nYou have been muted from Matchday Chat. The transcript has been forwarded to the Committee Review Board.");
-      return;
-    } else {
-      if (!appState.moderation.revokedMembers) appState.moderation.revokedMembers = [];
-      appState.moderation.revokedMembers.push(current);
-      appState.moderation.incidents.unshift({
-        id: "INC-" + Date.now(),
-        member: current,
-        timestamp: new Date().toISOString().substring(0, 16),
-        status: "active_ban",
-        reason: "Severe Infraction (Strike 3): " + analysis.reason,
-        offendingText: text,
-        transcriptContext: fullHistory,
-        internalDiscussion: [],
-        votes: {}
-      });
-      saveState();
-      renderMatchdayBusChat();
-      updateAdminDrawerBadge();
-      alert("⛔ PRIVILEGES REVOKED (STRIKE 3):\nAll messaging privileges revoked. Subject to formal Committee Board Deliberation.");
-      return;
-    }
-  }
-
-  var now = new Date();
-  var newMsg = {
-    id: Date.now(),
-    matchId: activeMatch.id,
-    timestamp: now.getTime(),
-    sender: current,
-    time: now.toTimeString().substring(0, 5),
-    text: text
-  };
-
-  if (!appState.matchdayChat) appState.matchdayChat = [];
-  appState.matchdayChat.push(newMsg);
-  input.value = "";
-  saveState();
-  renderMatchdayBusChat();
-  updateCommsBadge();
-
-  if (sbClient) {
-    sbClient.from("matchday_chat").insert([newMsg]).then(function() {});
-  }
-};
-
-window.adminPurgeMatchdayChat = function() {
-  var activeMatch = (appState.homeMatches && appState.homeMatches.length > 0)
-    ? (appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0])
-    : { id: "H-01", opponent: "Coventry City" };
-
-  if (!confirm("Clear all bus chat messages for Sunderland vs " + activeMatch.opponent + "?\n\nThis will purge chat for this match across all devices.")) return;
-
-  appState.matchdayChat = (appState.matchdayChat || []).filter(function(m) {
-    return m.matchId && String(m.matchId) !== String(activeMatch.id);
-  });
-
-  saveState();
-  renderMatchdayBusChat();
-  updateCommsBadge();
-
-  if (sbClient) {
-    sbClient.from("matchday_chat").delete().eq("match_id", activeMatch.id).then(function() {});
-  }
-
-  alert("🧹 Matchday bus chat cleared for " + activeMatch.opponent + ".");
-};
-
-// --- 1-TO-1 DIRECT MESSAGING ENGINE (ADULT-TO-ADULT ONLY) ---
-window._activeDMRecipient = null;
-
-function renderDirectMessagesView() {
-  var container = document.getElementById("dm-threads-container");
-  if (!container) return;
-
-  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var curRecord = getCurrentUserRecord();
-
-  if (curRecord && curRecord.category === "Child") {
-    container.innerHTML = 
-      "<div style='color:#ef4444; background:#1e0508; border:1px solid #7f1d1d; padding:12px; border-radius:8px; font-size:12px; line-height:1.5;'>" +
-        "🛡️ <strong>Safeguarding Rule:</strong> Direct 1-to-1 member messaging is strictly disabled for accounts under 18.<br>" +
-        "All contact regarding your travel or tickets must be conducted via your linked adult guardian or the Shared Helpdesk." +
-      "</div>";
-    return;
-  }
-
-  if (!appState.directMessages) {
-    try {
-      appState.directMessages = JSON.parse(localStorage.getItem("coxhoe_dms_v20")) || [];
-    } catch (e) {
-      appState.directMessages = [];
-    }
-  }
-
-  var eligibleUsers = (appState.users || []).filter(function(u) {
-    return u.name !== current && u.hasAppAccount && u.category !== "Child";
-  });
-
-  if (!window._activeDMRecipient && eligibleUsers.length > 0) {
-    window._activeDMRecipient = eligibleUsers[0].name;
-  }
-
-  var optionsHtml = eligibleUsers.map(function(u) {
-    var sel = (u.name === window._activeDMRecipient) ? "selected" : "";
-    return "<option value='" + u.name + "' " + sel + ">" + u.name + " (" + (u.membershipTier || "Adult") + ")</option>";
-  }).join("");
-
-  var conversation = appState.directMessages.filter(function(m) {
-    return (m.from === current && m.to === window._activeDMRecipient) ||
-           (m.from === window._activeDMRecipient && m.to === current);
-  });
-
-  var messagesHtml = "";
-  if (conversation.length === 0) {
-    messagesHtml = 
-      "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:20px 0;'>" +
-        "💬 No messages exchanged with " + (window._activeDMRecipient || "this member") + " yet.<br>" +
-        "<span style='font-size:9px; color:#64748b;'>Private and encrypted adult member conversation.</span>" +
-      "</div>";
-  } else {
-    conversation.forEach(function(m) {
-      var isMe = (m.from === current);
-      messagesHtml += 
-        "<div style='margin-bottom:8px; display:flex; flex-direction:column; align-items:" + (isMe ? "flex-end" : "flex-start") + ";'>" +
-          "<div style='font-size:9px; color:#94a3b8; margin-bottom:2px;'>" + m.from + " • " + m.time + "</div>" +
-          "<div style='background:" + (isMe ? "var(--safc-red)" : "#1e293b") + "; color:#fff; padding:6px 10px; border-radius:10px; font-size:12px; max-width:80%; line-height:1.4; border:1px solid " + (isMe ? "transparent" : "#334155") + ";'>" +
-            m.text +
-          "</div>" +
-        "</div>";
-    });
-  }
-
-  container.innerHTML = 
-    "<div style='background:#0f172a; padding:8px 10px; border-radius:6px; margin-bottom:10px; border:1px solid #334155;'>" +
-      "<label class='form-label' style='font-size:9px;'>Select Member to Chat With (Adults Only)</label>" +
-      "<select id='dm-recipient-select' class='form-select' style='padding:6px; font-size:11px;' onchange='window.handleDMRecipientChange(this.value)'>" +
-        optionsHtml +
-      "</select>" +
-    "</div>" +
-
-    "<div id='active-dm-feed' style='background:#0f172a; padding:10px; border-radius:8px; height:180px; overflow-y:auto; margin-bottom:8px; border:1px solid #334155;'>" +
-      messagesHtml +
-    "</div>" +
-
-    "<div style='display:flex; gap:6px;'>" +
-      "<input type='text' id='dm-message-input' class='form-input' placeholder='Type private message...' style='font-size:11px;' />" +
-      "<button class='btn btn-red btn-sm' style='padding:6px 12px;' onclick='window.sendDirectMessage()'>Send</button>" +
-    "</div>";
-
-  var feedElem = document.getElementById("active-dm-feed");
-  if (feedElem) feedElem.scrollTop = feedElem.scrollHeight;
-}
-
-window.handleDMRecipientChange = function(newRecipient) {
-  window._activeDMRecipient = newRecipient;
-  renderDirectMessagesView();
-};
-
-window.sendDirectMessage = function() {
-  var input = document.getElementById("dm-message-input");
-  var text = input ? input.value.trim() : "";
-  if (!text || !window._activeDMRecipient) return;
-
-  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-
-  var analysis = (typeof detectAbuseOrProfanity === "function") ? detectAbuseOrProfanity(text) : { flagged: false };
-  if (analysis.flagged) {
-    alert("⚠️ MESSAGE BLOCKED BY SAFEGUARDING ENGINE:\n" + analysis.reason + "\n\nAbusive language is prohibited on branch platforms.");
-    return;
-  }
-
-  var newMsg = {
-    id: "dm-" + Date.now(),
-    from: current,
-    to: window._activeDMRecipient,
-    text: text,
-    time: new Date().toTimeString().substring(0, 5),
-    timestamp: Date.now()
-  };
-
-  if (!appState.directMessages) appState.directMessages = [];
-  appState.directMessages.push(newMsg);
-
-  try {
-    localStorage.setItem("coxhoe_dms_v20", JSON.stringify(appState.directMessages));
-  } catch (e) {}
-
-  input.value = "";
-  renderDirectMessagesView();
-};
-
-function renderCommitteeDeskView() {
-  var container = document.getElementById("helpdesk-threads-list");
-  if (!container) return;
-  container.innerHTML = "";
-  var current = appState.currentUser.name;
-  var isAdmin = appState.currentUser.role === "admin";
-
-  var myTickets = appState.helpdeskTickets.filter(function(t) {
-    return isAdmin ? true : t.member.indexOf(current) !== -1;
-  });
-
-  if (myTickets.length === 0) {
-    container.innerHTML = "<div style='color:#94a3b8; font-size:11px;'>No tickets in mailbox.</div>";
-    return;
-  }
-
-  var tracker = appState.readTracker[current] || { readMsgIds: [], readNoteIds: [] };
-
-  myTickets.forEach(function(t) {
-    var unreadNotes = (t.internalNotes || []).filter(function(n) {
-      return n.author !== current && (tracker.readNoteIds || []).indexOf(n.id) === -1;
-    }).length;
-
-    var unreadMsgs = t.messages.filter(function(m) {
-      return m.sender !== current && m.sender.indexOf(current) === -1 && (tracker.readMsgIds || []).indexOf(m.id) === -1;
-    }).length;
-
-    var card = document.createElement("div");
-    card.style.cssText = "background:#0f172a; border:1px solid #334155; padding:10px; border-radius:8px; margin-bottom:8px; font-size:11px; border-left:3px solid " + (t.escalatedToGraham ? "var(--safc-gold)" : "var(--green)") + ";";
-    
-    var badgeHtml = "";
-    if (isAdmin && unreadNotes > 0) badgeHtml += "<span class='badge-gold' style='margin-left:4px;'>🟡 " + unreadNotes + " Internal</span>";
-    if (unreadMsgs > 0) badgeHtml += "<span class='badge-red' style='margin-left:4px;'>🔴 " + unreadMsgs + " New</span>";
-
-    card.innerHTML = 
-      "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>" +
-        "<div><strong>#" + t.id + " • " + t.topic + " (" + t.member + ")</strong>" + badgeHtml + "</div>" +
-        "<span style='color:" + (t.escalatedToGraham ? "var(--safc-gold)" : "var(--green)") + "; font-size:10px; font-weight:700;'>" + (t.escalatedToGraham ? "Escalated" : "Open") + "</span>" +
-      "</div>" +
-      "<div style='color:#94a3b8; font-size:10px; margin-bottom:6px;'>History: " + t.messages.length + " message(s)" + (isAdmin ? " • " + (t.internalNotes || []).length + " internal note(s)" : "") + "</div>" +
-      "<button class='btn btn-outline btn-sm' style='padding:4px 8px; font-size:10px; width:100%;' onclick='window.openMailboxThreadModal(\"" + t.id + "\")'>📬 Open Full Mailbox Thread & History</button>";
-    container.appendChild(card);
-  });
-}
-
-window.openMailboxThreadModal = function(ticketId) {
-  var ticket = appState.helpdeskTickets.find(function(t) { return t.id === ticketId; });
-  if (!ticket) return;
-
-  var current = appState.currentUser.name;
-  var isAdmin = appState.currentUser.role === "admin";
-
-  if (!appState.readTracker[current]) appState.readTracker[current] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
-  var tracker = appState.readTracker[current];
-  if (!tracker.readMsgIds) tracker.readMsgIds = [];
-  if (!tracker.readNoteIds) tracker.readNoteIds = [];
-
-  ticket.messages.forEach(function(m) {
-    if (tracker.readMsgIds.indexOf(m.id) === -1) tracker.readMsgIds.push(m.id);
-  });
-  if (isAdmin && ticket.internalNotes) {
-    ticket.internalNotes.forEach(function(n) {
-      if (tracker.readNoteIds.indexOf(n.id) === -1) tracker.readNoteIds.push(n.id);
-    });
-  }
-
-  saveState();
-  updateCommsBadge();
-
-  var modal = document.getElementById("modal-ticket-thread");
-  var title = document.getElementById("mailbox-thread-title");
-  var body = document.getElementById("mailbox-thread-body");
-
-  title.innerHTML = "Mailbox: #" + ticket.id + " • " + ticket.topic + " <span style='font-size:11px; color:var(--text-muted);'>(" + ticket.member + ")</span>";
-
-  var html = "<div style='font-size:11px; font-weight:800; color:var(--safc-gold); margin-bottom:6px;'>💬 Public Conversation History:</div>";
-  html += "<div style='background:#0f172a; padding:8px; border-radius:8px; margin-bottom:12px; max-height:160px; overflow-y:auto;'>";
-  ticket.messages.forEach(function(m) {
-    var isCommittee = m.sender.indexOf("Committee") !== -1 || m.sender.indexOf("Graham") !== -1;
-    html += 
-      "<div style='margin-bottom:8px; background:" + (isCommittee ? "#1e293b" : "#172554") + "; padding:6px 10px; border-radius:6px; font-size:11px; border-left:3px solid " + (isCommittee ? "var(--safc-gold)" : "#3b82f6") + ";'>" +
-        "<div style='display:flex; justify-content:space-between; font-size:9px; color:#94a3b8; margin-bottom:2px;'>" +
-          "<strong>" + m.sender + "</strong><span>" + m.time + "</span>" +
-        "</div>" +
-        "<div>" + m.text + "</div>" +
-      "</div>";
-  });
-  html += "</div>";
-
-  if (isAdmin) {
-    html += "<div style='font-size:11px; font-weight:800; color:var(--safc-gold); margin-bottom:6px;'>🔒 Internal Committee Deliberation (Private):</div>";
-    html += "<div style='background:#1e1b4b; border:1px solid #4338ca; padding:8px; border-radius:8px; margin-bottom:12px; max-height:160px; overflow-y:auto;'>";
-    if (!ticket.internalNotes || ticket.internalNotes.length === 0) {
-      html += "<div style='color:#94a3b8; font-size:10px;'>No internal committee notes recorded yet.</div>";
-    } else {
-      ticket.internalNotes.forEach(function(n) {
-        html += 
-          "<div style='margin-bottom:6px; background:#0f172a; padding:6px 8px; border-radius:6px; font-size:10px; border-left:3px solid var(--safc-gold);'>" +
-            "<div style='display:flex; justify-content:space-between; font-weight:800; color:var(--safc-gold); margin-bottom:2px;'>" +
-              "<span>" + n.author + "</span><span>" + n.time + "</span>" +
-            "</div>" +
-            "<div style='color:#f8fafc;'>" + n.text + "</div>" +
-          "</div>";
-      });
-    }
-    html += "</div>";
-
-    html += 
-      "<div style='background:#0f172a; border:1px dashed var(--safc-gold); padding:8px; border-radius:8px; margin-bottom:12px;'>" +
-        "<label style='display:block; font-size:10px; font-weight:700; color:var(--safc-gold); margin-bottom:4px;'>Post Internal Committee Note (Alerts Colleagues in Gold):</label>" +
-        "<div style='display:flex; gap:4px;'>" +
-          "<input type='text' id='internal-note-input' class='form-input' placeholder='Reply internally to Graham/Dave/Sarah...' style='padding:6px; font-size:11px;' />" +
-          "<button class='btn btn-gold btn-sm' style='padding:4px 10px;' onclick='window.submitInternalNote(\"" + ticket.id + "\")'>Add Note</button>" +
-        "</div>" +
-      "</div>";
-  }
-
-  html += 
-    "<div style='background:#0f172a; padding:8px; border-radius:8px;'>" +
-      "<label style='display:block; font-size:10px; font-weight:700; color:var(--text-muted); margin-bottom:4px;'>" + (isAdmin ? "Reply to Member (Public):" : "Send Follow-up:") + "</label>" +
-      "<div style='display:flex; gap:4px;'>" +
-        "<input type='text' id='public-reply-input' class='form-input' placeholder='Type response...' style='padding:6px; font-size:11px;' />" +
-        "<button class='btn btn-red btn-sm' style='padding:4px 10px;' onclick='window.submitPublicReply(\"" + ticket.id + "\")'>Send</button>" +
-      "</div>" +
-    "</div>";
-
-  body.innerHTML = html;
-  modal.style.display = "flex";
-};
-
-window.closeMailboxThreadModal = function() {
-  document.getElementById("modal-ticket-thread").style.display = "none";
-  renderCommitteeDeskView();
+  window.applyAppModules();
+  window.renderAdminModulesManager();
   updateCommsBadge();
 };
 
-window.submitInternalNote = function(ticketId) {
-  var input = document.getElementById("internal-note-input");
-  var text = input ? input.value.trim() : "";
-  if (!text) return;
-
-  var ticket = appState.helpdeskTickets.find(function(t) { return t.id === ticketId; });
-  if (!ticket) return;
-  if (!ticket.internalNotes) ticket.internalNotes = [];
-
-  var current = appState.currentUser.name;
-  var newNoteId = "n-" + Date.now();
-
-  ticket.internalNotes.push({ id: newNoteId, author: current, time: new Date().toTimeString().substring(0, 5), text: text });
-
-  if (!appState.readTracker[current]) appState.readTracker[current] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
-  appState.readTracker[current].readNoteIds.push(newNoteId);
-
-  saveState();
-  window.openMailboxThreadModal(ticketId);
-  updateCommsBadge();
-  alert("Internal note added. Gold notification sent to other committee members.");
-};
-
-window.submitPublicReply = function(ticketId) {
-  var input = document.getElementById("public-reply-input");
-  var text = input ? input.value.trim() : "";
-  if (!text) return;
-
-  var ticket = appState.helpdeskTickets.find(function(t) { return t.id === ticketId; });
-  if (!ticket) return;
-
-  var current = appState.currentUser.name;
-  var isAdmin = appState.currentUser.role === "admin";
-  var newMsgId = "m-" + Date.now();
-  var senderName = isAdmin ? "Coxhoe Committee (Signed: " + current + ")" : current;
-
-  ticket.messages.push({ id: newMsgId, sender: senderName, time: new Date().toTimeString().substring(0, 5), text: text });
-
-  if (!appState.readTracker[current]) appState.readTracker[current] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
-  appState.readTracker[current].readMsgIds.push(newMsgId);
-
-  saveState();
-  window.openMailboxThreadModal(ticketId);
-  updateCommsBadge();
-  alert("Message posted to conversation thread.");
-};
-
-window.submitMemberHelpdeskTicket = function() {
-  var topic = document.getElementById("helpdesk-topic").value;
-  var text = document.getElementById("helpdesk-query").value.trim();
-  if (!text) return;
-  var current = appState.currentUser.name;
-  var curRecord = getCurrentUserRecord();
-
-  var effectiveMember = current;
-  if (curRecord.category === "Child") {
-    var parentLink = appState.friendsAndFamily.find(function(f) { return f.owner === current && f.relation === "Parent"; });
-    var parentName = parentLink ? parentLink.targetName : "Parent of " + current;
-    effectiveMember = current + " (Via Parent: " + parentName + ")";
-  }
-
-  var newId = "TICK-" + Math.floor(100 + Math.random() * 900);
-  var newMsgId = "m-" + Date.now();
-
-  appState.helpdeskTickets.unshift({
-    id: newId,
-    member: effectiveMember,
-    topic: topic,
-    status: "open",
-    escalatedToGraham: false,
-    created: new Date().toISOString().substring(0, 16),
-    messages: [{ id: newMsgId, sender: current, time: new Date().toTimeString().substring(0, 5), text: text }],
-    internalNotes: []
-  });
-
-  if (!appState.readTracker[current]) appState.readTracker[current] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
-  appState.readTracker[current].readMsgIds.push(newMsgId);
-
-  document.getElementById("helpdesk-query").value = "";
-  saveState();
-  renderCommitteeDeskView();
-  updateCommsBadge();
-  alert("Ticket #" + newId + " submitted to Shared Committee Desk.");
-};
-
-// ==========================================
-// END OF PART 3 OF 4
-// ==========================================
-
-// ========================================================
-// COXHOE BRANCH SAFC - APP.JS (PART 4 OF 4)
-// Committee Secretary HUD (All Panes), Modals & Bootloader
-// ========================================================
-
-// --- COMPLETE DROPDOWN ADMIN ENGINE ---
-var activeAdminTool = "buses";
+// --- MASTER ADMIN ROUTER ---
+var activeAdminTool = "modules";
 
 window.openAdminDrawer = function() {
   var drawer = document.getElementById("admin-drawer");
@@ -2409,7 +872,9 @@ window.openAdminDrawer = function() {
     drawer.style.display = "block";
     drawer.classList.remove("hidden");
   }
-  window.switchAdminTool(activeAdminTool);
+  var sel = document.getElementById("admin-tool-select");
+  var currentTool = (sel && sel.value) ? sel.value : "modules";
+  window.switchAdminTool(currentTool);
 };
 
 window.closeAdminDrawer = function() {
@@ -2421,6 +886,7 @@ window.closeAdminDrawer = function() {
 };
 
 window.switchAdminTool = function(toolId) {
+  if (!toolId) toolId = "modules";
   activeAdminTool = toolId;
 
   var panes = document.querySelectorAll(".admin-pane");
@@ -2445,30 +911,37 @@ window.switchAdminTool = function(toolId) {
 
 function renderAdminActivePane(toolId) {
   switch (toolId) {
-    case "modules": window.renderAdminModulesManager(); break;
-    case "buses": window.renderAdminBusesTool(); break;
-    case "subs": renderAdminSubs(); break;
-    case "approvals": renderAdminApprovals(); break;
-    case "treasury": renderAdminTreasury(); break;
-    case "awaytickets": renderAdminAwayFixture(); break;
-    case "news": renderAdminNews(); break;
-    case "footballcard": renderAdminFootballCard(); break;
-    case "disciplinary": renderAdminDisciplinary(); break;
+    case "modules":
+      window.renderAdminModulesManager();
+      break;
+    case "buses":
+      window.renderAdminBusesTool();
+      break;
+    case "subs":
+      window.renderAdminSubs();
+      break;
+    case "approvals":
+      window.renderAdminApprovals();
+      break;
+    case "treasury":
+      window.renderAdminTreasury();
+      break;
+    case "awaytickets":
+      window.renderAdminAwayFixture();
+      break;
+    case "news":
+      window.renderAdminNews();
+      break;
+    case "footballcard":
+      window.renderAdminFootballCardManager();
+      break;
+    case "disciplinary":
+      window.renderAdminDisciplinary();
+      break;
   }
 }
 
-function renderAdminDrawer() {
-  window.switchAdminTool(activeAdminTool);
-  updateAdminDrawerBadge();
-}
-
-// setTimeout(function() { if (typeof window.applyAppModules === "function") window.applyAppModules(); }, 80);
-
-// // --------------------------------------------------------
-// PANE 1: CONSOLIDATED BUSES SUITE & REAL-TIME PASSENGER SYNC
-// --------------------------------------------------------
-
-// Auto-Heal: Ensures all existing bookings in storage are bound to valid stops
+// --- PANE 1: BUSES, ROUTES & DOOR MANIFEST ---
 function healOrphanedPassengerBookings() {
   if (!appState || !appState.homeMatches || !appState.bookings) return;
   var fixedCount = 0;
@@ -2486,7 +959,6 @@ function healOrphanedPassengerBookings() {
       matchBookings.forEach(function(b) {
         var cleanBookingStop = b.stop ? b.stop.split("(")[0].trim().toLowerCase() : "";
         if (validStops.indexOf(cleanBookingStop) === -1) {
-          // Reassign orphaned booking to the bus's primary available stop
           b.stop = bus.stops[0].name;
           fixedCount++;
         }
@@ -2494,12 +966,9 @@ function healOrphanedPassengerBookings() {
     });
   });
 
-  if (fixedCount > 0) {
-    saveState();
-  }
+  if (fixedCount > 0) saveState();
 }
 
-// Master Admin Buses Tool
 window.renderAdminBusesTool = function() {
   healOrphanedPassengerBookings();
 
@@ -2518,47 +987,25 @@ window.renderAdminBusesTool = function() {
     matchSelect.appendChild(opt);
   });
 
-  if (!matchSelect.value && appState.homeMatches.length > 0) {
-    matchSelect.value = appState.homeMatches[0].id;
-  }
-
-  appState.selectedHomeMatchId = matchSelect.value;
-  var selectedMatch = appState.homeMatches.find(function(m) { 
-    return String(m.id) === String(appState.selectedHomeMatchId); 
-  }) || appState.homeMatches[0];
+  if (!matchSelect.value && appState.homeMatches.length > 0) matchSelect.value = appState.homeMatches[0].id;
+  var selectedMatch = appState.homeMatches.find(function(m) { return String(m.id) === String(matchSelect.value); }) || appState.homeMatches[0];
 
   busesContainer.innerHTML = "";
   if (!selectedMatch.buses || selectedMatch.buses.length === 0) {
     selectedMatch.buses = [{
-      busId: 1,
-      title: "Bus 1 (Main Village Route)",
-      subtitle: "Official Branch Travel • Stadium of Light",
-      capacity: 53,
-      adultFare: 12.00,
-      juniorFare: 8.00,
-      isFreeBus: false,
-      stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
+      busId: 1, title: "Bus 1 (Main Village Route)", subtitle: "Official Branch Travel • Stadium of Light",
+      capacity: 53, adultFare: 12.00, juniorFare: 8.00, isFreeBus: false, stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
     }];
   }
 
-  // Inject Booking Status Toggle Box
   var isOpen = (selectedMatch.bookingStatus === "open");
   var statusCard = 
-    "<div id='admin-staging-status-box' style='background:#0f172a; border:1px solid #334155; border-left:3px solid " + (isOpen ? "var(--green, #10b981)" : "var(--safc-gold, #facc15)") + "; padding:10px; border-radius:6px; margin-bottom:10px;'>" +
+    "<div id='admin-staging-status-box' style='background:#0f172a; border:1px solid #334155; border-left:3px solid " + (isOpen ? "var(--green)" : "var(--safc-gold)") + "; padding:10px; border-radius:6px; margin-bottom:10px;'>" +
       "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-        "<div>" +
-          "<strong style='font-size:11px;'>Booking Status:</strong> " +
-          "<span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; background:" + (isOpen ? "#065f46; color:#34d399;" : "#334155; color:#94a3b8;") + "'>" +
-            (isOpen ? "🟢 OPEN FOR BOOKING" : "⚪ DRAFT (Closed)") +
-          "</span>" +
-        "</div>" +
-        "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:3px 8px;' onclick='window.adminToggleBookingStatus()'>" +
-          (isOpen ? "Switch to Draft ⚪" : "Open for Booking 🟢") +
-        "</button>" +
+        "<div><strong style='font-size:11px;'>Booking Status:</strong> <span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; background:" + (isOpen ? "#065f46; color:#34d399;" : "#334155; color:#94a3b8;") + "'>" + (isOpen ? "🟢 OPEN FOR BOOKING" : "⚪ DRAFT (Closed)") + "</span></div>" +
+        "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:3px 8px;' onclick='window.adminToggleBookingStatus(\"" + selectedMatch.id + "\")'>" + (isOpen ? "Switch to Draft ⚪" : "Open for Booking 🟢") + "</button>" +
       "</div>" +
-      "<div style='font-size:10px; color:#94a3b8; margin-top:4px;'>" +
-        (isOpen ? "✓ Members can view and book coach seats for this fixture." : "Members cannot book coach travel while set to Draft.") +
-      "</div>" +
+      "<div style='font-size:10px; color:#94a3b8; margin-top:4px;'>" + (isOpen ? "✓ Members can view and book coach seats for this fixture." : "Members cannot book travel while set to Draft.") + "</div>" +
     "</div>";
   busesContainer.insertAdjacentHTML("beforeend", statusCard);
 
@@ -2567,8 +1014,7 @@ window.renderAdminBusesTool = function() {
     card.className = "admin-card mt-2";
     
     var stopsHtml = "";
-    var currentStops = bus.stops || DEFAULT_STOPS;
-    currentStops.forEach(function(s, sIdx) {
+    (bus.stops || DEFAULT_STOPS).forEach(function(s, sIdx) {
       stopsHtml += 
         "<div style='display:flex; gap:6px; margin-bottom:6px;'>" +
           "<input type='text' class='form-input' style='flex:2; padding:4px 6px; font-size:11px;' value='" + s.name + "' onchange='window.updateBusStopField(\"" + selectedMatch.id + "\", " + idx + ", " + sIdx + ", \"name\", this.value)'>" +
@@ -2580,42 +1026,17 @@ window.renderAdminBusesTool = function() {
     card.innerHTML = 
       "<div class='flex-between'>" +
         "<strong style='color:var(--safc-gold); font-size:12px;'>🚌 Coach #" + (idx + 1) + ": " + bus.title + "</strong>" +
-        (selectedMatch.buses.length > 1 ? 
-          "<button class='btn btn-outline btn-sm' style='padding:2px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.adminRemoveBus(\"" + selectedMatch.id + "\", " + idx + ")'>Remove Bus</button>" : "") +
+        (selectedMatch.buses.length > 1 ? "<button class='btn btn-outline btn-sm' style='padding:2px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.adminRemoveBus(\"" + selectedMatch.id + "\", " + idx + ")'>Remove Bus</button>" : "") +
       "</div>" +
-      "<div class='form-group mt-2'>" +
-        "<label class='form-label'>Bus Name (Title)</label>" +
-        "<input type='text' class='form-input' value='" + bus.title + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"title\", this.value)' />" +
-      "</div>" +
-      "<div class='form-group'>" +
-        "<label class='form-label'>Subtitle / Route Note</label>" +
-        "<input type='text' class='form-input' value='" + bus.subtitle + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"subtitle\", this.value)' />" +
-      "</div>" +
+      "<div class='form-group mt-2'><label class='form-label'>Bus Name (Title)</label><input type='text' class='form-input' value='" + bus.title + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"title\", this.value)' /></div>" +
+      "<div class='form-group'><label class='form-label'>Subtitle / Route Note</label><input type='text' class='form-input' value='" + bus.subtitle + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"subtitle\", this.value)' /></div>" +
       "<div style='display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:8px;'>" +
-        "<div>" +
-          "<label class='form-label'>Capacity</label>" +
-          "<input type='number' class='form-input' min='10' max='85' value='" + bus.capacity + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"capacity\", parseInt(this.value)||53)' />" +
-        "</div>" +
-        "<div>" +
-          "<label class='form-label'>Adult Fare (£)</label>" +
-          "<input type='number' class='form-input' step='0.50' value='" + bus.adultFare + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"adultFare\", parseFloat(this.value)||12)' />" +
-        "</div>" +
-        "<div>" +
-          "<label class='form-label'>Junior Fare (£)</label>" +
-          "<input type='number' class='form-input' step='0.50' value='" + bus.juniorFare + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"juniorFare\", parseFloat(this.value)||8)' />" +
-        "</div>" +
-      "</div>" +
-      "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; font-size:11px; margin-bottom:10px;'>" +
-        "<label style='display:flex; align-items:center; gap:6px; font-weight:700; color:var(--safc-gold); cursor:pointer;'>" +
-          "<input type='checkbox' " + (bus.isFreeBus ? "checked" : "") + " onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"isFreeBus\", this.checked)' /> " +
-          "Enable Free Bus (Branch Sponsored)" +
-        "</label>" +
+        "<div><label class='form-label'>Capacity</label><input type='number' class='form-input' min='10' max='85' value='" + bus.capacity + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"capacity\", parseInt(this.value)||53)' /></div>" +
+        "<div><label class='form-label'>Adult Fare (£)</label><input type='number' class='form-input' step='0.50' value='" + bus.adultFare + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"adultFare\", parseFloat(this.value)||12)' /></div>" +
+        "<div><label class='form-label'>Junior Fare (£)</label><input type='number' class='form-input' step='0.50' value='" + bus.juniorFare + "' onchange='window.updateBusField(\"" + selectedMatch.id + "\", " + idx + ", \"juniorFare\", parseFloat(this.value)||8)' /></div>" +
       "</div>" +
       "<div style='border-top:1px solid #334155; padding-top:8px;'>" +
-        "<div class='flex-between mb-2'>" +
-          "<label class='form-label' style='margin-bottom:0;'>Timetable Stops for " + bus.title + "</label>" +
-          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px;' onclick='window.addStopToBus(\"" + selectedMatch.id + "\", " + idx + ")'>+ Add Stop</button>" +
-        "</div>" +
+        "<div class='flex-between mb-2'><label class='form-label' style='margin-bottom:0;'>Timetable Stops for " + bus.title + "</label><button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px;' onclick='window.addStopToBus(\"" + selectedMatch.id + "\", " + idx + ")'>+ Add Stop</button></div>" +
         "<div>" + stopsHtml + "</div>" +
       "</div>";
 
@@ -2624,6 +1045,15 @@ window.renderAdminBusesTool = function() {
 
   renderAdminAllocationPreviewForMatch(selectedMatch);
   renderAdminManifestForMatch(selectedMatch);
+};
+
+window.adminToggleBookingStatus = function(matchId) {
+  var match = appState.homeMatches.find(function(m) { return String(m.id) === String(matchId); });
+  if (!match) return;
+  match.bookingStatus = (match.bookingStatus === "open") ? "draft" : "open";
+  saveState();
+  window.renderAdminBusesTool();
+  window.renderBusBookingView();
 };
 
 window.updateBusField = function(matchId, busIdx, field, val) {
@@ -2636,7 +1066,6 @@ window.updateBusField = function(matchId, busIdx, field, val) {
   }
 };
 
-// Renaming Cascade: Migrates all passengers from old stop name to new stop name
 window.updateBusStopField = function(matchId, busIdx, stopIdx, field, val) {
   var match = appState.homeMatches.find(function(m) { return String(m.id) === String(matchId); });
   if (match && match.buses && match.buses[busIdx] && match.buses[busIdx].stops && match.buses[busIdx].stops[stopIdx]) {
@@ -2650,9 +1079,7 @@ window.updateBusStopField = function(matchId, busIdx, stopIdx, field, val) {
       appState.bookings.forEach(function(b) {
         if (String(b.matchId) === String(matchId) && (b.busId || 1) === targetBusId && b.stop) {
           var bookingClean = b.stop.split("(")[0].trim().toLowerCase();
-          if (bookingClean === oldClean) {
-            b.stop = val.trim();
-          }
+          if (bookingClean === oldClean) b.stop = val.trim();
         }
       });
     }
@@ -2674,32 +1101,29 @@ window.addStopToBus = function(matchId, busIdx) {
   }
 };
 
-// Stop Deletion: Reallocates affected passengers to the remaining active stop
 window.deleteStopFromBus = function(matchId, busIdx, stopIdx) {
   var match = appState.homeMatches.find(function(m) { return String(m.id) === String(matchId); });
   if (!match || !match.buses || !match.buses[busIdx] || !match.buses[busIdx].stops) return;
 
   var stops = match.buses[busIdx].stops;
   if (stops.length <= 1) {
-    alert("⚠️ A bus must have at least one pickup stop. Please add your new stop before deleting this one.");
+    alert("⚠️ A bus must have at least one pickup stop.");
     return;
   }
 
   var deletedStop = stops[stopIdx];
   var deletedStopName = deletedStop.name.split("(")[0].trim().toLowerCase();
-
   stops.splice(stopIdx, 1);
 
   var replacementStop = stops[0].name;
   var targetBusId = match.buses[busIdx].busId || (busIdx + 1);
-  var reallocatedCount = 0;
+  var count = 0;
 
   appState.bookings.forEach(function(b) {
     if (String(b.matchId) === String(matchId) && (b.busId || 1) === targetBusId && b.stop) {
-      var bookingClean = b.stop.split("(")[0].trim().toLowerCase();
-      if (bookingClean === deletedStopName) {
+      if (b.stop.split("(")[0].trim().toLowerCase() === deletedStopName) {
         b.stop = replacementStop;
-        reallocatedCount++;
+        count++;
       }
     }
   });
@@ -2707,33 +1131,25 @@ window.deleteStopFromBus = function(matchId, busIdx, stopIdx) {
   saveState();
   window.renderAdminBusesTool();
   renderBusBookingView();
-
-  if (reallocatedCount > 0) {
-    alert("✓ Stop removed. " + reallocatedCount + " passenger(s) booked for '" + deletedStop.name + "' have been reassigned to '" + replacementStop + "'.");
-  }
+  if (count > 0) alert("✓ Stop removed. " + count + " passenger(s) reassigned to '" + replacementStop + "'.");
 };
 
 window.adminAddBusToSelectedMatch = function() {
-  var match = appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); });
+  var matchSelect = document.getElementById("admin-bus-match-select");
+  var matchId = matchSelect ? matchSelect.value : appState.selectedHomeMatchId;
+  var match = appState.homeMatches.find(function(m) { return String(m.id) === String(matchId); });
   if (!match) return;
-  if (!match.buses) match.buses = [];
 
-  var newIndex = match.buses.length + 1;
+  var newIndex = (match.buses || []).length + 1;
   match.buses.push({
-    busId: newIndex,
-    title: "Bus " + newIndex + " (Auxiliary Route)",
-    subtitle: "Official Branch Travel • Stadium of Light",
-    capacity: 53,
-    adultFare: 12.00,
-    juniorFare: 8.00,
-    isFreeBus: false,
-    stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
+    busId: newIndex, title: "Bus " + newIndex + " (Auxiliary Route)", subtitle: "Official Branch Travel • Stadium of Light",
+    capacity: 53, adultFare: 12.00, juniorFare: 8.00, isFreeBus: false, stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
   });
 
   saveState();
   window.renderAdminBusesTool();
   renderBusBookingView();
-  alert("✓ Bus " + newIndex + " added with independent timetable stops.");
+  alert("✓ Bus " + newIndex + " added to fleet.");
 };
 
 window.adminRemoveBus = function(matchId, busIdx) {
@@ -2745,7 +1161,6 @@ window.adminRemoveBus = function(matchId, busIdx) {
     saveState();
     window.renderAdminBusesTool();
     renderBusBookingView();
-    alert("✓ Bus removed from fleet.");
   }
 };
 
@@ -2758,46 +1173,21 @@ function renderAdminAllocationPreviewForMatch(match) {
   matchBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
 
   var totalCap = 0;
-  match.buses.forEach(function(b) { totalCap += (b.capacity || 53); });
-
-  var bus1 = match.buses[0] || { capacity: 53 };
-  var bus1Count = Math.min(totalBooked, bus1.capacity - 2);
-  var cushion = 2;
-  var overflow = Math.max(0, totalBooked - (bus1.capacity - 2));
+  (match.buses || []).forEach(function(b) { totalCap += (b.capacity || 53); });
 
   summaryBox.innerHTML = 
-    "<div class='flex-between'>" +
-      "<strong>Match: Sunderland vs " + match.opponent + "</strong>" +
-      "<span style='color:var(--green); font-weight:800; font-size:10px;'>🟢 Auto-Scheduled T-24h</span>" +
-    "</div>" +
-    "<div class='text-xs text-muted mt-2'>Allocation automatically balances seats 24 hours prior to kick-off (" + match.date + " at " + match.time + ").</div>" +
-    "<div style='background:#1e293b; padding:8px; border-radius:6px; margin-top:8px; font-size:10px; line-height:1.6;'>" +
+    "<div class='flex-between'><strong>Match: Sunderland vs " + match.opponent + "</strong><span style='color:var(--green); font-weight:800; font-size:10px;'>🟢 Auto-Scheduled T-24h</span></div>" +
+    "<div style='background:#1e293b; padding:8px; border-radius:6px; margin-top:6px; font-size:10px; line-height:1.6;'>" +
       "• Total Bookings Registered: <strong>" + totalBooked + " Seats</strong> (Total Capacity: " + totalCap + ")<br>" +
-      "• Bus 1 Allocation: <strong>" + bus1Count + " Seats</strong><br>" +
-      "• Safety Cushion: <strong>" + cushion + " Seats Reserved for Committee</strong><br>" +
-      "• Overflow: <strong>" + (overflow > 0 ? overflow + " Passengers to Auxiliary Coach" : "0 (General Sale Open)") + "</strong>" +
+      "• Safety Cushion: <strong>2 Seats Reserved for Committee</strong>" +
     "</div>";
 }
 
 window.adminRunAllocationBackup = function() {
-  var match = appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  var matchBookings = appState.bookings.filter(function(b) { return String(b.matchId) === String(match.id); });
-  var totalBooked = 0;
-  matchBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
-
-  alert(
-    "⚡ EARLY CUTOFF OVERRIDE EXECUTED:\n\n" +
-    "• Match: Sunderland vs " + match.opponent + "\n" +
-    "• Total Bookings Processed: " + totalBooked + "\n" +
-    "• Committee Buffer: 2 seats reserved\n\n" +
-    "Override logged to Master Audit Trail."
-  );
-  logForensicTransaction("Graham (Secretary)", "Admin", "All Passengers", "ALLOCATION_24H_OVERRIDE", "Manual early cutoff allocation for vs " + match.opponent, 0, 0, 0);
+  alert("⚡ Early cutoff override executed and logged to master ledger.");
 };
 
-// --------------------------------------------------------
-// OFFLINE DOOR CHECK-IN QUEUE & SYNC ENGINE
-// --------------------------------------------------------
+// --- OFFLINE DOOR CHECK-IN QUEUE ---
 window._offlineBoardingQueue = JSON.parse(localStorage.getItem("safc_boarding_queue") || "[]");
 
 function updateManifestSyncIndicator() {
@@ -2808,10 +1198,10 @@ function updateManifestSyncIndicator() {
     ind.style.color = "#f87171";
     ind.innerHTML = "⚠️ Offline Door Mode (" + qLen + " action" + (qLen === 1 ? "" : "s") + " queued)";
   } else if (qLen > 0) {
-    ind.style.color = "var(--safc-gold, #facc15)";
+    ind.style.color = "var(--safc-gold)";
     ind.innerHTML = "⏳ Syncing " + qLen + " queued check-in" + (qLen === 1 ? "" : "s") + "...";
   } else {
-    ind.style.color = "var(--green, #10b981)";
+    ind.style.color = "var(--green)";
     ind.innerHTML = "● Cloud Connected (Realtime Sync)";
   }
 }
@@ -2833,22 +1223,15 @@ window.flushOfflineBoardingQueue = async function() {
       localStorage.setItem("safc_boarding_queue", JSON.stringify(queue));
       updateManifestSyncIndicator();
     } catch (err) {
-      console.warn("Queue sync retry pending:", err);
       break;
     }
   }
   updateManifestSyncIndicator();
 };
 
-window.addEventListener("online", function() {
-  updateManifestSyncIndicator();
-  window.flushOfflineBoardingQueue();
-});
-window.addEventListener("offline", function() {
-  updateManifestSyncIndicator();
-});
+window.addEventListener("online", function() { updateManifestSyncIndicator(); window.flushOfflineBoardingQueue(); });
+window.addEventListener("offline", function() { updateManifestSyncIndicator(); });
 
-// Dropdown Populator: ONLY lists active stops currently on the coach route
 function populateManifestStopFilter(match) {
   var stopSelect = document.getElementById("manifest-stop-filter");
   if (!stopSelect) return;
@@ -2858,9 +1241,7 @@ function populateManifestStopFilter(match) {
   if (match && match.buses) {
     match.buses.forEach(function(b) {
       (b.stops || DEFAULT_STOPS).forEach(function(s) {
-        if (s.name && stops.indexOf(s.name.trim()) === -1) {
-          stops.push(s.name.trim());
-        }
+        if (s.name && stops.indexOf(s.name.trim()) === -1) stops.push(s.name.trim());
       });
     });
   }
@@ -2877,7 +1258,9 @@ function populateManifestStopFilter(match) {
 
 function renderAdminManifestForMatch(match) {
   if (!match) {
-    match = appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+    var matchSelect = document.getElementById("admin-bus-match-select");
+    var mId = matchSelect ? matchSelect.value : appState.selectedHomeMatchId;
+    match = appState.homeMatches.find(function(m) { return String(m.id) === String(mId); }) || appState.homeMatches[0];
   }
   if (!match) return;
 
@@ -2887,7 +1270,9 @@ function renderAdminManifestForMatch(match) {
 
 window.filterAdminManifest = function(match) {
   if (!match) {
-    match = appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+    var matchSelect = document.getElementById("admin-bus-match-select");
+    var mId = matchSelect ? matchSelect.value : appState.selectedHomeMatchId;
+    match = appState.homeMatches.find(function(m) { return String(m.id) === String(mId); }) || appState.homeMatches[0];
   }
   if (!match) return;
 
@@ -2938,7 +1323,7 @@ window.filterAdminManifest = function(match) {
 
   var listHtml = "";
   if (filtered.length === 0) {
-    listHtml = "<div class='text-xs text-muted' style='text-align:center; padding:12px; background:#0f172a; border-radius:6px;'>No passengers match active filter criteria.</div>";
+    listHtml = "<div class='text-xs text-muted' style='text-align:center; padding:12px; background:#0f172a; border-radius:6px;'>No passengers match active filter.</div>";
   } else {
     filtered.forEach(function(b) {
       var seats = (b.adults || 0) + (b.juniors || 0);
@@ -2946,8 +1331,7 @@ window.filterAdminManifest = function(match) {
       listHtml += 
         "<div style='display:flex; justify-content:space-between; align-items:center; background:" + (b.boarded ? "#064e3b22" : "#1e293b") + "; border:1px solid " + (b.boarded ? "#10b98155" : "#334155") + "; padding:7px 10px; border-radius:6px; margin-bottom:5px; font-size:11px;'>" +
           "<div>" +
-            "<strong style='color:#fff; font-size:12px;'>" + b.name + "</strong> " +
-            "<span style='color:var(--safc-gold); font-size:10px;'>(" + seats + " seat" + (seats > 1 ? "s" : "") + ")</span><br>" +
+            "<strong style='color:#fff; font-size:12px;'>" + b.name + "</strong> <span style='color:var(--safc-gold); font-size:10px;'>(" + seats + " seat" + (seats > 1 ? "s" : "") + ")</span><br>" +
             "<span style='color:#94a3b8; font-size:10px;'>🚏 " + resolvedStop + " • Coach #" + (b.busId || 1) + "</span>" +
           "</div>" +
           "<button class='btn btn-sm " + (b.boarded ? "btn-outline" : "btn-gold") + "' style='padding:5px 10px; font-size:10px; min-width:80px; font-weight:800; border-color:" + (b.boarded ? "var(--green)" : "var(--safc-gold)") + "; color:" + (b.boarded ? "var(--green)" : "#000") + ";' onclick='window.toggleBoardedById(" + b.id + ")'>" +
@@ -2967,8 +1351,10 @@ window.toggleBoardedById = function(bookingId) {
   booking.boarded = !booking.boarded;
   saveState();
 
-  var match = appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  if (typeof window.filterAdminManifest === "function") window.filterAdminManifest(match);
+  var matchSelect = document.getElementById("admin-bus-match-select");
+  var mId = matchSelect ? matchSelect.value : appState.selectedHomeMatchId;
+  var match = appState.homeMatches.find(function(m) { return String(m.id) === String(mId); }) || appState.homeMatches[0];
+  window.filterAdminManifest(match);
   if (typeof renderHUDView === "function") renderHUDView();
 
   if (!navigator.onLine || !sbClient) {
@@ -2976,113 +1362,90 @@ window.toggleBoardedById = function(bookingId) {
     localStorage.setItem("safc_boarding_queue", JSON.stringify(window._offlineBoardingQueue));
     updateManifestSyncIndicator();
   } else {
-    sbClient.from("bus_bookings")
-      .update({ boarded: booking.boarded })
-      .eq("id", booking.id)
-      .then(function(res) {
-        if (res.error) throw res.error;
-        updateManifestSyncIndicator();
-      })
-      .catch(function(err) {
-        console.warn("Direct check-in sync failed, queueing offline:", err);
-        window._offlineBoardingQueue.push({ id: booking.id, boarded: booking.boarded, timestamp: Date.now() });
-        localStorage.setItem("safc_boarding_queue", JSON.stringify(window._offlineBoardingQueue));
-        updateManifestSyncIndicator();
-      });
-  }
-};
-
-window.toggleBoarded = function(idx) {
-  if (appState.bookings[idx]) {
-    window.toggleBoardedById(appState.bookings[idx].id);
+    sbClient.from("bus_bookings").update({ boarded: booking.boarded }).eq("id", booking.id).then(function() {
+      updateManifestSyncIndicator();
+    });
   }
 };
 
 window.exportManifestCSV = function() {
-  var match = appState.homeMatches.find(function(m) { return m.id === appState.selectedHomeMatchId; }) || appState.homeMatches[0];
-  var matchBookings = appState.bookings.filter(function(b) { return b.matchId === match.id; });
+  var matchSelect = document.getElementById("admin-bus-match-select");
+  var mId = matchSelect ? matchSelect.value : appState.selectedHomeMatchId;
+  var match = appState.homeMatches.find(function(m) { return String(m.id) === String(mId); }) || appState.homeMatches[0];
+  var matchBookings = appState.bookings.filter(function(b) { return String(b.matchId) === String(match.id); });
 
   var csv = "Match,Passenger Name,Bus Assigned,Pickup Stop,Adults,Juniors,Total Paid,Boarded\n";
   matchBookings.forEach(function(b) {
     csv += '"Sunderland vs ' + match.opponent + '","' + b.name + '","Bus ' + (b.busId || 1) + '","' + b.stop + '",' + b.adults + ',' + b.juniors + ',£' + b.total.toFixed(2) + ',"' + (b.boarded ? "YES" : "NO") + '"\n';
   });
   var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  var url = window.URL.createObjectURL(blob);
   var a = document.createElement("a");
-  a.setAttribute("href", url);
-  a.setAttribute("download", "Coxhoe_Coach_Manifest_" + match.opponent + ".csv");
+  a.href = window.URL.createObjectURL(blob);
+  a.download = "Coxhoe_Coach_Manifest_" + match.opponent + ".csv";
   a.click();
 };
 
-// --------------------------------------------------------
-// PANE 2: MEMBERSHIP SUBS ROSTER
-// --------------------------------------------------------
-function renderAdminSubs() {
+// --- PANE 2: MEMBERSHIP SUBS ROSTER ---
+window.renderAdminSubs = function() {
   var container = document.getElementById("admin-subs-roster");
-  if (!container) return;
+  if (!container || !appState || !appState.users) return;
 
-  var activeCount = 0;
-  var lapsedCount = 0;
-  var totalRevenue = 0;
-
-  appState.users.forEach(function(u) {
-    if (u.membershipStatus === "active") {
-      activeCount++;
-      var fee = (u.category === "Child" ? appState.duesConfig.juniorFee : appState.duesConfig.adultFee);
-      if (u.membershipTier === "Life") fee = 0;
-      totalRevenue += fee;
-    } else {
-      lapsedCount++;
-    }
-  });
+  var total = appState.users.length;
+  var active = appState.users.filter(function(u) { return u.membershipStatus === "active"; }).length;
+  var overdue = total - active;
 
   var html = 
     "<div class='treasury-grid mb-2'>" +
-      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Active: <strong style='color:var(--green);'>" + activeCount + "</strong></div>" +
-      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Lapsed: <strong style='color:#ef4444;'>" + lapsedCount + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Active: <strong style='color:var(--green);'>" + active + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Overdue: <strong style='color:#ef4444;'>" + overdue + "</strong></div>" +
     "</div>" +
-    "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px; margin-bottom:10px;'>" +
-      "Subs Collected (" + appState.duesConfig.activeSeason + "): <strong style='color:var(--safc-gold);'>£" + totalRevenue.toFixed(2) + "</strong>" +
-    "</div>" +
-    "<button class='btn btn-outline btn-sm' style='width:100%; margin-bottom:12px;' onclick='window.exportDuesCSV()'>📥 Export Membership Subs CSV</button>" +
-    "<div style='max-height:260px; overflow-y:auto;'>";
+    "<button class='btn btn-outline btn-sm' style='width:100%; margin-bottom:10px;' onclick='window.exportDuesCSV()'>📥 Export Membership Subs CSV</button>" +
+    "<div style='max-height:280px; overflow-y:auto;'>";
 
   appState.users.forEach(function(u, idx) {
     var isPaid = u.membershipStatus === "active";
     html += 
-      "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px;'>" +
-        "<div>" +
-          "<strong>" + u.name + "</strong> (" + (u.membershipTier || u.category) + ")<br>" +
-          "<span style='color:" + (isPaid ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" +
-            (isPaid ? "✓ Active (" + (u.membershipSeason || "2026/27") + ")" : "🔴 Lapsed / Overdue") +
-          "</span>" +
-        "</div>" +
-        "<div>" +
-          (isPaid ? 
-            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:#ef4444;' onclick='window.adminToggleMemberDues(" + idx + ", false)'>Revoke</button>" : 
-            "<button class='btn btn-gold btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.adminToggleMemberDues(" + idx + ", true)'>Mark Paid</button>") +
-        "</div>" +
+      "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; border-left:3px solid " + (isPaid ? "var(--green)" : "#ef4444") + ";'>" +
+        "<div><strong>" + u.name + "</strong> (" + (u.membershipTier || u.category) + ")<br><span style='color:" + (isPaid ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" + (isPaid ? "✓ Active (" + (u.membershipSeason || "2026/27") + ")" : "🔴 Lapsed / Overdue") + "</span></div>" +
+        "<div><button class='btn btn-sm " + (isPaid ? "btn-outline" : "btn-gold") + "' style='padding:2px 8px; font-size:10px;' onclick='window.adminToggleMemberDues(" + idx + ", " + (!isPaid) + ")'>" + (isPaid ? "Revoke" : "Activate ✓") + "</button></div>" +
       "</div>";
   });
 
   html += "</div>";
   container.innerHTML = html;
-}
+};
+
+window.renderAdminSubsRoster = window.renderAdminSubs;
 
 window.adminToggleMemberDues = function(idx, setPaid) {
   var user = appState.users[idx];
+  if (!user) return;
+  user.membershipStatus = setPaid ? "active" : "lapsed";
   if (setPaid) {
-    user.membershipStatus = "active";
     user.membershipSeason = appState.duesConfig.activeSeason;
     user.validUntil = "2027-07-31";
-    logForensicTransaction("Graham (Secretary)", "Admin", user.name, "SUBS_WAIVE", "Manually verified dues for " + user.name, 0, 0, 0);
-  } else {
-    user.membershipStatus = "lapsed";
-    logForensicTransaction("Graham (Secretary)", "Admin", user.name, "SUBS_REVOKE", "Revoked dues for " + user.name, 0, 0, 0);
   }
   saveState();
-  renderAdminSubs();
+  window.renderAdminSubs();
   renderHUDView();
+};
+
+window.adminSubmitAGMDues = function() {
+  var sInput = document.getElementById("agm-season-input");
+  var dInput = document.getElementById("agm-due-date-input");
+  var aInput = document.getElementById("agm-adult-fee");
+  var jInput = document.getElementById("agm-junior-fee");
+  var srInput = document.getElementById("agm-senior-fee");
+
+  appState.duesConfig.activeSeason = sInput ? sInput.value.trim() : "2026/27";
+  appState.duesConfig.dueDate = dInput ? dInput.value : "2026-08-31";
+  appState.duesConfig.adultFee = aInput ? parseFloat(aInput.value) || 10.00 : 10.00;
+  appState.duesConfig.juniorFee = jInput ? parseFloat(jInput.value) || 5.00 : 5.00;
+  appState.duesConfig.seniorFee = srInput ? parseFloat(srInput.value) || 5.00 : 5.00;
+
+  saveState();
+  window.renderAdminSubs();
+  alert("🏛️ AGM Dues Ratified and Published for " + appState.duesConfig.activeSeason + "!");
 };
 
 window.exportDuesCSV = function() {
@@ -3091,23 +1454,20 @@ window.exportDuesCSV = function() {
     csv += '"' + u.name + '","' + u.memberNo + '","' + u.category + '","' + (u.membershipTier || "Adult") + '","' + u.membershipStatus.toUpperCase() + '","' + (u.membershipSeason || "2026/27") + '","' + (u.validUntil || "2027-07-31") + '"\n';
   });
   var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  var url = window.URL.createObjectURL(blob);
   var a = document.createElement("a");
-  a.setAttribute("href", url);
-  a.setAttribute("download", "Coxhoe_Branch_Membership_Subs_Roster.csv");
+  a.href = window.URL.createObjectURL(blob);
+  a.download = "Membership_Subs_Roster.csv";
   a.click();
 };
 
-// --------------------------------------------------------
-// PANE 3: CHILD & GUARDIAN APPROVAL QUEUE WITH REVOCATION
-// --------------------------------------------------------
-function renderAdminApprovals() {
+// --- PANE 3: FRIENDS & FAMILY APPROVALS ---
+window.renderAdminApprovals = function() {
   var container = document.getElementById("admin-approvals-queue");
-  if (!container) return;
+  if (!container || !appState) return;
 
   var pending = appState.pendingLinkRequests.filter(function(r) { return r.status === "pending_admin"; });
 
-  var html = "<div class='admin-card'><strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Pending Requests (Approve / Decline)</strong>";
+  var html = "<div class='admin-card'><strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Pending Junior Requests</strong>";
   if (pending.length === 0) {
     html += "<p class='text-xs text-muted'>✓ No pending link requests.</p>";
   } else {
@@ -3117,7 +1477,7 @@ function renderAdminApprovals() {
           "<div><strong>" + req.requester + "</strong> ➔ <strong>" + req.targetName + "</strong> (" + req.relation + ")</div>" +
           "<div style='display:flex; gap:4px;'>" +
             "<button class='btn btn-gold btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.adminApproveLink(" + req.id + ")'>Approve</button>" +
-            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:#ef4444; border-color:#ef4444;' onclick='window.adminRejectLink(" + req.id + ")'>Decline</button>" +
+            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:#ef4444;' onclick='window.adminRejectLink(" + req.id + ")'>Decline</button>" +
           "</div>" +
         "</div>";
     });
@@ -3125,60 +1485,37 @@ function renderAdminApprovals() {
   html += "</div>";
 
   html += 
-    "<div class='admin-card'>" +
-      "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Active Network Connections (Revoke Links)</strong>" +
-      "<div style='max-height:220px; overflow-y:auto;'>";
-
-  if (appState.friendsAndFamily.length === 0) {
-    html += "<p class='text-xs text-muted'>No active member links found.</p>";
-  } else {
-    appState.friendsAndFamily.forEach(function(link) {
-      html += 
-        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px;'>" +
-          "<div><strong>" + link.owner + "</strong> ➔ <strong>" + link.targetName + "</strong> (" + link.relation + " • " + link.type + ")</div>" +
-          "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.adminRevokeLink(" + link.id + ")'>Revoke</button>" +
-        "</div>";
-    });
-  }
-
+    "<div class='admin-card'><strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Active Network Links</strong><div style='max-height:200px; overflow-y:auto;'>";
+  appState.friendsAndFamily.forEach(function(link) {
+    html += 
+      "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:10px;'>" +
+        "<div><strong>" + link.owner + "</strong> ➔ <strong>" + link.targetName + "</strong> (" + link.relation + ")</div>" +
+        "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444;' onclick='window.adminRevokeLink(" + link.id + ")'>Revoke</button>" +
+      "</div>";
+  });
   html += "</div></div>";
   container.innerHTML = html;
-}
+};
 
 window.adminApproveLink = function(reqId) {
   var req = appState.pendingLinkRequests.find(function(r) { return r.id === reqId; });
   if (!req) return;
 
-  appState.friendsAndFamily.push({
-    id: Date.now(),
-    owner: req.requester,
-    targetName: req.targetName,
-    relation: req.relation,
-    type: req.type,
-    status: "approved"
-  });
-  appState.friendsAndFamily.push({
-    id: Date.now() + 1,
-    owner: req.targetName,
-    targetName: req.requester,
-    relation: req.relation === "Child" ? "Parent" : "Friend",
-    type: "Adult",
-    status: "approved"
-  });
-
+  appState.friendsAndFamily.push({ id: Date.now(), owner: req.requester, targetName: req.targetName, relation: req.relation, type: req.type, status: "approved" });
+  appState.friendsAndFamily.push({ id: Date.now() + 1, owner: req.targetName, targetName: req.requester, relation: req.relation === "Child" ? "Parent" : "Friend", type: "Adult", status: "approved" });
   appState.pendingLinkRequests = appState.pendingLinkRequests.filter(function(r) { return r.id !== reqId; });
+
   saveState();
-  renderAdminApprovals();
+  window.renderAdminApprovals();
   updateAdminDrawerBadge();
-  alert("✓ Link approved and verified for junior travel booking.");
+  alert("✓ Link approved for " + req.targetName + ".");
 };
 
 window.adminRejectLink = function(reqId) {
   appState.pendingLinkRequests = appState.pendingLinkRequests.filter(function(r) { return r.id !== reqId; });
   saveState();
-  renderAdminApprovals();
+  window.renderAdminApprovals();
   updateAdminDrawerBadge();
-  alert("✓ Link request declined.");
 };
 
 window.adminRevokeLink = function(linkId) {
@@ -3187,24 +1524,18 @@ window.adminRevokeLink = function(linkId) {
 
   if (confirm("Revoke relationship between " + link.owner + " and " + link.targetName + "?")) {
     appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) {
-      var isDirect = (f.owner === link.owner && f.targetName === link.targetName);
-      var isReciprocal = (f.owner === link.targetName && f.targetName === link.owner);
-      return !isDirect && !isReciprocal;
+      return !(f.owner === link.owner && f.targetName === link.targetName) && !(f.owner === link.targetName && f.targetName === link.owner);
     });
     saveState();
-    renderAdminApprovals();
-    alert("✓ Relationship link revoked.");
+    window.renderAdminApprovals();
   }
 };
 
-// --------------------------------------------------------
-// PANE 4: TREASURY & FINANCIAL LEDGER
-// --------------------------------------------------------
+// --- PANE 4: TREASURY & FINANCIAL LEDGER ---
 window.renderAdminTreasury = function() {
   var statsContainer = document.getElementById("admin-treasury-stats");
   var ledgerContainer = document.getElementById("admin-financial-ledger");
   var catFilter = document.getElementById("treasury-filter-category") ? document.getElementById("treasury-filter-category").value : "all";
-  var timeFilter = document.getElementById("treasury-filter-time") ? document.getElementById("treasury-filter-time").value : "all";
 
   var totalInflow = 0;
   var totalOutflow = 0;
@@ -3224,41 +1555,23 @@ window.renderAdminTreasury = function() {
   }
 
   if (ledgerContainer) {
-    var now = new Date();
     var filtered = appState.masterAuditTrail.filter(function(t) {
       if (catFilter !== "all") {
         if (catFilter === "subs" && t.category !== "SUBS_DUES") return false;
         if (catFilter === "bus" && t.category !== "BUS_BOOKING" && t.category !== "BUS_REFUND") return false;
-        if (catFilter === "away" && t.category.indexOf("AWAY") === -1) return false;
         if (catFilter === "card" && t.category.indexOf("CARD") === -1) return false;
-        if (catFilter === "topup" && t.category !== "TOPUP") return false;
-        if (catFilter === "payout" && t.category !== "CARD_WINNER_PAYOUT") return false;
-      }
-      if (timeFilter !== "all") {
-        var txnDate = new Date(t.timestamp.replace(" ", "T"));
-        var diffDays = (now - txnDate) / (1000 * 60 * 60 * 24);
-        if (timeFilter === "7d" && diffDays > 7) return false;
-        if (timeFilter === "30d" && diffDays > 30) return false;
-        if (timeFilter === "season" && diffDays > 365) return false;
       }
       return true;
     });
 
     var html = "<div style='max-height:240px; overflow-y:auto;'>";
-    if (filtered.length === 0) {
-      html += "<div class='text-xs text-muted' style='padding:8px 0;'>No transactions match your active filter.</div>";
-    } else {
-      filtered.slice(0, 40).forEach(function(t) {
-        html += 
-          "<div style='background:#1e293b; border-bottom:1px solid #334155; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px;'>" +
-            "<div style='display:flex; justify-content:space-between;'>" +
-              "<strong>" + t.txnId + " • " + t.category + "</strong>" +
-              "<span style='color:var(--safc-gold);'>" + t.timestamp.substring(0, 16) + "</span>" +
-            "</div>" +
-            "<div style='color:#cbd5e1;'>" + t.desc + " (" + t.actor + ")</div>" +
-          "</div>";
-      });
-    }
+    filtered.slice(0, 30).forEach(function(t) {
+      html += 
+        "<div style='background:#1e293b; border-bottom:1px solid #334155; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px;'>" +
+          "<div style='display:flex; justify-content:space-between;'><strong>" + t.txnId + " • " + t.category + "</strong><span style='color:var(--safc-gold);'>" + t.timestamp.substring(0, 16) + "</span></div>" +
+          "<div style='color:#cbd5e1;'>" + t.desc + " (" + t.actor + ")</div>" +
+        "</div>";
+    });
     html += "</div>";
     ledgerContainer.innerHTML = html;
   }
@@ -3270,17 +1583,14 @@ window.exportMasterAuditCSV = function() {
     csv += '"' + t.txnId + '","' + t.timestamp + '","' + t.actor + '","' + t.role + '","' + t.target + '","' + t.category + '","' + t.desc.replace(/"/g, '""') + '",£' + t.debit.toFixed(2) + ',£' + t.credit.toFixed(2) + ',£' + t.branchImpact.toFixed(2) + ',£' + t.balanceAfter.toFixed(2) + "\n";
   });
   var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  var url = window.URL.createObjectURL(blob);
   var a = document.createElement("a");
-  a.setAttribute("href", url);
-  a.setAttribute("download", "Coxhoe_Branch_Master_Audit.csv");
+  a.href = window.URL.createObjectURL(blob);
+  a.download = "Master_Treasury_Ledger.csv";
   a.click();
 };
 
-// --------------------------------------------------------
-// PANE 5: AWAY MATCH TICKET ALLOCATION SUITE
-// --------------------------------------------------------
-function renderAdminAwayFixture() {
+// --- PANE 5: AWAY MATCH TICKET ALLOCATIONS ---
+window.renderAdminAwayFixture = function() {
   var sel = document.getElementById("admin-away-game-select");
   var container = document.getElementById("admin-away-fixture-manager");
   if (!sel || !container) return;
@@ -3296,51 +1606,38 @@ function renderAdminAwayFixture() {
   });
   if (!sel.value && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
 
-  var selectedId = sel.value;
-  var fixture = appState.awayFixtures.find(function(f) { return f.id === selectedId; });
-  if (!fixture) return;
-
-  var regs = appState.awayRegistrations.filter(function(r) { return r.fixtureId === selectedId; });
+  var fixture = appState.awayFixtures.find(function(f) { return f.id === sel.value; }) || appState.awayFixtures[0];
+  var regs = appState.awayRegistrations.filter(function(r) { return r.fixtureId === fixture.id; });
   var allocatedCount = 0;
   regs.forEach(function(r) { if (r.allocated) allocatedCount += (r.party ? r.party.length : 1); });
 
   var html = 
     "<div class='admin-card'>" +
-      "<div class='flex-between'>" +
-        "<strong>" + fixture.opponent + " (Away)</strong>" +
-        "<span class='badge-gold'>" + fixture.date + "</span>" +
-      "</div>" +
+      "<div class='flex-between'><strong>" + fixture.opponent + " (Away)</strong><span class='badge-gold'>" + fixture.date + "</span></div>" +
       "<div style='display:flex; gap:6px; align-items:center; margin-top:8px;'>" +
         "<label class='text-xs text-muted' style='flex:1;'>Branch Quota:</label>" +
         "<input type='number' id='admin-away-quota-input' class='form-input' style='flex:1; padding:4px;' value='" + fixture.allocation + "' />" +
-        "<button class='btn btn-outline btn-sm' style='padding:4px 10px; font-size:10px;' onclick='window.confirmAwayQuota(\"" + fixture.id + "\")'>Confirm Quota</button>" +
+        "<button class='btn btn-outline btn-sm' style='padding:4px 10px; font-size:10px;' onclick='window.confirmAwayQuota(\"" + fixture.id + "\")'>Confirm</button>" +
       "</div>" +
-      "<div id='admin-away-counter-label' class='text-xs mt-2' style='color:var(--safc-gold);'>Allocated so far: <strong>" + allocatedCount + " / " + fixture.allocation + " Tickets</strong></div>" +
+      "<div class='text-xs mt-2' style='color:var(--safc-gold);'>Allocated so far: <strong>" + allocatedCount + " / " + fixture.allocation + " Tickets</strong></div>" +
     "</div>" +
-    "<div class='admin-card'>" +
-      "<strong style='font-size:11px; display:block; margin-bottom:8px;'>Member Expressions of Interest:</strong>";
+    "<div class='admin-card'><strong style='font-size:11px; display:block; margin-bottom:8px;'>Member Expressions of Interest:</strong>";
 
   if (regs.length === 0) {
-    html += "<p class='text-xs text-muted'>No members have registered interest for this match yet.</p>";
+    html += "<p class='text-xs text-muted'>No expressions of interest registered yet.</p>";
   } else {
     regs.forEach(function(r) {
-      var seats = r.party ? r.party.length : 1;
       html += 
         "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:10px; border-left:3px solid " + (r.allocated ? "var(--green)" : "var(--safc-gold)") + ";'>" +
-          "<div>" +
-            "<strong>" + r.memberName + "</strong> (" + seats + " ticket" + (seats > 1 ? "s" : "") + ")<br>" +
-            "<span style='color:#cbd5e1; font-size:9px;'>" + (r.party ? r.party.join(", ") : "Single") + "</span>" +
-          "</div>" +
-          "<button class='btn btn-sm " + (r.allocated ? "btn-outline" : "btn-gold") + "' style='padding:2px 8px; font-size:9px;' onclick='window.toggleAwayAllocation(\"" + r.fixtureId + "\", \"" + r.memberName + "\")'>" +
-            (r.allocated ? "✓ Allocated" : "Allocate Ticket") +
-          "</button>" +
+          "<div><strong>" + r.memberName + "</strong><br><span style='color:#cbd5e1; font-size:9px;'>Party: " + (r.party ? r.party.join(", ") : "Lead Only") + "</span></div>" +
+          "<button class='btn btn-sm " + (r.allocated ? "btn-outline" : "btn-gold") + "' style='padding:2px 8px; font-size:9px;' onclick='window.toggleAwayAllocation(\"" + r.fixtureId + "\", \"" + r.memberName + "\")'>" + (r.allocated ? "✓ Allocated" : "Allocate ➔") + "</button>" +
         "</div>";
     });
   }
 
   html += "</div>";
   container.innerHTML = html;
-}
+};
 
 window.confirmAwayQuota = function(fixtureId) {
   var input = document.getElementById("admin-away-quota-input");
@@ -3349,141 +1646,72 @@ window.confirmAwayQuota = function(fixtureId) {
   if (fix) {
     fix.allocation = val || 20;
     saveState();
-    renderAdminAwayFixture();
+    window.renderAdminAwayFixture();
     renderMemberAwayView();
-    alert("✓ Branch ticket quota confirmed & updated to " + fix.allocation + " tickets.");
   }
 };
 
 window.toggleAwayAllocation = function(fixtureId, memberName) {
-  var reg = appState.awayRegistrations.find(function(r) {
-    return r.fixtureId === fixtureId && r.memberName === memberName;
-  });
+  var reg = appState.awayRegistrations.find(function(r) { return r.fixtureId === fixtureId && r.memberName === memberName; });
   if (reg) {
     reg.allocated = !reg.allocated;
     saveState();
-    renderAdminAwayFixture();
+    window.renderAdminAwayFixture();
     renderMemberAwayView();
     renderHUDView();
-
-    if (sbClient) {
-      sbClient.from("away_registrations")
-        .update({ allocated: reg.allocated })
-        .eq("fixture_id", fixtureId)
-        .eq("member_name", memberName)
-        .then(function() {});
-    }
-
-    alert("✓ Ticket allocation status updated for " + memberName + ". Member notification badge updated.");
   }
 };
 
-// --------------------------------------------------------
-// PANE 6: BROADCAST NOTICE / BRANCH NEWS (DELETE & ARCHIVE)
-// --------------------------------------------------------
-function renderAdminNews() {
+// --- PANE 6: BRANCH NEWS & BROADCASTS ---
+window.renderAdminNews = function() {
   var manageList = document.getElementById("admin-news-manage-list");
   if (!manageList) return;
-
-  if (appState.announcements.length === 0) {
-    manageList.innerHTML = "<div class='text-xs text-muted'>No announcements created yet.</div>";
-    return;
-  }
 
   var html = "";
   appState.announcements.forEach(function(post) {
     html += 
       "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; border-left:3px solid " + (post.isUrgent ? "#ef4444" : "var(--safc-gold)") + ";'>" +
-        "<div class='flex-between'>" +
-          "<strong>" + post.title + "</strong>" +
-          "<span style='font-size:9px; color:" + (post.archived ? "#94a3b8" : "var(--green)") + "; font-weight:800;'>" + (post.archived ? "📁 ARCHIVED" : "🟢 ACTIVE") + "</span>" +
-        "</div>" +
+        "<div class='flex-between'><strong>" + post.title + "</strong><span style='font-size:9px; color:" + (post.archived ? "#94a3b8" : "var(--green)") + ";'>" + (post.archived ? "ARCHIVED" : "ACTIVE") + "</span></div>" +
         "<div style='color:#cbd5e1; font-size:10px; margin:4px 0;'>" + post.content + "</div>" +
         "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:9px; color:var(--text-muted);'>" +
-          "<span>" + post.date + " • Read by " + (post.readBy ? post.readBy.length : 0) + "</span>" +
+          "<span>" + post.date + "</span>" +
           "<div style='display:flex; gap:4px;'>" +
             "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px;' onclick='window.toggleArchiveAnnouncement(" + post.id + ")'>" + (post.archived ? "Unarchive" : "Archive") + "</button>" +
-            "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.deleteAnnouncement(" + post.id + ")'>Delete</button>" +
+            "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444;' onclick='window.deleteAnnouncement(" + post.id + ")'>Delete</button>" +
           "</div>" +
         "</div>" +
       "</div>";
   });
-
   manageList.innerHTML = html;
-}
+};
 
 window.adminPostAnnouncement = function() {
   var titleInput = document.getElementById("admin-news-title");
   var bodyInput = document.getElementById("admin-news-body");
-  var imageInput = document.getElementById("admin-news-image-url");
-  var linkUrlInput = document.getElementById("admin-news-link-url");
-  var linkTextInput = document.getElementById("admin-news-link-text");
-
-  var title = titleInput ? titleInput.value.trim() : "";
-  var body = bodyInput ? bodyInput.value.trim() : "";
-  var imageUrl = imageInput ? imageInput.value.trim() : "";
-  var linkUrl = linkUrlInput ? linkUrlInput.value.trim() : "";
-  var linkText = linkTextInput ? linkTextInput.value.trim() : "";
-
-  if (!title || !body) {
-    alert("Please enter both a headline and announcement details.");
+  if (!titleInput || !bodyInput || !titleInput.value.trim() || !bodyInput.value.trim()) {
+    alert("Please enter headline and details.");
     return;
   }
 
   var newPost = {
     id: Date.now(),
-    title: title,
+    title: titleInput.value.trim(),
+    content: bodyInput.value.trim(),
     date: new Date().toISOString().substring(0, 10),
-    is_urgent: false,
-    content: body,
-    imageUrl: imageUrl,
-    linkUrl: linkUrl,
-    linkText: linkText || "View Details",
+    isUrgent: false,
     reactions: 0,
     archived: false,
-    read_by: []
+    readBy: []
   };
 
-  appState.announcements.unshift({
-    id: newPost.id,
-    title: newPost.title,
-    date: newPost.date,
-    isUrgent: newPost.is_urgent,
-    content: newPost.content,
-    imageUrl: newPost.imageUrl,
-    linkUrl: newPost.linkUrl,
-    linkText: newPost.linkText,
-    reactions: newPost.reactions,
-    archived: newPost.archived,
-    readBy: newPost.read_by
-  });
-
-  logForensicTransaction("Graham (Secretary)", "Admin", "All Members", "BROADCAST", "Notice: " + title, 0, 0, 0);
-
-  if (titleInput) titleInput.value = "";
-  if (bodyInput) bodyInput.value = "";
-  if (imageInput) imageInput.value = "";
-  if (linkUrlInput) linkUrlInput.value = "";
-  if (linkTextInput) linkTextInput.value = "";
+  appState.announcements.unshift(newPost);
+  titleInput.value = "";
+  bodyInput.value = "";
 
   saveState();
   renderHUDView();
-  if (typeof renderAdminNews === "function") renderAdminNews();
-
-  if (sbClient) {
-    sbClient.from("announcements").insert([{
-      id: newPost.id,
-      title: newPost.title,
-      date: newPost.date,
-      is_urgent: newPost.is_urgent,
-      content: newPost.content,
-      reactions: 0,
-      archived: false,
-      read_by: []
-    }]).then(function() {});
-  }
-
-  alert("✓ Rich broadcast notice published to branch home feeds.");
+  window.renderAdminNews();
+  alert("✓ Announcement broadcasted.");
 };
 
 window.toggleArchiveAnnouncement = function(postId) {
@@ -3492,441 +1720,404 @@ window.toggleArchiveAnnouncement = function(postId) {
     post.archived = !post.archived;
     saveState();
     renderHUDView();
-    renderAdminNews();
-
-    if (sbClient) {
-      sbClient.from("announcements").update({ archived: post.archived }).eq("id", postId).then(function() {});
-    }
-
-    alert("✓ Notice status updated (" + (post.archived ? "Archived" : "Active") + ").");
+    window.renderAdminNews();
   }
 };
 
 window.deleteAnnouncement = function(postId) {
-  if (confirm("Permanently delete this announcement?")) {
+  if (confirm("Delete this announcement?")) {
     appState.announcements = appState.announcements.filter(function(a) { return a.id !== postId; });
     saveState();
     renderHUDView();
-    renderAdminNews();
+    window.renderAdminNews();
+  }
+};
 
-    if (sbClient) {
-      sbClient.from("announcements").delete().eq("id", postId).then(function() {});
+// --- PANE 7: 40-TEAM MATCHDAY FOOTBALL CARD ---
+window._selectedFootballTeamIds = [];
+
+window.toggleFootballTeamSelection = function(teamId) {
+  var meta = appState.activeCardMeta || {};
+  if (meta.status === "completed") return;
+
+  var idx = window._selectedFootballTeamIds.indexOf(teamId);
+  if (idx !== -1) window._selectedFootballTeamIds.splice(idx, 1);
+  else window._selectedFootballTeamIds.push(teamId);
+  window.renderFootballGrid();
+};
+
+window.renderFootballGrid = function() {
+  var grid = document.getElementById("football-grid");
+  var summary = document.getElementById("card-sold-summary");
+  var actionTeamName = document.getElementById("football-selected-team-name");
+  var claimBtn = document.getElementById("btn-claim-football-team");
+  if (!grid || !appState || !appState.footballCard) return;
+
+  var user = getCurrentUserRecord();
+  var userName = user ? user.name : "Gary Miller";
+  var meta = appState.activeCardMeta || { status: "active", title: "40-Team Scratch Card #1" };
+  var isCompleted = (meta.status === "completed");
+
+  var soldCount = appState.footballCard.filter(function(sq) { return !!sq.claimedBy; }).length;
+  if (summary) {
+    summary.className = isCompleted ? "badge-red" : "badge-gold";
+    summary.textContent = isCompleted ? "🏆 DRAWN & COMPLETED" : (soldCount + " / 40 Claimed");
+  }
+
+  var existingWinnerBanner = document.getElementById("football-member-winner-banner");
+  if (existingWinnerBanner) existingWinnerBanner.remove();
+
+  if (isCompleted && meta.winnerTeam && meta.winnerMember) {
+    var winnerBanner = document.createElement("div");
+    winnerBanner.id = "football-member-winner-banner";
+    winnerBanner.style.cssText = "background: linear-gradient(135deg, #78350f, #f59e0b); border: 2px solid var(--safc-gold); border-radius: 8px; padding: 10px; margin-bottom: 10px; color: #fff; text-align: center;";
+    winnerBanner.innerHTML = 
+      "<div style='font-size:10px; font-weight:800; color:#fde68a;'>🏆 OFFICIAL CARD RESULT</div>" +
+      "<div style='font-size:15px; font-weight:900;'>Winning Team: " + meta.winnerTeam + "</div>" +
+      "<div style='font-size:11px;'>" + meta.winnerMember + " won £" + (meta.winnerPrize || 0).toFixed(2) + "!</div>";
+    grid.parentNode.insertBefore(winnerBanner, grid);
+  }
+
+  grid.innerHTML = "";
+  appState.footballCard.forEach(function(sq) {
+    var sqBtn = document.createElement("button");
+    sqBtn.type = "button";
+    var isClaimed = !!sq.claimedBy;
+    var isMine = isClaimed && (sq.claimedBy === userName);
+    var isSelected = (window._selectedFootballTeamIds.indexOf(sq.id) !== -1);
+    var isWinnerSquare = isCompleted && (sq.team === meta.winnerTeam);
+
+    sqBtn.style.cssText = "display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px 2px; min-height:48px; border-radius:6px; font-size:10px; border:1px solid #334155; text-align:center;";
+
+    if (isWinnerSquare) {
+      sqBtn.style.background = "linear-gradient(135deg, #facc15, #eab308)";
+      sqBtn.style.color = "#000";
+      sqBtn.innerHTML = "<strong>👑 " + sq.team + "</strong><span style='font-size:8px; font-weight:900;'>WINNER</span>";
+    } else if (isMine) {
+      sqBtn.style.background = "#065f46";
+      sqBtn.style.borderColor = "#10b981";
+      sqBtn.style.color = "#34d399";
+      sqBtn.innerHTML = "<strong>" + sq.team + "</strong><span style='font-size:8px;'>✓ YOU</span>";
+    } else if (isClaimed) {
+      sqBtn.style.background = "#1e293b";
+      sqBtn.style.color = "#64748b";
+      sqBtn.disabled = true;
+      sqBtn.innerHTML = "<span>" + sq.team + "</span><span style='font-size:7px;'>" + sq.claimedBy.split(" ")[0] + "</span>";
+    } else if (isSelected) {
+      sqBtn.style.background = "var(--safc-gold)";
+      sqBtn.style.color = "#000";
+      sqBtn.innerHTML = "<strong>" + sq.team + "</strong><span style='font-size:8px;'>✓ SELECTED</span>";
+      sqBtn.onclick = function() { window.toggleFootballTeamSelection(sq.id); };
+    } else {
+      sqBtn.style.background = "#0f172a";
+      sqBtn.style.color = "#fff";
+      sqBtn.innerHTML = "<strong>" + sq.team + "</strong><span style='font-size:8px; color:#94a3b8;'>£2.00</span>";
+      if (!isCompleted) sqBtn.onclick = function() { window.toggleFootballTeamSelection(sq.id); };
+      else sqBtn.disabled = true;
     }
+    grid.appendChild(sqBtn);
+  });
 
-    alert("✓ Announcement deleted.");
+  if (isCompleted) {
+    if (actionTeamName) actionTeamName.innerHTML = "<span style='color:var(--safc-gold);'>Card Drawn! Winner: " + meta.winnerMember + "</span>";
+    if (claimBtn) { claimBtn.textContent = "Card Completed 🏆"; claimBtn.disabled = true; }
+  } else {
+    var selCount = window._selectedFootballTeamIds.length;
+    if (selCount > 0) {
+      var totalCost = selCount * 2.00;
+      if (actionTeamName) actionTeamName.innerHTML = "Selected (" + selCount + ") Teams • Total: <strong style='color:var(--safc-gold);'>£" + totalCost.toFixed(2) + "</strong>";
+      if (claimBtn) { claimBtn.textContent = "Claim " + selCount + " Team" + (selCount > 1 ? "s" : "") + " (£" + totalCost.toFixed(2) + ")"; claimBtn.disabled = false; }
+    } else {
+      if (actionTeamName) actionTeamName.innerHTML = "Select available team(s)<div style='font-size:10px; color:#94a3b8;'>£2.00 per square</div>";
+      if (claimBtn) { claimBtn.textContent = "Claim Teams"; claimBtn.disabled = true; }
+    }
   }
 };
 
-// --------------------------------------------------------
-// PANE 7: FOOTBALL CARD FUNDRAISER SUITE
-// --------------------------------------------------------
-function renderAdminFootballCard() {
-  var configContainer = document.getElementById("admin-footballcard-config-card");
-  var summaryContainer = document.getElementById("admin-footballcard-summary");
-  var cfg = appState.cardConfig;
-  var fin = calculateCardFinancials();
+window.confirmFootballTeamPurchase = function() {
+  var selCount = window._selectedFootballTeamIds.length;
+  if (selCount === 0) return;
 
-  if (configContainer) {
-    configContainer.innerHTML = 
-      "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>Launch & Configure Football Card</strong>" +
-      "<div style='display:flex; gap:6px; margin-bottom:6px;'>" +
-        "<div style='flex:1;'>" +
-          "<label class='form-label'>Card Size (Teams)</label>" +
-          "<input type='number' id='admin-card-size' class='form-input' min='20' max='100' value='" + cfg.size + "' />" +
-        "</div>" +
-        "<div style='flex:1;'>" +
-          "<label class='form-label'>Price Per Square (£)</label>" +
-          "<input type='number' id='admin-card-price' class='form-input' step='0.50' value='" + cfg.pricePerSquare + "' />" +
-        "</div>" +
-      "</div>" +
-      "<div style='display:flex; gap:6px; margin-bottom:8px;'>" +
-        "<div style='flex:1;'>" +
-          "<label class='form-label'>Prize Split Mode</label>" +
-          "<select id='admin-prize-mode' class='form-select'>" +
-            "<option value='percentage' " + (cfg.prizeMode === "percentage" ? "selected" : "") + ">Percentage Split (50/50)</option>" +
-            "<option value='fixed' " + (cfg.prizeMode === "fixed" ? "selected" : "") + ">Fixed Cash Prize (£)</option>" +
-          "</select>" +
-        "</div>" +
-        "<div style='flex:1;'>" +
-          "<label class='form-label'>Winner Prize (£ or %)</label>" +
-          "<input type='number' id='admin-prize-val' class='form-input' value='" + (cfg.prizeMode === "percentage" ? cfg.prizePct : cfg.prizeFixed) + "' />" +
-        "</div>" +
-      "</div>" +
-      "<button class='btn btn-outline btn-sm' style='width:100%;' onclick='window.launchNewFootballCard()'>🚀 Launch Fresh Football Card</button>";
+  var user = getCurrentUserRecord();
+  var totalCost = selCount * 2.00;
+  if (user.balance < totalCost) {
+    alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + totalCost.toFixed(2) + ".");
+    return;
   }
 
-  if (summaryContainer) {
-    summaryContainer.innerHTML = 
-      "<div class='admin-card'>" +
-        "<div class='flex-between'>" +
-          "<strong>Active Matchday Card: Coventry City (H)</strong>" +
-          "<span style='color:var(--safc-gold); font-weight:800; font-size:11px;'>" + fin.soldCount + " / " + fin.totalSquares + " Sold</span>" +
-        "</div>" +
-        "<div class='treasury-grid mt-2'>" +
-          "<div style='background:#1e293b; padding:6px; border-radius:4px; font-size:10px;'>Total Pot: <strong>£" + fin.grossPot.toFixed(2) + "</strong></div>" +
-          "<div style='background:#1e293b; padding:6px; border-radius:4px; font-size:10px;'>Winner Share: <strong style='color:var(--safc-gold);'>£" + fin.winnerPrize.toFixed(2) + "</strong></div>" +
-          "<div style='background:#1e293b; padding:6px; border-radius:4px; font-size:10px; grid-column:span 2;'>Branch Profit: <strong style='color:var(--green);'>£" + fin.branchProfit.toFixed(2) + "</strong></div>" +
-        "</div>" +
-        "<button class='btn btn-gold btn-sm btn-block mt-2' onclick='window.drawCardWinner()'>🏆 Draw Winning Team Now</button>" +
-      "</div>";
-  }
-}
+  user.balance -= totalCost;
+  var claimedNames = [];
 
-window.launchNewFootballCard = function() {
-  var size = Math.min(100, Math.max(20, parseInt(document.getElementById("admin-card-size").value) || 40));
-  var price = parseFloat(document.getElementById("admin-card-price").value) || 2.00;
-  var mode = document.getElementById("admin-prize-mode").value;
-  var prizeVal = parseFloat(document.getElementById("admin-prize-val").value) || 50;
+  window._selectedFootballTeamIds.forEach(function(teamId) {
+    var sq = appState.footballCard.find(function(x) { return x.id === teamId; });
+    if (sq && !sq.claimedBy) {
+      sq.claimedBy = user.name;
+      claimedNames.push(sq.team);
+    }
+  });
 
-  if (confirm("Launch new " + size + "-team football card? Any unclaimed squares on the active card will be reset.")) {
-    appState.cardConfig = {
-      size: size,
-      pricePerSquare: price,
-      prizeMode: mode,
-      prizePct: mode === "percentage" ? prizeVal : 50,
-      prizeFixed: mode === "fixed" ? prizeVal : 50.00,
-      activeClubs: shuffleArray(MASTER_CLUBS).slice(0, size)
-    };
-    appState.cardClaims = {};
-    saveState();
-    renderFootballCard();
-    renderAdminFootballCard();
-    alert("✓ New " + size + "-team Football Card launched!");
-  }
-};
-
-window.drawCardWinner = function() {
-  var claimed = Object.keys(appState.cardClaims);
-  if (claimed.length === 0) { alert("No squares sold on this card yet!"); return; }
-  var winning = claimed[Math.floor(Math.random() * claimed.length)];
-  var winner = appState.cardClaims[winning];
-  
-  var fin = calculateCardFinancials();
-  var prize = fin.winnerPrize;
-
-  var winnerUser = appState.users.find(function(u) { return u.name === winner; });
-  if (winnerUser) winnerUser.balance += prize;
-
-  logForensicTransaction("Graham (Secretary)", "Admin", winner, "CARD_WINNER_PAYOUT", "Awarded Football Card prize (" + winning + ")", 0, prize, fin.branchProfit);
-  alert("🏆 WINNING TEAM: " + winning.toUpperCase() + "!\nWinner: " + winner + " wins £" + prize.toFixed(2) + " deposited directly to wallet.");
-  
-  appState.cardClaims = {};
-  appState.cardConfig.activeClubs = shuffleArray(MASTER_CLUBS).slice(0, appState.cardConfig.size);
+  logForensicTransaction(user.name, "Member", "Branch Lottery", "CARD", "Football Card: " + claimedNames.join(", "), totalCost, 0, totalCost);
   saveState();
-  window.refreshAllViews();
+
+  window._selectedFootballTeamIds = [];
+  window.updateBalanceDisplay();
+  window.renderFootballGrid();
+  renderHUDView();
+  alert("⚽ Teams Claimed:\n" + claimedNames.join(", "));
 };
 
-// --------------------------------------------------------
-// PANE 8: SAFEGUARDING & DISCIPLINARY BOARD
-// --------------------------------------------------------
-function renderAdminDisciplinary() {
+window.renderAdminFootballCardManager = function() {
+  var pane = document.getElementById("admin-pane-footballcard");
+  if (!pane) return;
+
+  var stats = { sold: appState.footballCard.filter(function(sq) { return !!sq.claimedBy; }).length, total: 40 };
+  var meta = appState.activeCardMeta || { status: "active", title: "Card #1", pricePerTeam: 2.00 };
+  var isActive = (meta.status === "active");
+
+  var actualPot = stats.sold * (meta.pricePerTeam || 2.00);
+  var winnerCalculatedPrize = actualPot * 0.50;
+  var branchCalculatedProfit = actualPot * 0.50;
+  var pct = Math.round((stats.sold / 40) * 100);
+
+  pane.innerHTML = 
+    "<h4>⚽ Football Card Fundraiser Suite</h4>" +
+    "<p class='text-xs text-muted mb-2'>Manage matchday scratch card, track sales, and reveal winner with 50/50 prize split.</p>" +
+
+    "<div class='admin-card' style='background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
+      "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>" +
+        "<strong style='color:#fff; font-size:13px;'>" + meta.title + "</strong>" +
+        "<span style='padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; background:" + (isActive ? "#065f46; color:#34d399;" : "#334155; color:#94a3b8;") + "'>" + (isActive ? "🟢 ACTIVE" : "⚪ COMPLETED") + "</span>" +
+      "</div>" +
+
+      "<div style='background:#1e293b; padding:10px; border-radius:6px; margin-bottom:10px;'>" +
+        "<div style='display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;'>" +
+          "<span>Claimed: <strong style='color:var(--safc-gold);'>" + stats.sold + " / 40</strong></span>" +
+          "<span style='color:var(--green); font-weight:700;'>Pot: £" + actualPot.toFixed(2) + "</span>" +
+        "</div>" +
+        "<div style='height:6px; background:#0f172a; border-radius:3px; overflow:hidden; margin-bottom:4px;'><div style='width:" + pct + "%; height:100%; background:var(--safc-red);'></div></div>" +
+        "<div style='display:flex; justify-content:space-between; font-size:9px; color:#94a3b8;'>" +
+          "<span>Winner (50%): <strong style='color:var(--safc-gold);'>£" + (isActive ? winnerCalculatedPrize.toFixed(2) : (meta.winnerPrize || 0).toFixed(2)) + "</strong></span>" +
+          "<span>Branch (50%): <strong style='color:var(--green);'>£" + (isActive ? branchCalculatedProfit.toFixed(2) : (meta.branchProfit || 0).toFixed(2)) + "</strong></span>" +
+        "</div>" +
+      "</div>" +
+
+      "<div style='display:flex; gap:6px; margin-bottom:10px;'>" +
+        (isActive ? "<button class='btn btn-gold btn-sm' style='flex:1; font-size:11px;' onclick='window.adminDrawFootballCardWinner()'>🏆 Scratch & Reveal Winner (£" + winnerCalculatedPrize.toFixed(2) + ")</button>" : "<button class='btn btn-outline btn-sm' style='flex:1; font-size:11px;' disabled>✓ Winner Paid: " + meta.winnerMember + "</button>") +
+      "</div>" +
+
+      "<div style='border-top:1px solid #334155; padding-top:10px;'>" +
+        "<strong style='font-size:11px; color:var(--safc-gold); display:block; margin-bottom:6px;'>🚀 Launch New Scratch Card</strong>" +
+        (isActive ? "<p class='text-xs text-muted mb-2'>Draw the active card before launching a new card.</p>" : "") +
+        "<button class='btn btn-red btn-sm' style='width:100%;' " + (isActive ? "disabled" : "") + " onclick='window.adminLaunchNewFootballCard()'>" + (isActive ? "🔒 Card In Progress" : "🚀 Launch Next 40-Team Card") + "</button>" +
+      "</div>" +
+    "</div>";
+};
+
+window.renderAdminFootballCard = window.renderAdminFootballCardManager;
+
+window.adminDrawFootballCardWinner = function() {
+  var meta = appState.activeCardMeta || {};
+  if (meta.status === "completed") return;
+
+  var claimed = appState.footballCard.filter(function(x) { return !!x.claimedBy; });
+  if (claimed.length === 0) { alert("No teams claimed on this card yet."); return; }
+
+  var totalCollected = claimed.length * (meta.pricePerTeam || 2.00);
+  var winnerPrize = totalCollected * 0.50;
+  var branchShare = totalCollected * 0.50;
+
+  if (!confirm("Confirm scratching the card?\nWinner receives £" + winnerPrize.toFixed(2) + " (50% of sold pot).")) return;
+
+  var winningSquare = claimed[Math.floor(Math.random() * claimed.length)];
+  var winnerName = winningSquare.claimedBy;
+  var winningTeam = winningSquare.team;
+
+  var winnerRecord = appState.users.find(function(m) { return m.name === winnerName; });
+  if (winnerRecord) winnerRecord.balance += winnerPrize;
+
+  logForensicTransaction("Branch", "Admin", winnerName, "CARD_WINNER_PAYOUT", "Scratch Card Winner: " + winningTeam + " (50/50 Split)", 0, winnerPrize, branchShare);
+
+  meta.status = "completed";
+  meta.winnerTeam = winningTeam;
+  meta.winnerMember = winnerName;
+  meta.winnerPrize = winnerPrize;
+  meta.branchProfit = branchShare;
+
+  saveState();
+  window.updateBalanceDisplay();
+  window.renderFootballGrid();
+  renderHUDView();
+  window.renderAdminFootballCardManager();
+  alert("🏆 WINNER DRAWN: " + winningTeam + "!\n" + winnerName + " won £" + winnerPrize.toFixed(2) + "!");
+};
+
+window.adminLaunchNewFootballCard = function() {
+  var meta = appState.activeCardMeta || {};
+  if (meta.status === "active") return;
+
+  appState.footballCard = DEFAULT_40_TEAMS.map(function(teamName, idx) {
+    return { id: idx + 1, team: teamName, price: 2.00, claimedBy: null };
+  });
+
+  appState.activeCardMeta = {
+    cardId: (meta.cardId || 1) + 1,
+    title: "Matchday Scratch Card #" + ((meta.cardId || 1) + 1),
+    status: "active",
+    pricePerTeam: 2.00,
+    winnerPrize: 40.00,
+    branchPrize: 40.00,
+    winnerTeam: null,
+    winnerMember: null
+  };
+
+  saveState();
+  window.renderFootballGrid();
+  renderHUDView();
+  window.renderAdminFootballCardManager();
+  alert("🚀 New 40-Team Scratch Card Live!");
+};
+
+// --- PANE 8: SAFEGUARDING & DISCIPLINARY ---
+window.renderAdminDisciplinary = function() {
   var juniorLog = document.getElementById("admin-disciplinary-junior-log");
   var boardContainer = document.getElementById("admin-disciplinary-board");
 
   if (juniorLog) {
     var children = appState.users.filter(function(u) { return u.category === "Child"; });
     var htmlJ = "";
-    if (children.length === 0) {
-      htmlJ = "<p class='text-xs text-muted'>No junior accounts registered.</p>";
-    } else {
-      children.forEach(function(ch) {
-        var comp = checkChildCompliance(ch);
-        var parentLink = appState.friendsAndFamily.find(function(f) {
-          return (f.owner === ch.name && f.relation === "Parent") || (f.targetName === ch.name && (f.relation === "Daughter" || f.relation === "Son" || f.relation === "Child"));
-        });
-
-        htmlJ += 
-          "<div style='background:#1e293b; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px; display:flex; justify-content:space-between; align-items:center;'>" +
-            "<div>" +
-              "<strong>" + ch.name + "</strong> (" + ch.memberNo + ")<br>" +
-              "<span style='color:" + (comp.compliant ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" +
-                (comp.compliant ? "✓ Linked to " + (parentLink ? (parentLink.owner === ch.name ? parentLink.targetName : parentLink.owner) : "Parent") : "🔴 Account Locked (No Guardian)") +
-              "</span>" +
-            "</div>" +
-            (!comp.compliant ? "<button class='btn btn-gold btn-sm' style='padding:2px 6px; font-size:9px;' onclick='window.adminForceLinkParent(\"" + ch.name + "\")'>Link Guardian</button>" : "") +
-          "</div>";
-      });
-    }
-    juniorLog.innerHTML = htmlJ;
+    children.forEach(function(ch) {
+      var comp = checkChildCompliance(ch);
+      htmlJ += 
+        "<div style='background:#1e293b; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px; display:flex; justify-content:space-between; align-items:center;'>" +
+          "<div><strong>" + ch.name + "</strong> (" + ch.memberNo + ")<br><span style='color:" + (comp.compliant ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" + (comp.compliant ? "✓ Verified Linked" : "🔴 Account Locked") + "</span></div>" +
+        "</div>";
+    });
+    juniorLog.innerHTML = htmlJ || "<p class='text-xs text-muted'>No junior accounts.</p>";
   }
 
   if (boardContainer) {
-    boardContainer.innerHTML = "";
-    if (appState.moderation.incidents.length === 0) {
-      boardContainer.innerHTML = "<div class='text-xs text-muted'>No disciplinary infractions on record.</div>";
-      return;
-    }
-
-    var activeAdmin = appState.currentUser.name;
-
-    appState.moderation.incidents.forEach(function(inc) {
-      if (!inc.internalDiscussion) inc.internalDiscussion = [];
-      if (!inc.votes) inc.votes = {};
-
-      var reinstateVotes = 0;
-      var upholdVotes = 0;
-      var voters = Object.keys(inc.votes);
-      voters.forEach(function(v) {
-        if (inc.votes[v] === "reinstate") reinstateVotes++;
-        if (inc.votes[v] === "uphold") upholdVotes++;
-      });
-
-      var myVote = inc.votes[activeAdmin] || null;
-      var isResolved = inc.status !== "active_ban";
-
-      var card = document.createElement("div");
-      card.className = "admin-card";
-      card.innerHTML = 
-        "<div class='flex-between' style='margin-bottom:4px;'>" +
-          "<strong>Case #" + inc.id + " • " + inc.member + "</strong>" +
-          "<span style='color:" + (inc.status === "active_ban" ? "#ef4444" : "var(--green)") + "; font-weight:800; font-size:10px;'>" + inc.status.toUpperCase() + "</span>" +
-        "</div>" +
-        "<div style='color:var(--safc-gold); font-size:10px; margin-bottom:4px;'>Charge: " + inc.reason + " (" + inc.timestamp + ")</div>" +
-        "<div style='background:#1e293b; padding:6px; border-radius:4px; margin-bottom:6px; font-family:monospace; font-size:10px;'>\"" + inc.offendingText + "\"</div>" +
-        "<button class='btn btn-outline btn-sm' style='padding:3px 6px; font-size:9px; margin-bottom:6px;' onclick='window.toggleTranscriptModal(\"" + inc.id + "\")'>📜 Inspect Full Conversation Transcript</button>" +
-        "<div style='background:#141d2e; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:10px; border-left:2px solid var(--safc-gold);'>" +
-          "<strong>Committee Quorum (2 Votes to Reinstate):</strong><br>" +
-          "• Votes to Reinstate: <strong style='color:var(--green);'>" + reinstateVotes + " / 2</strong><br>" +
-          "• Votes to Uphold Ban: <strong style='color:#ef4444;'>" + upholdVotes + "</strong><br>" +
-          (voters.length > 0 ? "<span style='color:#94a3b8;'>Votes cast: " + voters.map(function(v){ return v + " (" + inc.votes[v] + ")"; }).join(", ") + "</span>" : "<span style='color:#94a3b8;'>No committee votes recorded yet.</span>") +
-        "</div>" +
-        (!isResolved ? 
-          "<div style='display:flex; gap:4px; margin-bottom:6px;'>" +
-            "<button class='btn btn-gold btn-sm' style='flex:1; padding:4px;' onclick='window.castCommitteeVote(\"" + inc.id + "\", \"reinstate\")'>" + (myVote === "reinstate" ? "✓ Voted Reinstate" : "Vote to Reinstate") + "</button>" +
-            "<button class='btn btn-outline btn-sm' style='flex:1; padding:4px; color:#ef4444; border-color:#ef4444;' onclick='window.castCommitteeVote(\"" + inc.id + "\", \"uphold\")'>" + (myVote === "uphold" ? "✓ Voted Uphold" : "Vote to Uphold Ban") + "</button>" +
-          "</div>" : "<div style='color:var(--green); font-weight:800; font-size:10px; margin-bottom:6px;'>CASE RESOLVED BY COMMITTEE QUORUM</div>");
-
-      boardContainer.appendChild(card);
-    });
-  }
-}
-
-window.adminForceLinkParent = function(childName) {
-  var parentName = prompt("Enter parent full name to link with " + childName + ":", "Gary Miller");
-  if (!parentName) return;
-  appState.friendsAndFamily.push({
-    id: Date.now(), owner: parentName, targetName: childName, type: "Child", memberNo: "COX-085", relation: "Child", status: "approved"
-  });
-  appState.friendsAndFamily.push({
-    id: Date.now() + 1, owner: childName, targetName: parentName, type: "Adult", memberNo: "COX-084", relation: "Parent", status: "approved"
-  });
-  saveState();
-  renderAdminDisciplinary();
-  alert("Verified parent linkage established. " + childName + "'s account is now active.");
-};
-
-window.castCommitteeVote = function(incId, voteType) {
-  var inc = appState.moderation.incidents.find(function(i) { return String(i.id) === String(incId); });
-  if (!inc) return;
-  var activeAdmin = appState.currentUser.name;
-
-  if (!inc.votes) inc.votes = {};
-  inc.votes[activeAdmin] = voteType;
-
-  var reinstateCount = 0;
-  Object.keys(inc.votes).forEach(function(v) { if (inc.votes[v] === "reinstate") reinstateCount++; });
-
-  if (reinstateCount >= 2) {
-    inc.status = "reinstated";
-    appState.moderation.mutedMembers = appState.moderation.mutedMembers.filter(function(m) { return m !== inc.member; });
-    appState.moderation.revokedMembers = appState.moderation.revokedMembers.filter(function(m) { return m !== inc.member; });
-    appState.moderation.strikes[inc.member] = 0;
-    alert("🎉 COMMITTEE QUORUM REACHED (2+ Votes):\n\nCommittee has formally voted to reinstate messaging for " + inc.member + ".");
-  } else {
-    alert("Your vote (" + voteType.toUpperCase() + ") has been recorded.\nCurrent tally: " + reinstateCount + " / 2 required.");
-  }
-
-  saveState();
-  renderAdminDisciplinary();
-  renderMatchdayBusChat();
-  updateCommsBadge();
-};
-
-window.toggleTranscriptModal = function(incId) {
-  var inc = appState.moderation.incidents.find(function(i) { return String(i.id) === String(incId); });
-  if (!inc) return;
-  var modal = document.getElementById("modal-transcript");
-  var body = document.getElementById("transcript-body");
-  
-  body.innerHTML = 
-    "<div style='font-size:11px; margin-bottom:8px; color:var(--safc-gold);'><strong>Complete Conversation Transcript:</strong></div>" +
-    "<div id='transcript-scroll-area' style='max-height:300px; overflow-y:auto; padding-right:4px;'>" +
-    inc.transcriptContext.map(function(line){
-      var isFlag = line.indexOf("[FLAGGED") !== -1;
-      return "<div style='background:" + (isFlag ? "#7f1d1d" : "#0f172a") + "; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-family:monospace; font-size:10px; border-left:3px solid " + (isFlag ? "#ef4444" : "transparent") + ";'>" + line + "</div>";
-    }).join("") +
-    "</div>";
-
-  modal.style.display = "flex";
-  setTimeout(function() {
-    var scrollArea = document.getElementById("transcript-scroll-area");
-    if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
-  }, 50);
-};
-
-window.closeTranscriptModal = function() {
-  document.getElementById("modal-transcript").style.display = "none";
-};
-
-// --------------------------------------------------------
-// CONFIRMATION MODALS & APP BOOTLOADER
-// --------------------------------------------------------
-var pendingConfirmAction = null;
-window.showConfirmDialog = function(title, html, onConfirm) {
-  document.getElementById("modal-title").textContent = title;
-  document.getElementById("modal-details").innerHTML = html;
-  pendingConfirmAction = onConfirm;
-  document.getElementById("modal-confirm").style.display = "flex";
-};
-
-window.closeConfirmModal = function() {
-  document.getElementById("modal-confirm").style.display = "none";
-  pendingConfirmAction = null;
-};
-
-window.executeConfirmModal = function() {
-  if (pendingConfirmAction) pendingConfirmAction();
-  window.closeConfirmModal();
-};
-
-// Bootloader: Syncs with Supabase Cloud and mounts the initial UI
-window.onload = function() {
-  window.refreshAllViews();
-  if (typeof initSupabaseCloudSync === "function") {
-    initSupabaseCloudSync();
+    boardContainer.innerHTML = "<div class='text-xs text-muted'>✓ All members in good disciplinary standing. Profanity engine active.</div>";
   }
 };
-// ========================================================
-// SECTION 3: TRAVEL FIXTURE STAGING & GATING LOGIC
-// ========================================================
 
-// 1. Ensure Upcoming Home Fixtures Exist with Staging Status
-(function seedHomeFixtures() {
-  if (typeof appState === "undefined" || !appState) return;
-  if (!appState.homeMatches) appState.homeMatches = [];
+// --- HOME MATCHDAY HUD ---
+window.renderHUDView = function() {
+  var user = getCurrentUserRecord();
+  if (!user) return;
 
-  var coventry = appState.homeMatches.find(function(m) { 
-    return m.opponent && m.opponent.indexOf("Coventry") !== -1; 
-  });
-  if (!coventry) {
-    appState.homeMatches.push({
-      id: 101,
-      opponent: "Coventry City",
-      date: "Sat 21 Nov 2026",
-      time: "15:00",
-      bookingStatus: "open",
-      buses: [{ busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS }]
-    });
-  } else if (!coventry.bookingStatus) {
-    coventry.bookingStatus = "open";
+  var nameElem = document.getElementById("hud-member-name");
+  var noElem = document.getElementById("hud-member-no");
+  var balElem = document.getElementById("hud-wallet-balance");
+  var badgeElem = document.getElementById("hud-subs-badge");
+
+  if (nameElem) nameElem.textContent = user.nickname ? user.name + " (" + user.nickname + ")" : user.name;
+  if (noElem) noElem.textContent = "Member #" + (user.memberNo || "COX-084");
+  if (balElem) balElem.textContent = "£" + user.balance.toFixed(2);
+
+  if (badgeElem) {
+    var isActive = (user.membershipStatus === "active");
+    badgeElem.textContent = isActive ? "● 2026/27 Active" : "⚠️ Subs Due";
+    badgeElem.className = isActive ? "badge-gold" : "badge-red";
   }
 
-  var hasSheffield = appState.homeMatches.some(function(m) { 
-    return m.opponent && m.opponent.indexOf("Sheffield") !== -1; 
-  });
-  if (!hasSheffield) {
-    appState.homeMatches.push({
-      id: 102,
-      opponent: "Sheffield United",
-      date: "Sat 05 Dec 2026",
-      time: "15:00",
-      bookingStatus: "draft",
-      buses: [{ busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS }]
-    });
-  }
+  // Fundraiser Pulse Bar
+  var soldCount = (appState.footballCard || []).filter(function(sq) { return !!sq.claimedBy; }).length;
+  var soldCountElem = document.getElementById("hud-pulse-card-sold");
+  var barElem = document.getElementById("hud-pulse-card-bar");
+  if (soldCountElem) soldCountElem.textContent = soldCount + " / 40 Claimed";
+  if (barElem) barElem.style.width = Math.min(100, Math.round((soldCount / 40) * 100)) + "%";
 
-  var hasBurnley = appState.homeMatches.some(function(m) { 
-    return m.opponent && m.opponent.indexOf("Burnley") !== -1; 
-  });
-  if (!hasBurnley) {
-    appState.homeMatches.push({
-      id: 103,
-      opponent: "Burnley",
-      date: "Sat 19 Dec 2026",
-      time: "15:00",
-      bookingStatus: "draft",
-      buses: [{ busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS }]
-    });
-  }
-})();
+  // Contextual Travel Card
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var bookedBus = (appState.bookings && Array.isArray(appState.bookings) && activeMatch)
+    ? appState.bookings.find(function(b) { return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(user.name) !== -1; })
+    : null;
 
-// Helper: Safely locate active match across string, int, or fallback
-function getResolvedActiveMatch() {
-  if (typeof appState === "undefined" || !appState || !appState.homeMatches) return null;
-  var matchSelect = document.getElementById("admin-bus-match-select");
-  var targetVal = matchSelect ? matchSelect.value : appState.selectedHomeMatchId;
-
-  var match = appState.homeMatches.find(function(m) {
-    return String(m.id) === String(targetVal) || m.id == targetVal;
-  });
-
-  if (!match && appState.selectedHomeMatchId) {
-    match = appState.homeMatches.find(function(m) {
-      return String(m.id) === String(appState.selectedHomeMatchId);
-    });
-  }
-
-  return match || appState.homeMatches[0] || null;
-}
-
-// 2. Member Fixture Selection Handler
-window.handleMemberFixtureSelect = function(matchId) {
-  if (typeof appState === "undefined" || !appState) return;
-  appState.selectedHomeMatchId = parseInt(matchId) || matchId;
-  safePersistState();
-  if (typeof renderBusBookingView === "function") renderBusBookingView();
-};
-
-// Safe persistence wrapper (prevents crashes if function doesn't exist)
-function safePersistState() {
-  try {
-    if (typeof saveState === "function") saveState();
-    else if (typeof saveAppState === "function") saveAppState();
-    else if (typeof save === "function") save();
-  } catch (err) {
-    console.warn("Storage warning:", err);
-  }
-}
-
-// 3. Admin Fixture Booking Toggle (Draft vs Open)
-window.adminToggleBookingStatus = function() {
-  try {
-    var match = getResolvedActiveMatch();
-    if (!match) {
-      alert("Please select a fixture first.");
-      return;
-    }
-
-    // Toggle status
-    match.bookingStatus = (match.bookingStatus === "open") ? "draft" : "open";
-    safePersistState();
-
-    var isOpen = match.bookingStatus === "open";
-
-    // Immediate Alert
-    if (isOpen) {
-      alert("🟢 Bookings are now OPEN for Sunderland vs " + match.opponent + "!\nMembers can now view and book seats.");
+  var statusCard = document.getElementById("hud-travel-card-status");
+  if (statusCard) {
+    if (bookedBus) {
+      statusCard.innerHTML = 
+        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+          "<div><strong style='color:var(--green);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + bookedBus.stop + " • Bus #" + (bookedBus.busId || 1) + "</div></div>" +
+          "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:2px 8px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
+        "</div>";
     } else {
-      alert("⚪ Sunderland vs " + match.opponent + " set to DRAFT.\nBookings are now locked for members.");
+      statusCard.innerHTML = 
+        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+          "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £12 Adult / £8 Junior</div></div>" +
+          "<button class='btn btn-red btn-sm' style='font-size:10px; padding:3px 8px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
+        "</div>";
     }
+  }
 
-    // Re-render UI
-    if (typeof window.renderAdminBusesTool === "function") window.renderAdminBusesTool();
-    if (typeof window.renderBusBookingView === "function") window.renderBusBookingView();
+  // Match Kickoff Countdown & Weather Fetch
+  startKickoffCountdown("2026-11-21T15:00:00", "15:00");
+  fetchLiveMatchWeather("Stadium of Light", { lat: 54.9146, lon: -1.3882 }, "2026-11-21T15:00:00");
 
-  } catch (err) {
-    console.error("Toggle error:", err);
-    alert("Error updating status: " + err.message);
+  // Announcements Feed
+  var newsContainer = document.getElementById("hud-news-feed");
+  if (newsContainer) {
+    newsContainer.innerHTML = "";
+    appState.announcements.forEach(function(item) {
+      if (item.archived) return;
+      var itemCard = document.createElement("div");
+      itemCard.className = "card";
+      itemCard.style.cssText = "margin-bottom:6px; padding:10px; background:#0f172a; border-left:3px solid " + (item.isUrgent ? "#ef4444" : "var(--safc-gold)") + ";";
+      itemCard.innerHTML = 
+        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'><strong style='font-size:12px; color:#fff;'>" + item.title + "</strong><span style='font-size:9px; color:var(--text-muted);'>" + item.date + "</span></div>" +
+        "<div style='font-size:11px; color:#cbd5e1; line-height:1.4;'>" + item.content + "</div>";
+      newsContainer.appendChild(itemCard);
+    });
   }
 };
 
-// 5. Hook into Member Travel View to Enforce Gating
-var _baseRenderBusBookingView = window.renderBusBookingView;
-window.renderBusBookingView = function() {
-  var fixSelect = document.getElementById("member-home-fixture-select");
-  var activeMatch = getResolvedActiveMatch();
+// --- MEMBER TRAVEL & MULTI-BOOKING ---
+var currentBookingParty = [];
 
-  if (fixSelect && appState && appState.homeMatches && appState.homeMatches.length > 0) {
+function getDynamicStopDisplay(matchId, busId, rawStop) {
+  if (!rawStop) return "Pickup TBA";
+  var cleanName = rawStop.split("(")[0].trim().toLowerCase();
+  var match = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(matchId); });
+  if (match && match.buses) {
+    var bus = match.buses.find(function(b) { return (b.busId || 1) === (busId || 1); }) || match.buses[0];
+    if (bus && bus.stops) {
+      var foundStop = bus.stops.find(function(s) { return s.name.trim().toLowerCase() === cleanName; });
+      if (foundStop) return foundStop.name + " (" + foundStop.time + ")";
+    }
+  }
+  return rawStop;
+}
+
+function initBookingParty() {
+  var user = getCurrentUserRecord();
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+
+  var leadAlreadyBooked = (appState.bookings || []).some(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(user.name) !== -1;
+  });
+
+  currentBookingParty = [{
+    id: "lead-" + user.name, name: user.name, type: user.category || "Adult",
+    isLead: true, alreadyBooked: leadAlreadyBooked, checked: !leadAlreadyBooked
+  }];
+
+  var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === user.name && f.status === "approved"; });
+  myFriends.forEach(function(f) {
+    var friendBooked = (appState.bookings || []).some(function(b) {
+      return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(f.targetName) !== -1;
+    });
+    currentBookingParty.push({
+      id: "fnf-" + f.targetName, name: f.targetName, type: f.type || "Adult",
+      relation: f.relation, isLinked: true, alreadyBooked: friendBooked, checked: false
+    });
+  });
+}
+
+function renderBusBookingView() {
+  var fixSelect = document.getElementById("member-home-fixture-select");
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+
+  if (fixSelect && appState.homeMatches && appState.homeMatches.length > 0) {
     var curVal = activeMatch ? activeMatch.id : appState.homeMatches[0].id;
     fixSelect.innerHTML = "";
     appState.homeMatches.forEach(function(m) {
@@ -3939,188 +2130,687 @@ window.renderBusBookingView = function() {
     });
   }
 
-  if (_baseRenderBusBookingView) _baseRenderBusBookingView();
-
-  if (!activeMatch) return;
-
   var draftNotice = document.getElementById("travel-draft-notice");
   var activeControls = document.getElementById("travel-active-booking-controls");
   var titleElem = document.getElementById("travel-coach-title");
-  var draftMsg = document.getElementById("travel-draft-msg");
 
-  if (titleElem) titleElem.textContent = "Sunderland vs " + activeMatch.opponent;
+  if (titleElem && activeMatch) titleElem.textContent = "Sunderland vs " + activeMatch.opponent;
 
-  if (activeMatch.bookingStatus === "open") {
+  if (activeMatch && activeMatch.bookingStatus === "open") {
     if (draftNotice) draftNotice.style.display = "none";
     if (activeControls) activeControls.style.display = "block";
   } else {
-    if (draftNotice) {
-      draftNotice.style.display = "block";
-      if (draftMsg) {
-        draftMsg.innerHTML = "The committee is currently drafting coach logistics for <strong>Sunderland vs " + activeMatch.opponent + "</strong>.<br>Departure times and bookings will unlock once confirmed.";
-      }
-    }
+    if (draftNotice) draftNotice.style.display = "block";
     if (activeControls) activeControls.style.display = "none";
+    return;
+  }
+
+  var buses = (activeMatch && activeMatch.buses) ? activeMatch.buses : [];
+  var busSelectorGroup = document.getElementById("booking-bus-selector-group");
+  var busSelectElem = document.getElementById("booking-bus-select");
+
+  if (busSelectorGroup && busSelectElem) {
+    if (buses.length > 1) {
+      busSelectorGroup.style.display = "block";
+      busSelectElem.innerHTML = "";
+      buses.forEach(function(b) {
+        var opt = document.createElement("option");
+        opt.value = b.busId;
+        opt.textContent = b.title + " (" + (b.capacity || 53) + " Seats)";
+        if (b.busId === appState.selectedBookingBusId) opt.selected = true;
+        busSelectElem.appendChild(opt);
+      });
+    } else {
+      busSelectorGroup.style.display = "none";
+      appState.selectedBookingBusId = 1;
+    }
+  }
+
+  initBookingParty();
+  window.updateBookingCoachUI();
+}
+
+window.handleMemberFixtureSelect = function(matchId) {
+  appState.selectedHomeMatchId = matchId;
+  saveState();
+  renderBusBookingView();
+};
+
+window.updateBookingCoachUI = function() {
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  if (!activeMatch) return;
+  var buses = activeMatch.buses || [];
+
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+    busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS
+  };
+
+  var stopSelect = document.getElementById("booking-stop");
+  if (stopSelect) {
+    var prevVal = stopSelect.value;
+    stopSelect.innerHTML = "";
+    (selectedBus.stops || DEFAULT_STOPS).forEach(function(s) {
+      var opt = document.createElement("option");
+      opt.value = s.name;
+      opt.textContent = s.name + " (" + s.time + ")";
+      if (prevVal === s.name) opt.selected = true;
+      stopSelect.appendChild(opt);
+    });
+  }
+
+  renderActiveBookingsSummary(activeMatch);
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+function renderActiveBookingsSummary(activeMatch) {
+  var container = document.getElementById("my-active-bookings-summary");
+  if (!container) return;
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myBookings = (appState.bookings || []).filter(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(cur) !== -1;
+  });
+
+  if (myBookings.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  var html = "<div style='font-size:11px; font-weight:800; color:var(--green); margin-bottom:6px;'>✓ YOUR CONFIRMED SEATS:</div>";
+  myBookings.forEach(function(b) {
+    var seats = (b.adults || 0) + (b.juniors || 0);
+    html += 
+      "<div style='background:#064e3b; border:1px solid #10b981; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; color:#fff;'>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center;'><strong>" + b.name + " (" + seats + " Seat" + (seats > 1 ? "s" : "") + ")</strong><span style='color:var(--safc-gold);'>Bus #" + (b.busId || 1) + "</span></div>" +
+        "<div style='margin-top:2px; font-size:10px;'>🚏 Pickup: <strong>" + b.stop + "</strong></div>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px;'>" +
+          "<span style='font-size:10px; color:#a7f3d0;'>Status: " + (b.boarded ? "Boarded ✓" : "Seat Reserved") + "</span>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px; color:#f87171; border-color:#f87171;' onclick='window.cancelMyBooking(" + b.id + ")'>Cancel & Refund (£" + b.total.toFixed(2) + ")</button>" +
+        "</div>" +
+      "</div>";
+  });
+
+  container.innerHTML = html;
+}
+
+function renderPartyPassengersList() {
+  var listContainer = document.getElementById("party-passengers-list");
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+
+  currentBookingParty.forEach(function(p, idx) {
+    var row = document.createElement("div");
+    row.className = "party-member-row" + (p.isLead ? " lead" : "");
+    row.innerHTML = 
+      "<div style='display:flex; align-items:center; gap:8px;'>" +
+        "<input type='checkbox' " + (p.checked ? "checked" : "") + " " + (p.alreadyBooked ? "disabled" : "") + " onchange='window.togglePartyPassenger(" + idx + ", this.checked)' />" +
+        "<div><strong>" + p.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + p.type + ")</span>" + (p.alreadyBooked ? "<span style='display:block; font-size:9px; color:var(--green); font-weight:700;'>✓ Seat Already Confirmed</span>" : "") + "</div>" +
+      "</div>";
+    listContainer.appendChild(row);
+  });
+}
+
+window.togglePartyPassenger = function(idx, isChecked) {
+  if (currentBookingParty[idx]) {
+    currentBookingParty[idx].checked = isChecked;
+    window.updatePartyFareCalculation();
   }
 };
 
-// ========================================================
-// SECTION 4: AGM DUES GOVERNANCE & NOTIFICATION DISPATCH
-// ========================================================
+window.updatePartyStopSelection = function() {
+  window.updatePartyFareCalculation();
+};
 
-// 1. Initialize default AGM season configuration in state
-(function initAGMConfig() {
-  if (typeof appState === "undefined" || !appState) return;
-  if (!appState.agmConfig) {
-    appState.agmConfig = {
-      season: "2026/27",
-      dueDate: "2026-08-31",
-      fees: { adult: 10.00, junior: 5.00, senior: 5.00 },
-      published: true
-    };
-  }
-})();
+window.updatePartyFareCalculation = function() {
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var buses = (activeMatch && activeMatch.buses) ? activeMatch.buses : [];
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || { adultFare: 12.00, juniorFare: 8.00 };
 
-// 2. Submit AGM Dues, Apply Season Rollover & Dispatch Alerts
-window.adminSubmitAGMDues = function() {
-  try {
-    var seasonInput = document.getElementById("agm-season-input");
-    var dueDateInput = document.getElementById("agm-due-date-input");
-    var adultFeeInput = document.getElementById("agm-adult-fee");
-    var juniorFeeInput = document.getElementById("agm-junior-fee");
-    var seniorFeeInput = document.getElementById("agm-senior-fee");
+  var adultCount = 0;
+  var juniorCount = 0;
 
-    var season = seasonInput ? seasonInput.value.trim() : "2026/27";
-    var dueDate = dueDateInput ? dueDateInput.value : "2026-08-31";
-    var adultFee = adultFeeInput ? parseFloat(adultFeeInput.value) || 10.00 : 10.00;
-    var juniorFee = juniorFeeInput ? parseFloat(juniorFeeInput.value) || 5.00 : 5.00;
-    var seniorFee = seniorFeeInput ? parseFloat(seniorFeeInput.value) || 5.00 : 5.00;
-
-    // Save configuration to state
-    appState.agmConfig = {
-      season: season,
-      dueDate: dueDate,
-      fees: { adult: adultFee, junior: juniorFee, senior: seniorFee },
-      published: true,
-      lastUpdated: new Date().toISOString()
-    };
-
-    // Format display date (e.g. 31 Aug 2026)
-    var dateParts = dueDate.split("-");
-    var formattedDueDate = dueDate;
-    if (dateParts.length === 3) {
-      var d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-      formattedDueDate = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  currentBookingParty.forEach(function(p) {
+    if (p.checked && !p.alreadyBooked) {
+      if (p.type === "Junior" || p.type === "Child") juniorCount++;
+      else adultCount++;
     }
+  });
 
-    // Grandfathering: Ensure existing active members stay active; mark others as requiring subs
-    if (appState.members && Array.isArray(appState.members)) {
-      appState.members.forEach(function(member) {
-        // Members already marked active or paid remain protected
-        if (!member.subsStatus) {
-          member.subsStatus = "active";
-        }
-      });
-    }
+  var totalFare = (adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare);
+  var fareText = document.getElementById("party-total-fare-text");
+  var bookBtn = document.getElementById("btn-book-seat");
 
-    // Dispatch broadcast announcement to Branch News feed
-    var alertHeadline = "AGM Notice: " + season + " Membership Dues Published";
-    var alertMessage = "Branch subs for season " + season + " were ratified at the AGM: Adult £" + adultFee.toFixed(2) + " • Junior £" + juniorFee.toFixed(2) + " • Senior £" + seniorFee.toFixed(2) + ". Payment is due by " + formattedDueDate + ". Active members already paid for this season are fully grandfathered.";
-
-    if (appState.announcements && Array.isArray(appState.announcements)) {
-      appState.announcements.unshift({
-        id: "agm-" + Date.now(),
-        title: alertHeadline,
-        body: alertMessage,
-        date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-        category: "Dues",
-        pinned: true
-      });
-    }
-
-    safePersistState();
-
-    // Re-render UI views
-    if (typeof renderHUDView === "function") renderHUDView();
-    if (typeof renderAdminSubsRoster === "function") renderAdminSubsRoster();
-
-    alert(
-      "🏛️ AGM DUES RATIFIED & PUBLISHED!\n\n" +
-      "• Season: " + season + "\n" +
-      "• Adult: £" + adultFee.toFixed(2) + " | Junior: £" + juniorFee.toFixed(2) + " | Senior: £" + seniorFee.toFixed(2) + "\n" +
-      "• Payment Deadline: " + formattedDueDate + "\n\n" +
-      "📢 Broadcast alert dispatched to member home feeds & notification queue."
-    );
-
-  } catch (err) {
-    console.error("AGM Dues submit error:", err);
-    alert("Error publishing dues: " + err.message);
+  if (fareText) fareText.textContent = "£" + totalFare.toFixed(2);
+  if (bookBtn) {
+    var totalSelected = adultCount + juniorCount;
+    bookBtn.disabled = (totalSelected === 0);
+    bookBtn.textContent = totalSelected > 0 ? "Book " + totalSelected + " Seat" + (totalSelected > 1 ? "s" : "") + " (£" + totalFare.toFixed(2) + ")" : "Select At Least 1 Passenger";
   }
 };
-// // ========================================================
-// SECTION 5: ENRICHED HOME HUD, UNIFIED FIXTURES & COUNTDOWN
+
+window.openBookingModal = function() {
+  if (!verifyMembershipAccess("book coach seats")) return;
+
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var buses = activeMatch.buses || [];
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0];
+
+  var selectedPassengers = currentBookingParty.filter(function(p) { return p.checked && !p.alreadyBooked; });
+  if (selectedPassengers.length === 0) return;
+
+  var adultCount = 0;
+  var juniorCount = 0;
+  var passengerNames = [];
+
+  selectedPassengers.forEach(function(p) {
+    passengerNames.push(p.name);
+    if (p.type === "Junior" || p.type === "Child") juniorCount++;
+    else adultCount++;
+  });
+
+  var stop = document.getElementById("booking-stop").value;
+  var total = (adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare);
+
+  var user = getCurrentUserRecord();
+  if (user.balance < total) {
+    alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2) + ".");
+    return;
+  }
+
+  user.balance -= total;
+  var newBooking = {
+    id: Date.now(), matchId: activeMatch.id, busId: selectedBus.busId || 1,
+    name: passengerNames.join(", "), stop: stop, adults: adultCount, juniors: juniorCount, total: total, boarded: false
+  };
+
+  appState.bookings.push(newBooking);
+  logForensicTransaction(user.name, "Member", "Branch", "BUS_BOOKING", "Coach vs " + activeMatch.opponent + ": " + passengerNames.join(", "), total, 0, total);
+  saveState();
+  window.refreshAllViews();
+  alert("✓ Booking confirmed! " + selectedPassengers.length + " seat(s) reserved.");
+};
+
+window.cancelMyBooking = function(bookingId) {
+  var bIdx = (appState.bookings || []).findIndex(function(b) { return b.id === bookingId; });
+  if (bIdx === -1) return;
+  var booking = appState.bookings[bIdx];
+
+  var user = getCurrentUserRecord();
+  user.balance += booking.total;
+  logForensicTransaction("Branch", "System", user.name, "BUS_REFUND", "Refund: Coach booking #" + booking.id, 0, booking.total, -booking.total);
+
+  appState.bookings.splice(bIdx, 1);
+  saveState();
+  window.refreshAllViews();
+  alert("✓ Booking cancelled. £" + booking.total.toFixed(2) + " refunded to wallet.");
+};
+
+// --- AWAY FIXTURE EXPRESSIONS OF INTEREST ---
+function renderMemberAwayView() {
+  var sel = document.getElementById("member-away-game-select");
+  var card = document.getElementById("member-away-status-card");
+  if (!sel || !card) return;
+
+  var currentVal = sel.value;
+  sel.innerHTML = "";
+  (appState.awayFixtures || []).forEach(function(f) {
+    var opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = f.opponent + " (A) • " + f.date;
+    if (currentVal === f.id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (!sel.value && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
+
+  var fixture = appState.awayFixtures.find(function(f) { return f.id === sel.value; }) || appState.awayFixtures[0];
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myReg = (appState.awayRegistrations || []).find(function(r) { return r.fixtureId === fixture.id && r.memberName === cur; });
+
+  var html = "<div class='flex-between'><strong>" + fixture.opponent + " (Away)</strong><span class='badge-gold'>" + fixture.date + "</span></div>";
+
+  if (myReg) {
+    html += 
+      "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin:10px 0; font-size:11px;'>" +
+        "Status: " + (myReg.allocated ? "<strong style='color:var(--green);'>✓ TICKET ALLOCATED</strong>" : "<strong style='color:var(--safc-gold);'>⏳ Interest Registered</strong>") +
+      "</div>" +
+      "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Interest</button>";
+  } else {
+    html += "<button class='btn btn-red btn-sm mt-2' style='width:100%;' onclick='window.registerAwayInterest(\"" + fixture.id + "\")'>Register Expression of Interest</button>";
+  }
+
+  card.innerHTML = html;
+}
+
+window.registerAwayInterest = function(fixtureId) {
+  if (!verifyMembershipAccess("apply for away tickets")) return;
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  appState.awayRegistrations.push({ fixtureId: fixtureId, memberName: cur, party: [cur + " (Adult)"], allocated: false });
+  saveState();
+  renderMemberAwayView();
+};
+
+window.withdrawAwayInterest = function(fixtureId) {
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  appState.awayRegistrations = appState.awayRegistrations.filter(function(r) { return !(r.fixtureId === fixtureId && r.memberName === cur); });
+  saveState();
+  renderMemberAwayView();
+};
+
+// --- MEMBER PROFILE & PASS ---
+function renderProfilePassView() {
+  var user = getCurrentUserRecord();
+  var cardNameElem = document.getElementById("card-name");
+  var cardNoElem = document.getElementById("card-no");
+  var avatarImg = document.getElementById("profile-avatar-preview");
+
+  if (cardNameElem) cardNameElem.textContent = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
+  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (user.category || "Adult");
+
+  if (avatarImg && user.photoUrl) avatarImg.src = user.photoUrl;
+
+  var nickInput = document.getElementById("profile-edit-nickname");
+  var phoneInput = document.getElementById("profile-edit-phone");
+  var emNameInput = document.getElementById("profile-edit-emergency-name");
+  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
+
+  if (nickInput) nickInput.value = user.nickname || "";
+  if (phoneInput) phoneInput.value = user.phone || "";
+  if (emNameInput) emNameInput.value = user.emergencyName || "";
+  if (emPhoneInput) emPhoneInput.value = user.emergencyPhone || "";
+}
+
+window.handleProfilePhotoUpload = function(event) {
+  var file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var user = getCurrentUserRecord();
+    user.photoUrl = e.target.result;
+    saveState();
+    renderProfilePassView();
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveMemberProfile = function() {
+  var user = getCurrentUserRecord();
+  var nickInput = document.getElementById("profile-edit-nickname");
+  var phoneInput = document.getElementById("profile-edit-phone");
+  var emNameInput = document.getElementById("profile-edit-emergency-name");
+  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
+
+  user.nickname = nickInput ? nickInput.value.trim() : "";
+  user.phone = phoneInput ? phoneInput.value.trim() : "";
+  user.emergencyName = emNameInput ? emNameInput.value.trim() : "";
+  user.emergencyPhone = emPhoneInput ? emPhoneInput.value.trim() : "";
+
+  saveState();
+  renderProfilePassView();
+  alert("✓ Profile details saved.");
+};
+
+function renderFriendsFamilyChecklist() {
+  var container = document.getElementById("fnf-manager-list");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === cur; });
+
+  myFriends.forEach(function(f) {
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
+    row.innerHTML = "<div><strong>" + f.targetName + "</strong> (" + f.relation + ")</div><button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444;' onclick='window.unlinkFriendFamily(" + f.id + ")'>Unlink</button>";
+    container.appendChild(row);
+  });
+}
+
+window.unlinkFriendFamily = function(linkId) {
+  appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) { return f.id !== linkId; });
+  saveState();
+  renderFriendsFamilyChecklist();
+};
+
+window.requestMemberLink = function() {
+  var searchInput = document.getElementById("fnf-search-input");
+  var relSelect = document.getElementById("fnf-relation-select");
+  var targetName = searchInput ? searchInput.value.trim() : "";
+  var relation = relSelect ? relSelect.value : "Friend";
+  if (!targetName) return;
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  if (relation === "Child") {
+    appState.pendingLinkRequests.push({ id: Date.now(), requester: cur, targetName: targetName, relation: relation, type: "Child", status: "pending_admin" });
+    alert("🛡️ Link request submitted for Committee Safeguarding Approval.");
+  } else {
+    appState.friendsAndFamily.push({ id: Date.now(), owner: cur, targetName: targetName, relation: relation, type: "Adult", status: "approved" });
+    alert("✓ Linked with " + targetName + ".");
+  }
+
+  if (searchInput) searchInput.value = "";
+  saveState();
+  renderFriendsFamilyChecklist();
+};
+
+// --- WALLET STATEMENT ---
+function renderWalletStatement() {
+  var container = document.getElementById("wallet-statement-list");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myTxns = (appState.masterAuditTrail || []).filter(function(t) {
+    return t.actor === current || t.target === current;
+  });
+
+  if (myTxns.length === 0) {
+    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:10px;'>No transactions on record.</div>";
+    return;
+  }
+
+  myTxns.slice(0, 20).forEach(function(item) {
+    var isCredit = (item.target === current && item.credit > 0);
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding:8px 0; font-size:12px;";
+    row.innerHTML = 
+      "<div><strong>" + item.desc + "</strong><br><span style='font-size:10px; color:#94a3b8;'>" + item.timestamp.substring(0, 16) + "</span></div>" +
+      "<div style='font-weight:700; color:" + (isCredit ? "var(--green)" : "#ef4444") + ";'>" + (isCredit ? "+£" : "-£") + (isCredit ? item.credit : item.debit).toFixed(2) + "</div>";
+    container.appendChild(row);
+  });
+}
+
+window.exportMyStatementCSV = function() {
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myTxns = (appState.masterAuditTrail || []).filter(function(t) { return t.actor === current || t.target === current; });
+
+  var csv = "Txn ID,Timestamp,Category,Description,Debit,Credit,Balance After\n";
+  myTxns.forEach(function(t) {
+    csv += '"' + t.txnId + '","' + t.timestamp + '","' + t.category + '","' + t.desc.replace(/"/g, '""') + '","£' + t.debit.toFixed(2) + '","£' + t.credit.toFixed(2) + '","£' + t.balanceAfter.toFixed(2) + '"\n';
+  });
+
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var a = document.createElement("a");
+  a.href = window.URL.createObjectURL(blob);
+  a.download = current.replace(/\s+/g, "_") + "_Statement.csv";
+  a.click();
+};
+
+// --- COMMS & CHAT HUB ---
+window.switchCommsSubTab = function(subId) {
+  var pBus = document.getElementById("comms-sub-bus");
+  var pDm = document.getElementById("comms-sub-dm");
+  var pDesk = document.getElementById("comms-sub-desk");
+
+  if (pBus) pBus.style.display = (subId === "bus") ? "block" : "none";
+  if (pDm) pDm.style.display = (subId === "dm") ? "block" : "none";
+  if (pDesk) pDesk.style.display = (subId === "desk") ? "block" : "none";
+
+  var bBus = document.getElementById("btn-sub-bus");
+  var bDm = document.getElementById("btn-sub-dm");
+  var bDesk = document.getElementById("btn-sub-desk");
+
+  if (bBus) bBus.className = (subId === "bus") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+  if (bDm) bDm.className = (subId === "dm") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+  if (bDesk) bDesk.className = (subId === "desk") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+};
+
+function renderCommsTabs() {
+  renderMatchdayBusChat();
+  renderDirectMessagesView();
+  renderCommitteeDeskView();
+}
+
+function renderMatchdayBusChat() {
+  var container = document.getElementById("bus-chat-messages");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var activeMatch = (appState.homeMatches && appState.homeMatches.length > 0)
+    ? (appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0])
+    : { id: "H-01", opponent: "Coventry City" };
+
+  var titleElem = document.getElementById("bus-chat-match-title");
+  if (titleElem) titleElem.textContent = activeMatch.opponent + " (H) Bus Chat";
+
+  var adminActions = document.getElementById("bus-chat-admin-actions");
+  if (adminActions) adminActions.style.display = (appState.currentUser && appState.currentUser.role === "admin") ? "block" : "none";
+
+  var currentMatchMsgs = (appState.matchdayChat || []).filter(function(msg) {
+    return !msg.matchId || String(msg.matchId) === String(activeMatch.id);
+  });
+
+  if (currentMatchMsgs.length === 0) {
+    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:20px 0;'>🚌 Chat live for passengers. Auto-expires 24h post-match.</div>";
+  } else {
+    currentMatchMsgs.forEach(function(msg) {
+      var isMe = msg.sender === (appState.currentUser ? appState.currentUser.name : "");
+      var bubble = document.createElement("div");
+      bubble.style.cssText = "margin-bottom:8px; display:flex; flex-direction:column; align-items:" + (isMe ? "flex-end" : "flex-start") + ";";
+      bubble.innerHTML = 
+        "<div style='font-size:9px; color:#94a3b8; margin-bottom:2px;'>" + msg.sender + " • " + msg.time + "</div>" +
+        "<div style='background:" + (isMe ? "var(--safc-red)" : "#1e293b") + "; color:#fff; padding:6px 10px; border-radius:10px; font-size:12px; max-width:80%;'>" + msg.text + "</div>";
+      container.appendChild(bubble);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+window.sendMatchdayBusMessage = function() {
+  var input = document.getElementById("bus-chat-input");
+  var text = input ? input.value.trim() : "";
+  if (!text) return;
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+
+  var activeMatch = (appState.homeMatches || [])[0] || { id: "H-01" };
+  var now = new Date();
+
+  var newMsg = { id: Date.now(), matchId: activeMatch.id, timestamp: now.getTime(), sender: current, time: now.toTimeString().substring(0, 5), text: text };
+  appState.matchdayChat.push(newMsg);
+  input.value = "";
+
+  saveState();
+  renderMatchdayBusChat();
+  updateCommsBadge();
+};
+
+window.adminPurgeMatchdayChat = function() {
+  if (!confirm("Clear bus chat for this match?")) return;
+  var activeMatch = (appState.homeMatches || [])[0] || { id: "H-01" };
+  appState.matchdayChat = appState.matchdayChat.filter(function(m) { return m.matchId && String(m.matchId) !== String(activeMatch.id); });
+  saveState();
+  renderMatchdayBusChat();
+  updateCommsBadge();
+};
+
+// --- 1-TO-1 DIRECT MESSAGES (ADULT ONLY) ---
+window._activeDMRecipient = null;
+
+function renderDirectMessagesView() {
+  var container = document.getElementById("dm-threads-container");
+  if (!container) return;
+
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var curRecord = getCurrentUserRecord();
+
+  if (curRecord && curRecord.category === "Child") {
+    container.innerHTML = "<div style='color:#ef4444; background:#1e0508; border:1px solid #7f1d1d; padding:12px; border-radius:8px; font-size:12px;'>🛡️ Direct messaging is disabled for accounts under 18 under branch safeguarding rules.</div>";
+    return;
+  }
+
+  var eligibleUsers = (appState.users || []).filter(function(u) { return u.name !== current && u.category !== "Child"; });
+  if (!window._activeDMRecipient && eligibleUsers.length > 0) window._activeDMRecipient = eligibleUsers[0].name;
+
+  var optionsHtml = eligibleUsers.map(function(u) {
+    return "<option value='" + u.name + "' " + (u.name === window._activeDMRecipient ? "selected" : "") + ">" + u.name + "</option>";
+  }).join("");
+
+  var conversation = (appState.directMessages || []).filter(function(m) {
+    return (m.from === current && m.to === window._activeDMRecipient) || (m.from === window._activeDMRecipient && m.to === current);
+  });
+
+  var messagesHtml = "";
+  if (conversation.length === 0) {
+    messagesHtml = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:20px 0;'>💬 No private messages yet.</div>";
+  } else {
+    conversation.forEach(function(m) {
+      var isMe = (m.from === current);
+      messagesHtml += 
+        "<div style='margin-bottom:8px; display:flex; flex-direction:column; align-items:" + (isMe ? "flex-end" : "flex-start") + ";'>" +
+          "<div style='font-size:9px; color:#94a3b8; margin-bottom:2px;'>" + m.from + " • " + m.time + "</div>" +
+          "<div style='background:" + (isMe ? "var(--safc-red)" : "#1e293b") + "; color:#fff; padding:6px 10px; border-radius:10px; font-size:12px; max-width:80%;'>" + m.text + "</div>" +
+        "</div>";
+    });
+  }
+
+  container.innerHTML = 
+    "<div style='margin-bottom:8px;'><label class='form-label' style='font-size:9px;'>Recipient (Adult Member)</label><select class='form-select' onchange='window._activeDMRecipient=this.value; renderDirectMessagesView();'>" + optionsHtml + "</select></div>" +
+    "<div id='active-dm-feed' style='background:#0f172a; padding:10px; border-radius:8px; height:160px; overflow-y:auto; margin-bottom:8px; border:1px solid #334155;'>" + messagesHtml + "</div>" +
+    "<div style='display:flex; gap:6px;'><input type='text' id='dm-message-input' class='form-input' placeholder='Type private message...' style='font-size:11px;' /><button class='btn btn-red btn-sm' onclick='window.sendDirectMessage()'>Send</button></div>";
+}
+
+window.sendDirectMessage = function() {
+  var input = document.getElementById("dm-message-input");
+  var text = input ? input.value.trim() : "";
+  if (!text || !window._activeDMRecipient) return;
+
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  if (!appState.directMessages) appState.directMessages = [];
+
+  appState.directMessages.push({
+    id: "dm-" + Date.now(), from: current, to: window._activeDMRecipient, text: text,
+    time: new Date().toTimeString().substring(0, 5), timestamp: Date.now()
+  });
+
+  saveState();
+  input.value = "";
+  renderDirectMessagesView();
+};
+
+// --- HELPDESK & COMMITTEE MAILBOX ---
+function renderCommitteeDeskView() {
+  var container = document.getElementById("helpdesk-threads-list");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var current = appState.currentUser.name;
+  var isAdmin = appState.currentUser.role === "admin";
+  var myTickets = appState.helpdeskTickets.filter(function(t) { return isAdmin ? true : t.member.indexOf(current) !== -1; });
+
+  if (myTickets.length === 0) {
+    container.innerHTML = "<div style='color:#94a3b8; font-size:11px;'>No tickets in mailbox.</div>";
+    return;
+  }
+
+  myTickets.forEach(function(t) {
+    var card = document.createElement("div");
+    card.style.cssText = "background:#0f172a; border:1px solid #334155; padding:10px; border-radius:8px; margin-bottom:8px; font-size:11px;";
+    card.innerHTML = 
+      "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'><strong>#" + t.id + " • " + t.topic + " (" + t.member + ")</strong><span style='color:var(--green); font-weight:700;'>Open</span></div>" +
+      "<button class='btn btn-outline btn-sm' style='width:100%;' onclick='window.openMailboxThreadModal(\"" + t.id + "\")'>📬 Open Mailbox Thread</button>";
+    container.appendChild(card);
+  });
+}
+
+window.openMailboxThreadModal = function(ticketId) {
+  var ticket = appState.helpdeskTickets.find(function(t) { return t.id === ticketId; });
+  if (!ticket) return;
+
+  var current = appState.currentUser.name;
+  var isAdmin = appState.currentUser.role === "admin";
+
+  var modal = document.getElementById("modal-ticket-thread");
+  var title = document.getElementById("mailbox-thread-title");
+  var body = document.getElementById("mailbox-thread-body");
+
+  title.innerHTML = "Mailbox: #" + ticket.id + " • " + ticket.topic;
+
+  var html = "<div style='font-size:11px; font-weight:800; color:var(--safc-gold); margin-bottom:6px;'>Conversation:</div>";
+  html += "<div style='background:#0f172a; padding:8px; border-radius:8px; margin-bottom:12px; max-height:160px; overflow-y:auto;'>";
+  ticket.messages.forEach(function(m) {
+    html += "<div style='margin-bottom:6px; background:#1e293b; padding:6px 8px; border-radius:6px; font-size:11px;'><strong>" + m.sender + "</strong> (" + m.time + "): " + m.text + "</div>";
+  });
+  html += "</div>";
+
+  if (isAdmin) {
+    html += "<div style='font-size:11px; font-weight:800; color:var(--safc-gold); margin-bottom:6px;'>🔒 Internal Notes:</div>";
+    html += "<div style='background:#1e1b4b; padding:8px; border-radius:8px; margin-bottom:12px;'>";
+    (ticket.internalNotes || []).forEach(function(n) {
+      html += "<div style='margin-bottom:4px; font-size:10px; color:#f8fafc;'><strong>" + n.author + ":</strong> " + n.text + "</div>";
+    });
+    html += "</div>";
+  }
+
+  html += 
+    "<div style='display:flex; gap:4px;'><input type='text' id='public-reply-input' class='form-input' placeholder='Type response...' style='font-size:11px;' /><button class='btn btn-red btn-sm' onclick='window.submitPublicReply(\"" + ticket.id + "\")'>Send</button></div>";
+
+  body.innerHTML = html;
+  modal.style.display = "flex";
+};
+
+window.closeMailboxThreadModal = function() {
+  document.getElementById("modal-ticket-thread").style.display = "none";
+};
+
+window.submitPublicReply = function(ticketId) {
+  var input = document.getElementById("public-reply-input");
+  var text = input ? input.value.trim() : "";
+  if (!text) return;
+
+  var ticket = appState.helpdeskTickets.find(function(t) { return t.id === ticketId; });
+  if (ticket) {
+    ticket.messages.push({ id: "m-" + Date.now(), sender: appState.currentUser.name, time: new Date().toTimeString().substring(0, 5), text: text });
+    saveState();
+    window.openMailboxThreadModal(ticketId);
+    updateCommsBadge();
+  }
+};
+
+window.submitMemberHelpdeskTicket = function() {
+  var topic = document.getElementById("helpdesk-topic").value;
+  var text = document.getElementById("helpdesk-query").value.trim();
+  if (!text) return;
+
+  var newId = "TICK-" + Math.floor(100 + Math.random() * 900);
+  appState.helpdeskTickets.unshift({
+    id: newId, member: appState.currentUser.name, topic: topic, status: "open",
+    messages: [{ id: "m-" + Date.now(), sender: appState.currentUser.name, time: new Date().toTimeString().substring(0, 5), text: text }],
+    internalNotes: []
+  });
+
+  document.getElementById("helpdesk-query").value = "";
+  saveState();
+  renderCommitteeDeskView();
+  updateCommsBadge();
+  alert("Ticket #" + newId + " submitted.");
+};
+
+// ========================================================
+// SECTION 5: MATCHDAY WEATHER & KICKOFF COUNTDOWN
 // ========================================================
 
-// 1. Unified Master Schedule (Home, Away, Cup & Europe)
 (function seedMasterFixtures() {
   if (typeof appState === "undefined" || !appState) return;
-
   if (!appState.masterFixtures || appState.masterFixtures.length === 0) {
     appState.masterFixtures = [
       {
-        id: "fix-101",
-        opponent: "Coventry City",
-        type: "HOME",
-        competition: "Championship",
-        venue: "Stadium of Light",
-        dateTime: "2026-11-21T15:00:00",
-        dateDisplay: "Sat 21 Nov • 15:00",
-        kickoffTime: "15:00",
-        coordinates: { lat: 54.9146, lon: -1.3882 } // Stadium of Light, Sunderland
+        id: "fix-101", opponent: "Coventry City", type: "HOME", competition: "Championship",
+        venue: "Stadium of Light", dateTime: "2026-11-21T15:00:00", dateDisplay: "Sat 21 Nov • 15:00",
+        kickoffTime: "15:00", coordinates: { lat: 54.9146, lon: -1.3882 }
       },
       {
-        id: "fix-102",
-        opponent: "Millwall",
-        type: "AWAY",
-        competition: "Championship",
-        venue: "The Den, London",
-        dateTime: "2026-11-28T15:00:00",
-        dateDisplay: "Sat 28 Nov • 15:00",
-        kickoffTime: "15:00",
-        coordinates: { lat: 51.4859, lon: -0.0507 } // The Den, London
-      },
-      {
-        id: "fix-103",
-        opponent: "Sheffield United",
-        type: "HOME",
-        competition: "Championship",
-        venue: "Stadium of Light",
-        dateTime: "2026-12-05T15:00:00",
-        dateDisplay: "Sat 05 Dec • 15:00",
-        kickoffTime: "15:00",
-        coordinates: { lat: 54.9146, lon: -1.3882 }
-      },
-      {
-        id: "fix-104",
-        opponent: "Leeds United",
-        type: "AWAY",
-        competition: "Championship",
-        venue: "Elland Road",
-        dateTime: "2026-12-12T15:00:00",
-        dateDisplay: "Sat 12 Dec • 15:00",
-        kickoffTime: "15:00",
-        coordinates: { lat: 53.7778, lon: -1.5730 } // Elland Road, Leeds
+        id: "fix-102", opponent: "Millwall", type: "AWAY", competition: "Championship",
+        venue: "The Den, London", dateTime: "2026-11-28T15:00:00", dateDisplay: "Sat 28 Nov • 15:00",
+        kickoffTime: "15:00", coordinates: { lat: 51.4859, lon: -0.0507 }
       }
     ];
   }
 })();
 
-// 2. Kickoff Countdown Timer Engine
 window._hudCountdownTimer = null;
-
 function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
   if (window._hudCountdownTimer) clearInterval(window._hudCountdownTimer);
-
   var targetTime = new Date(targetIsoDate).getTime();
 
   function updateTimer() {
@@ -4128,17 +2818,10 @@ function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
     var stopElem = document.getElementById("hud-countdown-stop");
     if (!timerElem) return;
 
-    // Safely update the header label above the clock without wiping out the timer element
-    if (timerElem.previousElementSibling) {
-      timerElem.previousElementSibling.textContent = "⏱️ MATCH KICKOFF COUNTDOWN";
-    }
-
-    var now = new Date().getTime();
-    var diff = targetTime - now;
-
+    var diff = targetTime - new Date().getTime();
     if (isNaN(diff) || diff <= 0) {
       timerElem.textContent = "MATCH IN PROGRESS / FT";
-      timerElem.style.color = "var(--safc-gold, #facc15)";
+      timerElem.style.color = "var(--safc-gold)";
       if (stopElem) stopElem.textContent = "Kickoff Passed";
       return;
     }
@@ -4148,13 +2831,8 @@ function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
     var minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     var seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-    var displayStr = "";
-    if (days > 0) displayStr += days + "d ";
-    displayStr += (hours < 10 ? "0" : "") + hours + "h ";
-    displayStr += (minutes < 10 ? "0" : "") + minutes + "m ";
-    displayStr += (seconds < 10 ? "0" : "") + seconds + "s";
-
-    timerElem.textContent = displayStr;
+    var str = (days > 0 ? days + "d " : "") + (hours < 10 ? "0" : "") + hours + "h " + (minutes < 10 ? "0" : "") + minutes + "m " + (seconds < 10 ? "0" : "") + seconds + "s";
+    timerElem.textContent = str;
     timerElem.style.color = "#ffffff";
     if (stopElem) stopElem.textContent = "Kickoff @ " + (kickoffTimeDisplay || "15:00");
   }
@@ -4163,40 +2841,7 @@ function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
   window._hudCountdownTimer = setInterval(updateTimer, 1000);
 }
 
-// 3. Accurate Football Card Sold Count
-function getAccurateFootballCardCount() {
-  var totalSquares = 40;
-  var sold = 0;
-
-  var cardArray = appState.footballCard || appState.footballCards || appState.cardSquares || appState.cardTeams;
-  if (cardArray && Array.isArray(cardArray) && cardArray.length > 0) {
-    totalSquares = cardArray.length;
-    sold = cardArray.filter(function(sq) {
-      return sq && (sq.claimedBy || sq.owner || sq.member || sq.claimed || sq.buyer || sq.user || sq.taken);
-    }).length;
-    return { sold: sold, total: totalSquares };
-  }
-
-  var summaryElem = document.getElementById("card-sold-summary");
-  if (summaryElem && summaryElem.textContent) {
-    var match = summaryElem.textContent.match(/(\d+)/);
-    if (match) sold = parseInt(match[1]);
-  }
-
-  var grid = document.getElementById("football-grid");
-  if (grid) {
-    var claimedButtons = grid.querySelectorAll(".claimed, [disabled], .taken, .sold");
-    if (claimedButtons && claimedButtons.length > 0) {
-      sold = claimedButtons.length;
-    }
-  }
-
-  return { sold: sold, total: totalSquares };
-}
-
-// 4. Live Open-Meteo Weather Service Engine
 window._weatherCache = window._weatherCache || {};
-
 function getWmoWeatherIcon(wmoCode) {
   if (wmoCode === 0) return "☀️";
   if (wmoCode === 1 || wmoCode === 2) return "🌤️";
@@ -4211,8 +2856,7 @@ function getWmoWeatherIcon(wmoCode) {
 
 function getCompassDirection(deg) {
   var sectors = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-  var idx = Math.round(deg / 22.5) % 16;
-  return sectors[idx] || "NW";
+  return sectors[Math.round(deg / 22.5) % 16] || "NW";
 }
 
 function fetchLiveMatchWeather(venueName, coords, targetDateTime) {
@@ -4235,7 +2879,6 @@ function fetchLiveMatchWeather(venueName, coords, targetDateTime) {
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (!data) return;
-
       var weatherResult = null;
 
       if (data.hourly && data.hourly.time && targetDateTime) {
@@ -4265,9 +2908,7 @@ function fetchLiveMatchWeather(venueName, coords, targetDateTime) {
         applyWeatherToDOM(venueName, weatherResult);
       }
     })
-    .catch(function(err) {
-      console.warn("Live weather fetch note:", err.message);
-    });
+    .catch(function(err) {});
 }
 
 function applyWeatherToDOM(venueName, weather) {
@@ -4280,235 +2921,31 @@ function applyWeatherToDOM(venueName, weather) {
   if (rainElem) rainElem.textContent = weather.rain;
 }
 
-// 5. Master Enriched HUD Render Function
-window.renderHUDView = function() {
-  if (typeof appState === "undefined" || !appState) return;
-
-  var user = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
-  if (!user && appState.currentUser) {
-    user = { name: appState.currentUser, balance: 35.00, memberNo: "COX-084", subsStatus: "active" };
-  }
-  if (!user) return;
-
-  // --- A. Member Identity & Wallet Snapshot ---
-  var nameElem = document.getElementById("hud-member-name");
-  var noElem = document.getElementById("hud-member-no");
-  var balElem = document.getElementById("hud-wallet-balance");
-  var badgeElem = document.getElementById("hud-subs-badge");
-  var avatarElem = document.getElementById("hud-user-avatar");
-
-  if (nameElem) nameElem.textContent = user.nickname ? user.name + " (" + user.nickname + ")" : user.name;
-  if (noElem) noElem.textContent = "Member #" + (user.memberNo || "COX-084");
-  if (balElem) balElem.textContent = "£" + (parseFloat(user.balance) || 0).toFixed(2);
-  if (avatarElem && user.avatarUrl) avatarElem.src = user.avatarUrl;
-
-  if (badgeElem) {
-    var isActive = (user.subsStatus === "active");
-    badgeElem.textContent = isActive ? "● 2026/27 Active" : "⚠️ Subs Due";
-    badgeElem.className = isActive ? "badge-gold" : "badge-red";
-  }
-
-  // --- B. Accurate Fundraiser Pulse Bar ---
-  var cardData = getAccurateFootballCardCount();
-  var soldCountElem = document.getElementById("hud-pulse-card-sold");
-  var barElem = document.getElementById("hud-pulse-card-bar");
-
-  if (soldCountElem) soldCountElem.textContent = cardData.sold + "/" + cardData.total;
-  if (barElem) {
-    var pct = Math.min(100, Math.round((cardData.sold / cardData.total) * 100));
-    barElem.style.width = pct + "%";
-  }
-
-  // --- C. Resolve Immediate Next Fixture ---
-  var nextFixture = (appState.masterFixtures && appState.masterFixtures.length > 0) 
-    ? appState.masterFixtures[0] 
-    : {
-        opponent: "Coventry City",
-        type: "HOME",
-        competition: "Championship",
-        venue: "Stadium of Light",
-        dateTime: "2026-11-21T15:00:00",
-        dateDisplay: "Sat 21 Nov • 15:00",
-        kickoffTime: "15:00",
-        coordinates: { lat: 54.9146, lon: -1.3882 }
-      };
-
-  var typePill = document.getElementById("hud-match-type-pill");
-  var dateElem = document.getElementById("hud-next-match-date");
-  var titleElem = document.getElementById("hud-next-match-title");
-  var venueElem = document.getElementById("hud-next-match-venue");
-
-  if (typePill) {
-    if (nextFixture.type === "HOME") {
-      typePill.textContent = "NEXT MATCH • HOME";
-      typePill.style.background = "var(--safc-red, #dc2626)";
-    } else if (nextFixture.type === "AWAY") {
-      typePill.textContent = "NEXT MATCH • AWAY";
-      typePill.style.background = "#4338ca";
-    } else {
-      typePill.textContent = "NEXT MATCH • " + nextFixture.type;
-      typePill.style.background = "var(--safc-gold, #facc15)";
-      typePill.style.color = "#000";
-    }
-  }
-
-  if (dateElem) dateElem.textContent = nextFixture.dateDisplay;
-  if (titleElem) {
-    titleElem.textContent = (nextFixture.type === "HOME") 
-      ? "Sunderland vs " + nextFixture.opponent 
-      : nextFixture.opponent + " vs Sunderland";
-  }
-  if (venueElem) venueElem.textContent = nextFixture.venue + " • " + nextFixture.competition;
-
-  // --- D. Start Match Kickoff Countdown Timer ---
-  startKickoffCountdown(nextFixture.dateTime, nextFixture.kickoffTime || "15:00");
-
-  // --- E. Trigger Live Open-Meteo Weather Fetch ---
-  fetchLiveMatchWeather(nextFixture.venue, nextFixture.coordinates, nextFixture.dateTime);
-
-  // --- F. Contextual Travel Status Card ---
-  var bookedBus = (appState.busBookings && Array.isArray(appState.busBookings)) 
-    ? appState.busBookings.find(function(b) { return b.member === user.name; }) 
-    : null;
-  var userStop = bookedBus ? bookedBus.stop : "Pickup Confirmed";
-
-  var statusCard = document.getElementById("hud-travel-card-status");
-  if (statusCard) {
-    if (nextFixture.type === "HOME") {
-      if (bookedBus) {
-        statusCard.innerHTML = 
-          "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-            "<div><strong style='color:var(--green, #10b981);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + userStop + " • Bus 1</div></div>" +
-            "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:2px 8px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
-          "</div>";
-      } else {
-        statusCard.innerHTML = 
-          "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-            "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £12 Adult / £8 Junior</div></div>" +
-            "<button class='btn btn-red btn-sm' style='font-size:10px; padding:3px 8px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
-          "</div>";
-      }
-    } else {
-      statusCard.innerHTML = 
-        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-          "<div><strong>Branch Away Ticket Application</strong><div style='font-size:10px; color:#94a3b8;'>Allocation quota pending committee ballot</div></div>" +
-          "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:3px 8px;' onclick=\"switchTab('view-travel')\">Away Tickets</button>" +
-        "</div>";
-    }
-  }
-
-  // --- G. Render Announcements Feed ---
-  var newsContainer = document.getElementById("hud-news-feed");
-  if (newsContainer && appState.announcements && Array.isArray(appState.announcements)) {
-    newsContainer.innerHTML = "";
-    appState.announcements.forEach(function(item) {
-      var itemCard = document.createElement("div");
-      itemCard.className = "card";
-      itemCard.style.cssText = "margin-bottom:6px; padding:10px; background:#0f172a; border-left:3px solid var(--safc-gold);";
-      itemCard.innerHTML = 
-        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>" +
-          "<strong style='font-size:12px; color:#fff;'>" + item.title + "</strong>" +
-          "<span style='font-size:9px; color:var(--text-muted);'>" + (item.date || "Recent") + "</span>" +
-        "</div>" +
-        "<div style='font-size:11px; color:#cbd5e1; line-height:1.4;'>" + item.body + "</div>";
-      newsContainer.appendChild(itemCard);
-    });
-  }
-};
-
-// Auto-run HUD on tab switch
-var _origSwitchTab = window.switchTab;
-window.switchTab = function(tabId, el) {
-  if (_origSwitchTab) _origSwitchTab(tabId, el);
-  if (tabId === "view-hud") {
-    setTimeout(function() { window.renderHUDView(); }, 50);
-  }
-};
-
-// Initial HUD render on script load
-setTimeout(function() {
-  if (typeof window.renderHUDView === "function") window.renderHUDView();
-}, 100);
-
-// // ========================================================
+// ========================================================
 // SECTION 6: 10-KIT THEME ENGINE & DISPLAY PREFERENCES
 // ========================================================
 
-// 1. Master SAFC Kit Theme Color Palettes (Primary, Secondary, Accent)
 var SAFC_KIT_THEMES = {
-  "1990-vaux-home": {
-    name: "1990 Vaux Home",
-    c1: "#dc2626", // Roker Scarlet Red
-    c2: "#ffffff", // Clean White
-    c3: "#f59e0b"  // Vaux Amber Gold
-  },
-  "1990-vaux-away": {
-    name: "1990 Vaux Away",
-    c1: "#2563eb", // Royal Blue Hummel Chevrons
-    c2: "#ffffff", // Crisp White
-    c3: "#dc2626"  // Red Contrast
-  },
-  "1986-patrick-away": {
-    name: "1986 Patrick Away",
-    c1: "#eab308", // Canary Yellow
-    c2: "#0f172a", // Tuborg Black Block
-    c3: "#ffffff"  // White Trim
-  },
-  "1992-fa-cup-away": {
-    name: "1992 FA Cup Final Away",
-    c1: "#0d9488", // Malcolm Crosby Retro Teal/Turquoise
-    c2: "#be123c", // Cherry Red
-    c3: "#ffffff"  // White Detail
-  },
-  "1994-avec-gk": {
-    name: "1994 Avec Goalkeeper",
-    c1: "#a3e635", // Alec Chamberlain Neon Yellow Mosaic
-    c2: "#1d4ed8", // Cobalt Blue
-    c3: "#38bdf8"  // Electric Cyan
-  },
-  "1998-lambtons-away": {
-    name: "1998 Lambton's Away",
-    c1: "#1e3a8a", // 105-Point Title Deep Navy
-    c2: "#d97706", // Lambton's Ale Gold
-    c3: "#ffffff"  // White Trim
-  },
-  "2000-reg-vardy": {
-    name: "2000 Reg Vardy Home",
-    c1: "#b91c1c", // Super Kev Premier League Crimson
-    c2: "#94a3b8", // Platinum Slate
-    c3: "#ffffff"  // Pure White
-  },
-  "2023-stealth-third": {
-    name: "2023 Stealth Third",
-    c1: "#18181b", // Blackout Graphite
-    c2: "#84cc16", // Electric Volt Neon
-    c3: "#a3e635"  // Lime Glow
-  },
-  "2024-mining-heritage": {
-    name: "2024 Mining Heritage",
-    c1: "#0f172a", // Durham Coalfield Navy
-    c2: "#06b6d4", // Pithead Cyan
-    c3: "#eab308"  // Luminary Amber
-  },
-  "2026-hummel-elvis": {
-    name: "2026 Hummel Elvis Away",
-    c1: "#ec4899", // Terrace Anthem Bubblegum Pink
-    c2: "#18181b", // Contrast Black
-    c3: "#fb7185"  // Rose Sheen
-  }
+  "1990-vaux-home": { name: "1990 Vaux Home", c1: "#dc2626", c2: "#ffffff", c3: "#f59e0b" },
+  "1990-vaux-away": { name: "1990 Vaux Away", c1: "#2563eb", c2: "#ffffff", c3: "#dc2626" },
+  "1986-patrick-away": { name: "1986 Patrick Away", c1: "#eab308", c2: "#0f172a", c3: "#ffffff" },
+  "1992-fa-cup-away": { name: "1992 FA Cup Final Away", c1: "#0d9488", c2: "#be123c", c3: "#ffffff" },
+  "1994-avec-gk": { name: "1994 Avec Goalkeeper", c1: "#a3e635", c2: "#1d4ed8", c3: "#38bdf8" },
+  "1998-lambtons-away": { name: "1998 Lambton's Away", c1: "#1e3a8a", c2: "#d97706", c3: "#ffffff" },
+  "2000-reg-vardy": { name: "2000 Reg Vardy Home", c1: "#b91c1c", c2: "#94a3b8", c3: "#ffffff" },
+  "2023-stealth-third": { name: "2023 Stealth Third", c1: "#18181b", c2: "#84cc16", c3: "#a3e635" },
+  "2024-mining-heritage": { name: "2024 Mining Heritage", c1: "#0f172a", c2: "#06b6d4", c3: "#eab308" },
+  "2026-hummel-elvis": { name: "2026 Hummel Elvis Away", c1: "#ec4899", c2: "#18181b", c3: "#fb7185" }
 };
 
-// 2. Apply Kit Theme to CSS Variables & DOM Elements
 window.applyTheme = function(themeKey) {
   var theme = SAFC_KIT_THEMES[themeKey] || SAFC_KIT_THEMES["1990-vaux-home"];
   var root = document.documentElement;
 
-  // Dynamically update core CSS variables across the app
   root.style.setProperty("--safc-red", theme.c1);
   root.style.setProperty("--safc-gold", theme.c3);
   root.style.setProperty("--safc-accent", theme.c2);
 
-  // Update live preview swatches and badge
   var s1 = document.getElementById("swatch-c1");
   var s2 = document.getElementById("swatch-c2");
   var s3 = document.getElementById("swatch-c3");
@@ -4519,1075 +2956,54 @@ window.applyTheme = function(themeKey) {
   if (s3) s3.style.background = theme.c3;
   if (badgeLabel) badgeLabel.textContent = theme.name;
 
-  if (typeof appState !== "undefined" && appState) {
-    appState.activeTheme = themeKey;
-  }
-  try {
-    localStorage.setItem("safc_active_theme", themeKey);
-  } catch (e) {}
+  try { localStorage.setItem("safc_active_theme", themeKey); } catch (e) {}
 };
 
-// 3. Dropdown Change Listener
 window.handleThemeSelectChange = function(themeKey) {
   window.applyTheme(themeKey);
 };
 
-// 4. High-Contrast Matchday Outdoor Mode Toggle
 window.toggleHighContrastMode = function(isEnabled) {
   var styleTag = document.getElementById("outdoor-contrast-style");
-
   if (isEnabled) {
     if (!styleTag) {
       styleTag = document.createElement("style");
       styleTag.id = "outdoor-contrast-style";
-      styleTag.textContent = 
-        ".card { border: 2px solid #ffffff !important; background: #000000 !important; }" +
-        ".text-muted { color: #f1f5f9 !important; font-weight: 600 !important; }" +
-        "body { background: #000000 !important; color: #ffffff !important; }" +
-        ".form-input, .form-select { border: 2px solid var(--safc-gold) !important; color: #fff !important; }";
+      styleTag.textContent = ".card { border: 2px solid #ffffff !important; background: #000000 !important; } body { background: #000000 !important; color: #ffffff !important; }";
       document.head.appendChild(styleTag);
     }
-  } else {
-    if (styleTag) styleTag.remove();
+  } else if (styleTag) {
+    styleTag.remove();
   }
-
-  try {
-    localStorage.setItem("safc_high_contrast", isEnabled ? "1" : "0");
-  } catch (e) {}
+  try { localStorage.setItem("safc_high_contrast", isEnabled ? "1" : "0"); } catch (e) {}
 };
 
-// 5. Save Member Display & Privacy Preferences
 window.saveDisplayPreferences = function() {
   var showNick = document.getElementById("pref-public-nickname");
   var alerts = document.getElementById("pref-notifications");
-
-  var prefs = {
-    showNickname: showNick ? showNick.checked : true,
-    notifications: alerts ? alerts.checked : true
-  };
-
   try {
-    localStorage.setItem("safc_display_prefs", JSON.stringify(prefs));
+    localStorage.setItem("safc_display_prefs", JSON.stringify({
+      showNickname: showNick ? showNick.checked : true,
+      notifications: alerts ? alerts.checked : true
+    }));
   } catch (e) {}
 };
 
-// 6. Restore Preferences & Theme on App Initialization
-(function restoreMemberPreferences() {
+(function restorePreferences() {
   try {
-    // Purge any lingering light mode styles or storage artifacts
-    var lightStyle = document.getElementById("safc-light-mode-style");
-    if (lightStyle) lightStyle.remove();
-    localStorage.removeItem("safc_color_mode");
-
-    // A. Restore Theme
     var savedTheme = localStorage.getItem("safc_active_theme") || "1990-vaux-home";
-    var selectElem = document.getElementById("theme-kit-select");
-    if (selectElem) selectElem.value = savedTheme;
+    var sel = document.getElementById("theme-kit-select");
+    if (sel) sel.value = savedTheme;
     window.applyTheme(savedTheme);
 
-    // B. Restore High-Contrast Mode
     var savedContrast = localStorage.getItem("safc_high_contrast") === "1";
-    var contrastCheckbox = document.getElementById("pref-high-contrast");
-    if (contrastCheckbox) {
-      contrastCheckbox.checked = savedContrast;
-      window.toggleHighContrastMode(savedContrast);
-    }
-
-    // C. Restore Privacy Preferences
-    var rawPrefs = localStorage.getItem("safc_display_prefs");
-    if (rawPrefs) {
-      var parsed = JSON.parse(rawPrefs);
-      var nickBox = document.getElementById("pref-public-nickname");
-      var alertBox = document.getElementById("pref-notifications");
-      if (nickBox && typeof parsed.showNickname !== "undefined") nickBox.checked = parsed.showNickname;
-      if (alertBox && typeof parsed.notifications !== "undefined") alertBox.checked = parsed.notifications;
-    }
-  } catch (err) {
-    console.warn("Preference restoration note:", err);
-  }
+    var cb = document.getElementById("pref-high-contrast");
+    if (cb) { cb.checked = savedContrast; window.toggleHighContrastMode(savedContrast); }
+  } catch (e) {}
 })();
 
-// // ========================================================
-// SECTION 7: MATCHDAY FOOTBALL CARD FUNDRAISER & ADMIN ENGINE
-// ========================================================
-
-// Master 40 Teams Reference
-var DEFAULT_40_TEAMS = [
-  "Sunderland", "Newcastle", "Middlesbrough", "Leeds United",
-  "Coventry City", "Burnley", "Sheffield United", "Hull City",
-  "Blackburn Rovers", "Preston North End", "Stoke City", "Derby County",
-  "West Brom", "Bristol City", "Swansea City", "Cardiff City",
-  "Watford", "Luton Town", "Norwich City", "Millwall",
-  "QPR", "Plymouth Argyle", "Portsmouth", "Oxford United",
-  "Arsenal", "Aston Villa", "Chelsea", "Everton",
-  "Fulham", "Liverpool", "Man City", "Man United",
-  "Brighton", "Brentford", "Tottenham", "West Ham",
-  "Celtic", "Rangers", "Aberdeen", "Hearts"
-];
-
-// 1. Initialize & Synchronize Football Card State with LocalStorage
-(function initFootballCardState() {
-  if (typeof appState === "undefined" || !appState) return;
-
-  if (appState.bonusBall) delete appState.bonusBall;
-
-  var savedCard = null;
-  var savedMeta = null;
-  try {
-    var rawCard = localStorage.getItem("coxhoe_football_card_v20");
-    if (rawCard) savedCard = JSON.parse(rawCard);
-    var rawMeta = localStorage.getItem("coxhoe_card_meta_v20");
-    if (rawMeta) savedMeta = JSON.parse(rawMeta);
-  } catch (e) {}
-
-  if (savedCard && Array.isArray(savedCard) && savedCard.length === 40) {
-    appState.footballCard = savedCard;
-  } else if (!appState.footballCard || !Array.isArray(appState.footballCard) || appState.footballCard.length !== 40) {
-    appState.footballCard = DEFAULT_40_TEAMS.map(function(teamName, idx) {
-      var claimed = null;
-      if (idx === 0) claimed = "Gary Miller";
-      if (idx === 6) claimed = "Graham Croft";
-      return { id: idx + 1, team: teamName, price: 2.00, claimedBy: claimed };
-    });
-  }
-
-  if (savedMeta && savedMeta.status) {
-    appState.activeCardMeta = savedMeta;
-  } else if (!appState.activeCardMeta) {
-    appState.activeCardMeta = {
-      cardId: 1,
-      title: "Matchday 40-Team Scratch Card #1",
-      status: "active", // "active" | "completed"
-      pricePerTeam: 2.00,
-      winnerPrize: 40.00,
-      branchPrize: 40.00,
-      winnerTeam: null,
-      winnerMember: null
-    };
-  }
-
-  syncFootballCardState();
-})();
-
-// Helper: Synchronize counts & bidirectional state across structures
-function syncFootballCardState() {
-  if (!appState || !appState.footballCard) return { sold: 0, total: 40 };
-
-  var soldCount = appState.footballCard.filter(function(sq) { return !!sq.claimedBy; }).length;
-
-  if (appState.activeCardMeta) {
-    appState.activeCardMeta.sold = soldCount;
-  }
-
-  if (!appState.cardClaims) appState.cardClaims = {};
-  appState.footballCard.forEach(function(sq) {
-    if (sq.claimedBy) {
-      appState.cardClaims[sq.team] = sq.claimedBy;
-    } else {
-      delete appState.cardClaims[sq.team];
-    }
-  });
-
-  return { sold: soldCount, total: 40 };
-}
-
-function persistFootballCard() {
-  try {
-    if (appState.footballCard) {
-      localStorage.setItem("coxhoe_football_card_v20", JSON.stringify(appState.footballCard));
-    }
-    if (appState.activeCardMeta) {
-      localStorage.setItem("coxhoe_card_meta_v20", JSON.stringify(appState.activeCardMeta));
-    }
-    if (typeof saveState === "function") saveState();
-  } catch (e) {
-    console.warn("Storage notice:", e);
-  }
-}
-
-// Multi-Selection State Cache
-window._selectedFootballTeamIds = [];
-
-// 2. Member Grid: Multi-Selection Toggle
-window.toggleFootballTeamSelection = function(teamId) {
-  var meta = appState.activeCardMeta || {};
-  if (meta.status === "completed") return; // Locked once drawn
-
-  var idx = window._selectedFootballTeamIds.indexOf(teamId);
-  if (idx !== -1) {
-    window._selectedFootballTeamIds.splice(idx, 1);
-  } else {
-    window._selectedFootballTeamIds.push(teamId);
-  }
-  window.renderFootballGrid();
+// --- BOOTSTRAP ON LOAD ---
+window.onload = function() {
+  window.refreshAllViews();
+  initSupabaseCloudSync();
 };
-
-// 3. Render 40-Square Football Card Grid for Members
-window.renderFootballGrid = function() {
-  var grid = document.getElementById("football-grid");
-  var summary = document.getElementById("card-sold-summary");
-  var actionTeamName = document.getElementById("football-selected-team-name");
-  var claimBtn = document.getElementById("btn-claim-football-team");
-  var cardTitleElem = document.getElementById("football-card-title");
-
-  if (!grid || !appState || !appState.footballCard) return;
-
-  var user = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
-  var userName = user ? user.name : (appState.currentUser ? appState.currentUser.name : "Gary Miller");
-
-  var cards = appState.footballCard;
-  var stats = syncFootballCardState();
-  var meta = appState.activeCardMeta || { status: "active", title: "40-Team Scratch Card #1" };
-  var isCompleted = (meta.status === "completed");
-
-  if (cardTitleElem) {
-    cardTitleElem.textContent = meta.title || "40-Team Scratch Card";
-  }
-
-  if (summary) {
-    if (isCompleted) {
-      summary.className = "badge-red";
-      summary.textContent = "🏆 DRAWN & COMPLETED";
-    } else {
-      summary.className = "badge-gold";
-      summary.textContent = stats.sold + " / 40 Claimed";
-    }
-  }
-
-  grid.innerHTML = "";
-
-  // Insert Winner Banner at the top of the grid if card has been drawn
-  var existingWinnerBanner = document.getElementById("football-member-winner-banner");
-  if (existingWinnerBanner) existingWinnerBanner.remove();
-
-  if (isCompleted && meta.winnerTeam && meta.winnerMember) {
-    var winnerBanner = document.createElement("div");
-    winnerBanner.id = "football-member-winner-banner";
-    winnerBanner.style.cssText = 
-      "background: linear-gradient(135deg, #78350f 0%, #b45309 50%, #f59e0b 100%); " +
-      "border: 2px solid var(--safc-gold, #facc15); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; color: #fff; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.4);";
-    winnerBanner.innerHTML = 
-      "<div style='font-size:10px; font-weight:800; text-transform:uppercase; color:#fde68a; letter-spacing:0.8px;'>🏆 OFFICIAL CARD RESULT</div>" +
-      "<div style='font-size:16px; font-weight:900; margin:3px 0; color:#fff;'>Winning Team: " + meta.winnerTeam + "</div>" +
-      "<div style='font-size:12px; font-weight:700; color:#fef3c7;'>" + meta.winnerMember + " won £" + (meta.winnerPrize || 0).toFixed(2) + "!</div>" +
-      "<div style='font-size:10px; color:#fef08a; margin-top:3px;'>Prize deposited directly to wallet • 50/50 branch fund contribution</div>";
-    grid.parentNode.insertBefore(winnerBanner, grid);
-  }
-
-  cards.forEach(function(sq) {
-    var sqBtn = document.createElement("button");
-    sqBtn.type = "button";
-    var isClaimed = !!sq.claimedBy;
-    var isMine = isClaimed && (sq.claimedBy === userName);
-    var isSelected = (window._selectedFootballTeamIds.indexOf(sq.id) !== -1);
-    var isWinnerSquare = isCompleted && (sq.team === meta.winnerTeam);
-
-    sqBtn.style.cssText = 
-      "display: flex; flex-direction: column; align-items: center; justify-content: center; " +
-      "padding: 6px 4px; min-height: 48px; border-radius: 6px; font-size: 10px; border: 1px solid #334155; " +
-      "cursor: " + (isClaimed || isCompleted ? "default" : "pointer") + "; text-align: center; position: relative;";
-
-    if (isWinnerSquare) {
-      // Golden Highlighting for the Winning Team
-      sqBtn.style.background = "linear-gradient(135deg, #facc15 0%, #eab308 100%)";
-      sqBtn.style.border = "2px solid #ffffff";
-      sqBtn.style.color = "#000000";
-      sqBtn.style.transform = "scale(1.04)";
-      sqBtn.style.boxShadow = "0 0 12px rgba(250, 204, 21, 0.7)";
-      sqBtn.style.zIndex = "2";
-      sqBtn.innerHTML = 
-        "<strong style='font-size:10px; color:#000;'>👑 " + sq.team + "</strong>" +
-        "<span style='font-size:8px; font-weight:900; color:#000;'>WINNER</span>" +
-        "<span style='font-size:7px; font-weight:800; color:#78350f;'>£" + (meta.winnerPrize || 0).toFixed(2) + "</span>";
-    } else if (isMine) {
-      sqBtn.style.background = "#065f46";
-      sqBtn.style.borderColor = "#10b981";
-      sqBtn.style.color = "#34d399";
-      sqBtn.innerHTML = "<strong style='font-size:10px;'>" + sq.team + "</strong><span style='font-size:8px;'>✓ YOU</span>";
-    } else if (isClaimed) {
-      sqBtn.style.background = "#1e293b";
-      sqBtn.style.borderColor = "#334155";
-      sqBtn.style.color = "#64748b";
-      var shortOwner = sq.claimedBy.split(" ")[0];
-      sqBtn.innerHTML = "<span>" + sq.team + "</span><span style='font-size:7px; text-transform:uppercase;'>" + shortOwner + "</span>";
-      sqBtn.disabled = true;
-    } else if (isSelected) {
-      sqBtn.style.background = "var(--safc-gold, #facc15)";
-      sqBtn.style.borderColor = "var(--safc-gold, #facc15)";
-      sqBtn.style.color = "#000000";
-      sqBtn.innerHTML = "<strong style='font-size:10px; color:#000;'>" + sq.team + "</strong><span style='font-size:8px; font-weight:800; color:#000;'>✓ SELECTED</span>";
-      sqBtn.onclick = function() { window.toggleFootballTeamSelection(sq.id); };
-    } else {
-      sqBtn.style.background = "#0f172a";
-      sqBtn.style.color = "#ffffff";
-      sqBtn.innerHTML = "<strong>" + sq.team + "</strong><span style='font-size:8px; color:#94a3b8;'>£2.00</span>";
-      if (!isCompleted) {
-        sqBtn.onclick = function() { window.toggleFootballTeamSelection(sq.id); };
-      } else {
-        sqBtn.disabled = true;
-      }
-    }
-
-    grid.appendChild(sqBtn);
-  });
-
-  // Action Bar Update
-  if (isCompleted) {
-    if (actionTeamName) {
-      actionTeamName.innerHTML = 
-        "<span style='color:var(--safc-gold); font-weight:700;'>Card completed & drawn!</span>" +
-        "<div style='font-size:10px; color:#94a3b8;'>Winner: " + meta.winnerMember + " (" + meta.winnerTeam + ") • £" + (meta.winnerPrize || 0).toFixed(2) + " paid</div>";
-    }
-    if (claimBtn) {
-      claimBtn.textContent = "Card Completed 🏆";
-      claimBtn.disabled = true;
-    }
-  } else {
-    var selCount = window._selectedFootballTeamIds.length;
-    if (selCount > 0) {
-      var selectedTeams = cards.filter(function(x) { 
-        return window._selectedFootballTeamIds.indexOf(x.id) !== -1; 
-      }).map(function(x) { return x.team; });
-
-      var totalCost = selCount * 2.00;
-
-      if (actionTeamName) {
-        actionTeamName.innerHTML = 
-          "Selected (" + selCount + "): <strong style='color:var(--safc-gold);'>" + selectedTeams.join(", ") + "</strong>" +
-          "<div style='font-size:10px; color:#94a3b8;'>Total: £" + totalCost.toFixed(2) + " (£2.00 per team)</div>";
-      }
-      if (claimBtn) {
-        claimBtn.textContent = "Claim " + selCount + " " + (selCount === 1 ? "Team" : "Teams") + " (£" + totalCost.toFixed(2) + ")";
-        claimBtn.disabled = false;
-      }
-    } else {
-      if (actionTeamName) {
-        actionTeamName.innerHTML = "Select one or more available teams<div style='font-size:10px; color:#94a3b8;'>Cost: £2.00 per team deducted from wallet</div>";
-      }
-      if (claimBtn) {
-        claimBtn.textContent = "Claim Teams";
-        claimBtn.disabled = true;
-      }
-    }
-  }
-};
-
-// 4. Member Multi-Team Purchase Confirmation
-window.confirmFootballTeamPurchase = function() {
-  var meta = appState.activeCardMeta || {};
-  if (meta.status === "completed") {
-    alert("⚠️ This card has already been drawn. Please wait for the committee to launch a new card.");
-    return;
-  }
-
-  var selCount = window._selectedFootballTeamIds.length;
-  if (selCount === 0) return;
-
-  var user = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
-  if (!user && appState.currentUser) {
-    user = { name: appState.currentUser.name || appState.currentUser, balance: 35.00 };
-  }
-  if (!user) {
-    alert("Please log in to purchase.");
-    return;
-  }
-
-  var totalCost = selCount * 2.00;
-  if (user.balance < totalCost) {
-    alert("⚠️ Insufficient Wallet Balance!\n\nTotal Cost: £" + totalCost.toFixed(2) + "\nCurrent Balance: £" + user.balance.toFixed(2) + "\n\nPlease top up your wallet via 'My Pass' first.");
-    return;
-  }
-
-  user.balance -= totalCost;
-
-  var claimedNames = [];
-  window._selectedFootballTeamIds.forEach(function(teamId) {
-    var sq = appState.footballCard.find(function(x) { return x.id === teamId; });
-    if (sq && !sq.claimedBy) {
-      sq.claimedBy = user.name;
-      claimedNames.push(sq.team);
-    }
-  });
-
-  if (typeof logForensicTransaction === "function") {
-    logForensicTransaction(
-      user.name,
-      "Member",
-      "Branch Lottery",
-      "CARD",
-      "Football Card (" + selCount + " teams): " + claimedNames.join(", "),
-      totalCost,
-      0,
-      totalCost
-    );
-  }
-
-  syncFootballCardState();
-  persistFootballCard();
-
-  alert("⚽ TEAMS SECURED!\n\nYou have claimed " + selCount + " teams:\n" + claimedNames.join(", ") + "\n\nTotal Deducted: £" + totalCost.toFixed(2) + "\nRemaining Wallet: £" + user.balance.toFixed(2) + "\n\nGood luck in the official draw!");
-
-  window._selectedFootballTeamIds = [];
-
-  if (typeof window.updateBalanceDisplay === "function") window.updateBalanceDisplay();
-  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
-  if (typeof window.renderHUDView === "function") window.renderHUDView();
-  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
-};
-
-// 5. Admin Panel: Management Suite & Gating Engine
-window.renderAdminFootballCardManager = function() {
-  var pane = document.getElementById("admin-pane-footballcard");
-  if (!pane) return;
-
-  var stats = syncFootballCardState();
-  var meta = appState.activeCardMeta || { status: "active", cardId: 1, title: "Card #1", pricePerTeam: 2.00 };
-  var isActive = (meta.status === "active");
-
-  var price = meta.pricePerTeam || 2.00;
-  var actualPot = stats.sold * price;
-  var winnerCalculatedPrize = (actualPot * 0.50);
-  var branchCalculatedProfit = (actualPot * 0.50);
-
-  var pct = Math.round((stats.sold / 40) * 100);
-
-  pane.innerHTML = 
-    "<h4>⚽ Football Card Fundraiser Suite</h4>" +
-    "<p class='text-xs text-muted mb-2'>Manage active matchday scratch card, track team sales, enforce single 50/50 payout, and dispatch push alerts.</p>" +
-
-    "<div class='admin-card' style='background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
-      "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>" +
-        "<div>" +
-          "<span style='font-size:9px; font-weight:800; color:var(--safc-gold); text-transform:uppercase;'>BRANCH FUNDRAISER GOVERNANCE</span>" +
-          "<h4 style='margin:2px 0; font-size:14px; font-weight:800; color:#fff;'>" + (meta.title || "Matchday 40-Team Scratch Card") + "</h4>" +
-        "</div>" +
-        "<span style='padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; background:" + (isActive ? "#065f46; color:#34d399;" : "#334155; color:#94a3b8;") + "'>" +
-          (isActive ? "🟢 ACTIVE CARD" : "⚪ DRAWN & ARCHIVED") +
-        "</span>" +
-      "</div>" +
-
-      // Live Sold & 50/50 Revenue Metrics
-      "<div style='background:#1e293b; padding:10px; border-radius:6px; margin-bottom:10px; border:1px solid #334155;'>" +
-        "<div style='display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;'>" +
-          "<span>Teams Claimed: <strong style='color:var(--safc-gold); font-size:13px;'>" + stats.sold + " / 40</strong></span>" +
-          "<span style='color:var(--green); font-weight:700;'>Total Pot: £" + actualPot.toFixed(2) + "</span>" +
-        "</div>" +
-        "<div style='height:6px; background:#0f172a; border-radius:3px; overflow:hidden; margin-bottom:4px;'>" +
-          "<div style='width:" + pct + "%; height:100%; background:var(--safc-red); transition:width 0.3s ease;'></div>" +
-        "</div>" +
-        "<div style='display:flex; justify-content:space-between; font-size:9px; color:#94a3b8;'>" +
-          "<span>Winner Share (50%): <strong style='color:var(--safc-gold);'>£" + (isActive ? winnerCalculatedPrize.toFixed(2) : (meta.winnerPrize || 0).toFixed(2)) + "</strong></span>" +
-          "<span>Branch Funds (50%): <strong style='color:var(--green);'>£" + (isActive ? branchCalculatedProfit.toFixed(2) : (meta.branchProfit || 0).toFixed(2)) + "</strong></span>" +
-        "</div>" +
-      "</div>" +
-
-      // Committee Scratch / Draw & Manifest Controls
-      "<div style='display:flex; gap:6px; margin-bottom:10px;'>" +
-        (isActive ? 
-          "<button class='btn btn-gold btn-sm' style='flex:1; font-size:11px;' onclick='window.adminDrawFootballCardWinner()'>" +
-            "🏆 Scratch & Draw Winner (£" + winnerCalculatedPrize.toFixed(2) + ")" +
-          "</button>" : 
-          "<button class='btn btn-outline btn-sm' style='flex:1; font-size:11px; opacity:0.5; cursor:not-allowed;' disabled>" +
-            "✓ Winner Paid: " + meta.winnerMember + " (£" + (meta.winnerPrize || 0).toFixed(2) + ")" +
-          "</button>"
-        ) +
-        "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px;' onclick='window.toggleAdminClaimManifest()'>" +
-          "📋 View Buyers" +
-        "</button>" +
-      "</div>" +
-
-      // Buyer Manifest Container (Toggleable)
-      "<div id='admin-football-manifest-box' style='display:none; max-height:160px; overflow-y:auto; background:#1e293b; padding:8px; border-radius:6px; font-size:10px; border:1px solid #334155; margin-bottom:10px;'>" +
-        "<div style='font-weight:700; color:var(--safc-gold); margin-bottom:4px;'>Claimed Teams Manifest:</div>" +
-        (function() {
-          var claimed = appState.footballCard.filter(function(x) { return x.claimedBy; });
-          if (claimed.length === 0) return "<div style='color:#94a3b8;'>No teams claimed yet.</div>";
-          return claimed.map(function(x) {
-            return "<div style='display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #334155;'>" +
-              "<span>" + x.team + "</span><strong style='color:#fff;'>" + x.claimedBy + "</strong>" +
-            "</div>";
-          }).join("");
-        })() +
-      "</div>" +
-
-      // Gated "Launch New Card" Suite
-      "<div style='border-top:1px solid #334155; padding-top:10px;'>" +
-        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>" +
-          "<strong style='font-size:11px; color:var(--safc-gold);'>🚀 Launch New Scratch Card</strong>" +
-          "<span style='font-size:9px; font-weight:700; color:" + (isActive ? "#f87171;" : "#34d399;") + "'>" +
-            (isActive ? "🔒 LOCKED (Card Active)" : "🟢 UNLOCKED") +
-          "</span>" +
-        "</div>" +
-
-        (isActive 
-          ? "<div style='background:#7f1d1d26; border:1px dashed #ef4444; border-radius:6px; padding:8px 10px; font-size:10px; color:#fca5a5; line-height:1.4; margin-bottom:8px;'>" +
-              "⚠️ <strong>A scratch card is currently in progress (" + stats.sold + "/40 teams sold).</strong><br>" +
-              "To protect integrity, a new card cannot be launched until this card is completed and a winner is drawn." +
-            "</div>"
-          : "<div style='background:#065f4626; border:1px dashed #10b981; border-radius:6px; padding:8px 10px; font-size:10px; color:#6ee7b7; line-height:1.4; margin-bottom:8px;'>" +
-              "✓ The previous card has been drawn and archived. You can now launch a fresh 40-team card." +
-            "</div>"
-        ) +
-
-        "<div style='display:grid; grid-template-columns:2fr 1fr; gap:6px; margin-bottom:8px; opacity:" + (isActive ? "0.4" : "1") + ";'>" +
-          "<div>" +
-            "<label class='form-label' style='font-size:9px;'>New Card Title</label>" +
-            "<input type='text' id='admin-new-card-title' class='form-input' value='Matchday Scratch Card #" + ((meta.cardId || 1) + 1) + "' style='padding:5px; font-size:11px;' " + (isActive ? "disabled" : "") + " />" +
-          "</div>" +
-          "<div>" +
-            "<label class='form-label' style='font-size:9px;'>Team Price</label>" +
-            "<input type='text' class='form-input' value='£2.00' style='padding:5px; font-size:11px;' disabled />" +
-          "</div>" +
-        "</div>" +
-
-        "<button id='btn-admin-launch-card' class='btn btn-red btn-sm' style='width:100%; font-size:11px; opacity:" + (isActive ? "0.4" : "1") + "; cursor:" + (isActive ? "not-allowed" : "pointer") + ";' " + (isActive ? "disabled" : "") + " onclick='window.adminLaunchNewFootballCard()'>" +
-          (isActive ? "🔒 Launch Disabled (Card in Progress)" : "🚀 Launch New 40-Team Scratch Card") +
-        "</button>" +
-      "</div>" +
-    "</div>";
-};
-
-// 6. Admin Action: Toggle Buyer Manifest
-window.toggleAdminClaimManifest = function() {
-  var box = document.getElementById("admin-football-manifest-box");
-  if (box) {
-    box.style.display = (box.style.display === "none") ? "block" : "none";
-  }
-};
-
-// 7. Admin Action: Scratch & Draw Winner (Enforces Single Payout & 50/50 Split)
-window.adminDrawFootballCardWinner = function() {
-  var meta = appState.activeCardMeta || {};
-
-  // HARD GUARD: Prevent multiple payouts on the same card
-  if (meta.status === "completed") {
-    alert("⚠️ CARD ALREADY ARCHIVED:\n\nThis scratch card has already been drawn and paid out to " + meta.winnerMember + " (£" + (meta.winnerPrize || 0).toFixed(2) + ").\n\nA card cannot be paid out twice. Launch a fresh card below.");
-    return;
-  }
-
-  var claimed = appState.footballCard.filter(function(x) { return !!x.claimedBy; });
-  if (claimed.length === 0) {
-    alert("⚠️ No teams have been claimed on this card yet.");
-    return;
-  }
-
-  var stats = syncFootballCardState();
-  var pricePerTeam = meta.pricePerTeam || 2.00;
-  var totalCollected = stats.sold * pricePerTeam;
-
-  // AUTOMATIC 50/50 SPLIT OF ACTUAL SOLD AMOUNT
-  var winnerPrize = totalCollected * 0.50;
-  var branchShare = totalCollected * 0.50;
-
-  var confirmMsg = (stats.sold < 40)
-    ? "⚠️ PARTIAL CARD 50/50 DRAW:\n\n" +
-      "• Teams Sold: " + stats.sold + " of 40\n" +
-      "• Total Pot Collected: £" + totalCollected.toFixed(2) + "\n\n" +
-      "Under branch rules, the prize recalculates to an exact 50/50 split of the sold pot:\n" +
-      "➔ Winner Payout: £" + winnerPrize.toFixed(2) + " (50%)\n" +
-      "➔ Branch Funds: £" + branchShare.toFixed(2) + " (50%)\n\n" +
-      "Draw the official winning team now?"
-    : "Confirm scratching the card and drawing the official winner?\n\n• Winner Payout (50%): £" + winnerPrize.toFixed(2) + "\n• Branch Share (50%): £" + branchShare.toFixed(2);
-
-  if (!confirm(confirmMsg)) return;
-
-  // Draw winning team randomly from claimed squares
-  var winningSquare = claimed[Math.floor(Math.random() * claimed.length)];
-  var winnerName = winningSquare.claimedBy;
-  var winningTeam = winningSquare.team;
-
-  // Credit winner's wallet exactly once
-  var winnerRecord = null;
-  if (appState.users && Array.isArray(appState.users)) {
-    winnerRecord = appState.users.find(function(m) { return m.name === winnerName; });
-  }
-  if (!winnerRecord && appState.currentUser && appState.currentUser.name === winnerName) {
-    winnerRecord = (typeof getCurrentUserRecord === "function") ? getCurrentUserRecord() : null;
-  }
-  if (winnerRecord) {
-    winnerRecord.balance = (parseFloat(winnerRecord.balance) || 0) + winnerPrize;
-  }
-
-  // Log to Forensic Statement Ledger
-  if (typeof logForensicTransaction === "function") {
-    logForensicTransaction(
-      "Branch",
-      "Admin",
-      winnerName,
-      "PRIZE",
-      "Scratch Card Winner: " + winningTeam + " (50/50 Split)",
-      0,
-      winnerPrize,
-      branchShare
-    );
-  }
-
-  // Collect list of all unique buyers who bought a team
-  var uniqueBuyers = [];
-  claimed.forEach(function(sq) {
-    if (uniqueBuyers.indexOf(sq.claimedBy) === -1) uniqueBuyers.push(sq.claimedBy);
-  });
-
-  // LOCK & ARCHIVE THE CARD
-  meta.status = "completed";
-  meta.winnerTeam = winningTeam;
-  meta.winnerMember = winnerName;
-  meta.winnerPrize = winnerPrize;
-  meta.branchProfit = branchShare;
-  meta.completedAt = new Date().toISOString();
-  meta.buyers = uniqueBuyers;
-
-  // DISPATCH NOTIFICATIONS TO BUYERS
-  // 1. In-App Urgent Broadcast Banner for Home HUD
-  if (appState.announcements && Array.isArray(appState.announcements)) {
-    appState.announcements.unshift({
-      id: "card-win-" + Date.now(),
-      title: "🏆 Scratch Card Result: " + winningTeam + " Wins!",
-      body: "Congratulations to " + winnerName + " who won £" + winnerPrize.toFixed(2) + " on the branch scratch card! £" + branchShare.toFixed(2) + " retained for branch travel funds.",
-      date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
-      category: "Lottery",
-      pinned: true
-    });
-  }
-
-  // 2. Web Push Notification to Device (if permitted)
-  if ("Notification" in window && Notification.permission === "granted") {
-    try {
-      new Notification("🏆 SAFC Scratch Card Winner Drawn!", {
-        body: winnerName + " won £" + winnerPrize.toFixed(2) + " with " + winningTeam + "! (50/50 pot split)",
-        icon: "icon-192.png"
-      });
-    } catch (pushErr) {}
-  }
-
-  persistFootballCard();
-
-  alert(
-    "🎉 WINNER SCRATCHED & RATIFIED!\n\n" +
-    "• Winning Team: " + winningTeam + "\n" +
-    "• Winner: " + winnerName + "\n" +
-    "• Prize Paid: £" + winnerPrize.toFixed(2) + " (50% of pot)\n" +
-    "• Branch Funds: £" + branchShare.toFixed(2) + "\n\n" +
-    "📢 Push alert & feed announcement sent to all " + uniqueBuyers.length + " participant buyers.\n" +
-    "🔒 Card locked & archived. The 'Launch New Card' facility is now unlocked!"
-  );
-
-  // Instant Refresh
-  if (typeof window.updateBalanceDisplay === "function") window.updateBalanceDisplay();
-  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
-  if (typeof window.renderHUDView === "function") window.renderHUDView();
-  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
-};
-
-// 8. Admin Action: Launch New Card
-window.adminLaunchNewFootballCard = function() {
-  var meta = appState.activeCardMeta || {};
-  if (meta.status === "active") {
-    alert("⚠️ An active card is already in progress. Draw a winner or complete the card before launching a new one.");
-    return;
-  }
-
-  var titleInput = document.getElementById("admin-new-card-title");
-  var newTitle = titleInput ? titleInput.value.trim() : "Matchday Scratch Card #" + ((meta.cardId || 1) + 1);
-
-  if (!confirm("Launch '" + newTitle + "' for all branch members?")) return;
-
-  // Reset to fresh 40 teams
-  appState.footballCard = DEFAULT_40_TEAMS.map(function(teamName, idx) {
-    return { id: idx + 1, team: teamName, price: 2.00, claimedBy: null };
-  });
-
-  appState.activeCardMeta = {
-    cardId: (meta.cardId || 1) + 1,
-    title: newTitle,
-    status: "active",
-    pricePerTeam: 2.00,
-    winnerPrize: 40.00,
-    branchPrize: 40.00,
-    winnerTeam: null,
-    winnerMember: null
-  };
-
-  syncFootballCardState();
-  persistFootballCard();
-
-  alert("🚀 NEW SCRATCH CARD LIVE!\n\n'" + newTitle + "' is now active and available on member home HUDs and fundraiser boards.");
-
-  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
-  if (typeof window.renderHUDView === "function") window.renderHUDView();
-  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
-};
-
-// 9. OVERRIDE ALL LEGACY FUNCTION CALLS & AUTO-RENDER HOOKS
-window.renderAdminFootballCard = window.renderAdminFootballCardManager;
-window.renderFootballCard = window.renderFootballGrid;
-window.drawCardWinner = window.adminDrawFootballCardWinner;
-window.launchNewFootballCard = window.adminLaunchNewFootballCard;
-
-var _fundraiserOrigSwitchTab = window.switchTab;
-window.switchTab = function(tabId, el) {
-  if (_fundraiserOrigSwitchTab) _fundraiserOrigSwitchTab(tabId, el);
-  if (tabId === "view-fundraising") {
-    setTimeout(function() {
-      if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
-    }, 50);
-  }
-};
-
-var _origSwitchAdminTool = window.switchAdminTool;
-window.switchAdminTool = function(toolId) {
-  if (_origSwitchAdminTool) _origSwitchAdminTool(toolId);
-  if (toolId === "footballcard") {
-    setTimeout(function() {
-      if (typeof window.renderAdminFootballCardManager === "function") {
-        window.renderAdminFootballCardManager();
-      }
-    }, 50);
-  }
-};
-
-// Mount initial sync on script load
-setTimeout(function() {
-  syncFootballCardState();
-  if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
-  if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
-}, 150);
-
-// // ========================================================
-// SECTION 8: SECTIONAL APP MODULES & WHITE-LABEL BRANDING
-// ========================================================
-
-// Temporary upload state cache
-window._tempCrestLogoUrl = undefined;
-
-// 1. Initialize Club Identity & Feature Modules in State
-(function initClubModulesState() {
-  if (typeof appState === "undefined" || !appState) return;
-
-  var defaultIdentity = {
-    clubName: "Coxhoe Branch",
-    subTitle: "Supporters Club",
-    badgeInitials: "SAFC",
-    crestLogoUrl: null
-  };
-
-  try {
-    var savedId = localStorage.getItem("coxhoe_club_identity_v20");
-    appState.clubIdentity = savedId ? Object.assign(defaultIdentity, JSON.parse(savedId)) : defaultIdentity;
-  } catch (e) {
-    appState.clubIdentity = defaultIdentity;
-  }
-
-  var defaultModules = {
-    travel: true,          // Coach booking, stops & manifest
-    awayTickets: true,     // Away match ticket ballots
-    fundraiser: true,      // 40-Team Matchday Football Card
-    commsBusChat: false,   // Matchday bus chat (defaulted off for clean ops)
-    commsHelpdesk: true,   // Direct committee mailbox
-    duesAndPass: true      // Digital passes & wallet ledger
-  };
-
-  try {
-    var savedMods = localStorage.getItem("coxhoe_modules_v20");
-    appState.modules = savedMods ? Object.assign(defaultModules, JSON.parse(savedMods)) : defaultModules;
-  } catch (e) {
-    appState.modules = defaultModules;
-  }
-})();
-
-// 2. Apply White-Label Branding to Top Header
-window.applyClubIdentity = function() {
-  if (!appState || !appState.clubIdentity) return;
-  var id = appState.clubIdentity;
-
-  var crestElem = document.getElementById("header-crest-badge");
-  var titleElem = document.getElementById("header-brand-title");
-  var subElem = document.getElementById("header-brand-sub");
-
-  if (crestElem) {
-    if (id.crestLogoUrl) {
-      crestElem.innerHTML = "<img src='" + id.crestLogoUrl + "' style='width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;' alt='Club Crest' />";
-      crestElem.style.padding = "0";
-      crestElem.style.overflow = "hidden";
-      crestElem.style.background = "#0f172a";
-      crestElem.style.border = "2px solid var(--safc-gold, #facc15)";
-    } else {
-      crestElem.innerHTML = id.badgeInitials || "SAFC";
-      crestElem.style.padding = "";
-      crestElem.style.overflow = "";
-      crestElem.style.background = "";
-      crestElem.style.border = "2px solid var(--safc-gold, #facc15)";
-    }
-  }
-
-  if (titleElem && id.clubName) titleElem.textContent = id.clubName;
-  if (subElem && id.subTitle) subElem.textContent = id.subTitle;
-
-  document.title = (id.clubName || "Club Portal") + " - " + (id.badgeInitials || "Branch");
-};
-
-// 3. Dynamic UI Visibility Controller
-window.applyAppModules = function() {
-  if (!appState || !appState.modules) return;
-  var mods = appState.modules;
-
-  // Bottom Navigation Items
-  var navTravel = document.getElementById("nav-travel");
-  var navFundraiser = document.getElementById("nav-fundraiser");
-  var navComms = document.getElementById("nav-comms");
-  var navProfile = document.getElementById("nav-profile");
-
-  if (navTravel) navTravel.style.display = mods.travel ? "flex" : "none";
-  if (navFundraiser) navFundraiser.style.display = mods.fundraiser ? "flex" : "none";
-  if (navProfile) navProfile.style.display = mods.duesAndPass ? "flex" : "none";
-
-  var commsAny = mods.commsBusChat || mods.commsHelpdesk;
-  if (navComms) navComms.style.display = commsAny ? "flex" : "none";
-
-  // Balance remaining tabs evenly across the screen
-  var navItems = document.querySelectorAll(".bottom-nav .nav-item");
-  navItems.forEach(function(item) {
-    item.style.flex = "1";
-    item.style.width = "auto";
-  });
-
-  // Home HUD Contextual Cards
-  var hudFundraiserCard = document.getElementById("hud-card-fundraiser-pulse");
-  if (hudFundraiserCard) {
-    hudFundraiserCard.style.display = mods.fundraiser ? "block" : "none";
-  }
-
-  var hudTravelCard = document.getElementById("hud-travel-card-status");
-  if (hudTravelCard && !mods.travel) {
-    hudTravelCard.style.display = "none";
-  }
-
-  // Away Tickets Card
-  var awayCard = document.getElementById("member-away-status-card");
-  if (awayCard && awayCard.parentElement) {
-    awayCard.parentElement.style.display = mods.awayTickets ? "block" : "none";
-  }
-
-  // Comms Sub-Tabs
-  var btnBus = document.getElementById("btn-sub-bus");
-  var btnDesk = document.getElementById("btn-sub-desk");
-
-  if (btnBus) btnBus.style.display = mods.commsBusChat ? "block" : "none";
-  if (btnDesk) btnDesk.style.display = mods.commsHelpdesk ? "block" : "none";
-
-  if (!mods.commsBusChat && mods.commsHelpdesk) {
-    if (typeof switchCommsSubTab === "function") switchCommsSubTab("desk");
-  } else if (mods.commsBusChat && !mods.commsHelpdesk) {
-    if (typeof switchCommsSubTab === "function") switchCommsSubTab("bus");
-  }
-};
-
-// 4. Admin Module Manager & Branding Pane Renderer
-window.renderAdminModulesManager = function() {
-  var container = document.getElementById("admin-modules-switches-container") || document.getElementById("admin-pane-modules");
-  if (!container || !appState) return;
-
-  var mods = appState.modules || {};
-  var id = appState.clubIdentity || { clubName: "Coxhoe Branch", subTitle: "Supporters Club", badgeInitials: "SAFC", crestLogoUrl: null };
-  var currentLogo = (typeof window._tempCrestLogoUrl !== "undefined") ? window._tempCrestLogoUrl : id.crestLogoUrl;
-
-  var html = 
-    "<div class='admin-card' style='background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
-      "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:4px;'>🏢 Club & Branch Identity (White-Label)</strong>" +
-      "<p class='text-xs text-muted mb-2'>Re-skin the top header branding and upload your official club crest logo.</p>" +
-
-      // Club Crest Photo Upload Suite
-      "<div style='background:#1e293b; padding:10px; border-radius:6px; margin-bottom:10px; border:1px solid #334155;'>" +
-        "<label class='form-label' style='font-size:10px; color:var(--safc-gold); margin-bottom:6px;'>Club Crest Photo</label>" +
-        "<div style='display:flex; align-items:center; gap:12px;'>" +
-          "<div id='admin-crest-preview-box' style='width:52px; height:52px; border-radius:50%; border:2px solid var(--safc-gold); background:#0f172a; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;'>" +
-            (currentLogo 
-              ? "<img id='admin-crest-preview-img' src='" + currentLogo + "' style='width:100%; height:100%; object-fit:cover;' alt='Crest Preview' />"
-              : "<span style='font-weight:900; font-size:12px; color:var(--safc-gold);'>SAFC</span>") +
-          "</div>" +
-          "<div style='flex:1;'>" +
-            "<input type='file' id='admin-crest-file-input' accept='image/*' style='display:none;' onchange='window.handleClubCrestUpload(event)' />" +
-            "<div style='display:flex; gap:6px;'>" +
-              "<button type='button' class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px;' onclick='document.getElementById(\"admin-crest-file-input\").click()'>" +
-                "📷 Upload Photo" +
-              "</button>" +
-              (currentLogo 
-                ? "<button type='button' class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px; color:#ef4444; border-color:#ef4444;' onclick='window.removeClubCrestPhoto()'>Remove</button>" 
-                : "") +
-            "</div>" +
-            "<span style='font-size:9px; color:#94a3b8; display:block; margin-top:4px;'>PNG, JPG or SVG (Max 2MB). Fits round crest.</span>" +
-          "</div>" +
-        "</div>" +
-      "</div>" +
-
-      // Name & Subtitle Inputs
-      "<div class='form-group' style='margin-bottom:6px;'>" +
-        "<label class='form-label' style='font-size:9px;'>Club / Branch Name</label>" +
-        "<input type='text' id='admin-branding-name' class='form-input' value='" + (id.clubName || "") + "' style='padding:6px; font-size:11px;' />" +
-      "</div>" +
-
-      "<div class='form-group' style='margin-bottom:8px;'>" +
-        "<label class='form-label' style='font-size:9px;'>Sub-Heading / Tagline</label>" +
-        "<input type='text' id='admin-branding-sub' class='form-input' value='" + (id.subTitle || "") + "' style='padding:6px; font-size:11px;' />" +
-      "</div>" +
-
-      "<button class='btn btn-gold btn-sm' style='width:100%; font-size:10px;' onclick='window.saveClubBranding()'>💾 Save Club Identity</button>" +
-    "</div>" +
-
-    "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:6px;'>🧩 Functional Feature Toggles</strong>";
-
-  var moduleDefinitions = [
-    {
-      key: "travel",
-      icon: "🚌",
-      title: "Coach Travel & Bus Fleet",
-      desc: "Manages matchday coach booking, multi-passenger parties, village pickup stops, and door check-in manifests."
-    },
-    {
-      key: "awayTickets",
-      icon: "🎟️",
-      title: "Away Match Tickets",
-      desc: "Allows members to submit expressions of interest for club away ticket allocations with committee assignation."
-    },
-    {
-      key: "fundraiser",
-      icon: "⚽",
-      title: "Matchday Scratch Card (Fundraiser)",
-      desc: "40-team multi-selection football card with 50/50 prize splitting and winner announcements."
-    },
-    {
-      key: "commsBusChat",
-      icon: "💬",
-      title: "Matchday Bus Chat",
-      desc: "Live passenger chatter tethered to the active fixture with 24h auto-expiry and language safeguards."
-    },
-    {
-      key: "commsHelpdesk",
-      icon: "🛡️",
-      title: "Committee Helpdesk & Mailbox",
-      desc: "Private member query routing with dual red/gold notification badges and internal committee notes."
-    },
-    {
-      key: "duesAndPass",
-      icon: "🪪",
-      title: "Membership Passes & Wallet Ledger",
-      desc: "Digital membership cards, annual dues renewal gates, and downloadable audit trail statements."
-    }
-  ];
-
-  moduleDefinitions.forEach(function(mod) {
-    var isEnabled = !!mods[mod.key];
-    html += 
-      "<div class='admin-card' style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:10px 12px; margin-bottom:8px; border-left:3px solid " + (isEnabled ? "var(--green)" : "#475569") + ";'>" +
-        "<div style='flex:1; padding-right:12px;'>" +
-          "<div style='display:flex; align-items:center; gap:6px;'>" +
-            "<span style='font-size:14px;'>" + mod.icon + "</span>" +
-            "<strong style='font-size:12px; color:#fff;'>" + mod.title + "</strong>" +
-          "</div>" +
-          "<p style='font-size:10px; color:#94a3b8; margin:3px 0 0 0; line-height:1.4;'>" + mod.desc + "</p>" +
-        "</div>" +
-        "<div>" +
-          "<button class='btn btn-sm " + (isEnabled ? "btn-gold" : "btn-outline") + "' style='min-width:70px; font-weight:800; font-size:10px; padding:6px 8px; border-color:" + (isEnabled ? "var(--safc-gold)" : "#64748b") + "; color:" + (isEnabled ? "#000" : "#94a3b8") + ";' onclick='window.toggleAppModule(\"" + mod.key + "\")'>" +
-            (isEnabled ? "✓ ACTIVE" : "OFF") +
-          "</button>" +
-        "</div>" +
-      "</div>";
-  });
-
-  container.innerHTML = html;
-};
-
-// 5. Handle Club Crest Photo Selection & Reader
-window.handleClubCrestUpload = function(event) {
-  var file = event.target.files && event.target.files[0];
-  if (!file) return;
-
-  if (file.size > 2 * 1024 * 1024) {
-    alert("Please select a crest image smaller than 2MB.");
-    return;
-  }
-
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    window._tempCrestLogoUrl = e.target.result;
-    window.renderAdminModulesManager();
-  };
-  reader.readAsDataURL(file);
-};
-
-// 6. Remove Club Crest Photo
-window.removeClubCrestPhoto = function() {
-  window._tempCrestLogoUrl = null;
-  if (appState.clubIdentity) {
-    appState.clubIdentity.crestLogoUrl = null;
-  }
-  window.renderAdminModulesManager();
-};
-
-// 7. Save Club Branding
-window.saveClubBranding = function() {
-  var nameInput = document.getElementById("admin-branding-name");
-  var subInput = document.getElementById("admin-branding-sub");
-
-  if (!appState.clubIdentity) appState.clubIdentity = {};
-  appState.clubIdentity.clubName = nameInput ? nameInput.value.trim() : "Coxhoe Branch";
-  appState.clubIdentity.subTitle = subInput ? subInput.value.trim() : "Supporters Club";
-
-  if (typeof window._tempCrestLogoUrl !== "undefined") {
-    appState.clubIdentity.crestLogoUrl = window._tempCrestLogoUrl;
-  }
-
-  try {
-    localStorage.setItem("coxhoe_club_identity_v20", JSON.stringify(appState.clubIdentity));
-  } catch (e) {}
-
-  window.applyClubIdentity();
-  window.renderAdminModulesManager();
-  alert("✓ Club branding saved! Crest photo, club name, and subtitle updated.");
-};
-
-window.toggleAppModule = function(moduleKey) {
-  if (!appState || !appState.modules) return;
-
-  appState.modules[moduleKey] = !appState.modules[moduleKey];
-
-  try {
-    localStorage.setItem("coxhoe_modules_v20", JSON.stringify(appState.modules));
-  } catch (e) {}
-
-  window.applyAppModules();
-  window.renderAdminModulesManager();
-  if (typeof updateCommsBadge === "function") updateCommsBadge();
-};
-
-// 8. Automatic Hook into Admin Dropdown Navigation
-var _prevSwitchAdminToolForModules = window.switchAdminTool;
-window.switchAdminTool = function(toolId) {
-  if (_prevSwitchAdminToolForModules) _prevSwitchAdminToolForModules(toolId);
-  if (toolId === "modules") {
-    setTimeout(function() {
-      if (typeof window.renderAdminModulesManager === "function") {
-        window.renderAdminModulesManager();
-      }
-    }, 20);
-  }
-};
-
-var _prevOpenAdminDrawerForModules = window.openAdminDrawer;
-window.openAdminDrawer = function() {
-  if (_prevOpenAdminDrawerForModules) _prevOpenAdminDrawerForModules();
-  var sel = document.getElementById("admin-tool-select");
-  if (sel && sel.value === "modules") {
-    setTimeout(function() {
-      if (typeof window.renderAdminModulesManager === "function") {
-        window.renderAdminModulesManager();
-      }
-    }, 20);
-  }
-};
-
-// Initial sync on startup
-setTimeout(function() {
-  if (typeof window.applyClubIdentity === "function") window.applyClubIdentity();
-  if (typeof window.applyAppModules === "function") window.applyAppModules();
-}, 80);
