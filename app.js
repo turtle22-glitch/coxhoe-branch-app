@@ -629,7 +629,6 @@ function verifyMembershipAccess(actionName) {
   return true;
 }
 
-// --- DUAL-BADGE ENGINE ---
 // --- CALIBRATED DUAL-BADGE ENGINE ---
 function computeUserBadges(userName, role) {
   if (!appState.readTracker[userName]) {
@@ -722,6 +721,1331 @@ function updateCommsBadge() {
   updateAdminDrawerBadge();
 }
 
+function updateAdminDrawerBadge() {
+  var adminReqs = (appState.pendingLinkRequests || []).filter(function(r) { return r.status === "pending_admin"; });
+  var pendingVotes = (appState.moderation && appState.moderation.incidents || []).filter(function(inc) {
+    return inc.status === "active_ban" && (!inc.votes || !inc.votes[appState.currentUser.name]);
+  });
+  var totalAdminTasks = adminReqs.length + pendingVotes.length;
+  var badge = document.getElementById("admin-panel-badge");
+  if (badge) {
+    badge.textContent = totalAdminTasks;
+    badge.style.display = (totalAdminTasks > 0 && appState.currentUser && appState.currentUser.role === "admin") ? "inline-block" : "none";
+  }
+}
+
+// --- NAVIGATION & AUTH ---
+window.setUserSession = function(name, role, memberNo) {
+  var matched = appState.users.find(function(u) { return u.name.toLowerCase() === name.toLowerCase(); });
+  var category = matched ? matched.category : "Adult";
+  appState.currentUser = { name: name, role: role, memberNo: memberNo || "COX-084", category: category };
+  var userRecord = getCurrentUserRecord();
+
+  var compliance = checkChildCompliance(userRecord);
+  var deactBanner = document.getElementById("child-deactivated-guard");
+  if (!compliance.compliant && compliance.deactivated) {
+    deactBanner.style.display = "block";
+    document.getElementById("deact-msg").textContent = "Account Locked: " + name + " has been registered for " + userRecord.registeredDaysAgo + " days without a verified parent linkage. Link a parent via Friends & Family to activate.";
+  } else {
+    deactBanner.style.display = "none";
+  }
+
+  document.getElementById("view-login").classList.remove("active");
+  document.getElementById("view-hud").classList.add("active");
+  document.getElementById("bottom-bar").style.display = "flex";
+  document.getElementById("user-header-info").style.display = "block";
+  document.getElementById("display-name").textContent = name;
+  window.updateBalanceDisplay();
+
+  var adminBar = document.getElementById("admin-bar");
+  if (adminBar) {
+    adminBar.style.display = (role === "admin") ? "flex" : "none";
+  }
+
+  if (typeof window.applyAppModules === "function") window.applyAppModules();
+  window.refreshAllViews();
+};
+
+window.handleLogin = function() {
+  var input = document.getElementById("login-username");
+  var val = (input && input.value.trim()) ? input.value.trim() : "Gary Miller";
+  var matched = appState.users.find(function(u) { return u.name.toLowerCase() === val.toLowerCase(); });
+  var role = (val.toLowerCase().indexOf("admin") !== -1 || val.toLowerCase().indexOf("secretary") !== -1) ? "admin" : "member";
+  var finalName = matched ? matched.name : val;
+  var finalNo = matched ? matched.memberNo : (role === "admin" ? "ADMIN-01" : "COX-084");
+  window.setUserSession(finalName, role, finalNo);
+};
+
+window.quickLogin = function(name, role, no) {
+  window.setUserSession(name, role, no);
+};
+
+window.handleLogout = function() {
+  var adminBar = document.getElementById("admin-bar");
+  if (adminBar) adminBar.style.display = "none";
+  document.getElementById("bottom-bar").style.display = "none";
+  document.getElementById("user-header-info").style.display = "none";
+  document.getElementById("child-deactivated-guard").style.display = "none";
+
+  var views = document.querySelectorAll(".tab-view");
+  for (var i = 0; i < views.length; i++) { views[i].classList.remove("active"); }
+  document.getElementById("view-login").classList.add("active");
+};
+
+window.switchTab = function(viewId, btn) {
+  var views = document.querySelectorAll(".tab-view");
+  for (var i = 0; i < views.length; i++) { views[i].classList.remove("active"); }
+  var target = document.getElementById(viewId);
+  if (target) target.classList.add("active");
+
+  var items = document.querySelectorAll(".nav-item");
+  for (var j = 0; j < items.length; j++) { items[j].classList.remove("active"); }
+  if (btn) btn.classList.add("active");
+
+  if (viewId === "view-comms") {
+    var user = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+    if (!appState.readTracker[user]) appState.readTracker[user] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
+    appState.readTracker[user].busChatCount = (appState.matchdayChat || []).length;
+    saveState();
+    updateCommsBadge();
+  }
+  window.refreshAllViews();
+};
+
+window.refreshAllViews = function() {
+  window.updateBalanceDisplay();
+  if (typeof renderHUDView === "function") renderHUDView();
+  if (typeof renderBusBookingView === "function") renderBusBookingView();
+  if (typeof renderMemberAwayView === "function") renderMemberAwayView();
+  if (typeof renderFootballGrid === "function") renderFootballGrid();
+  if (typeof renderFriendsFamilyChecklist === "function") renderFriendsFamilyChecklist();
+  if (typeof renderProfilePassView === "function") renderProfilePassView();
+  if (typeof renderWalletStatement === "function") renderWalletStatement();
+  if (typeof renderCommsTabs === "function") renderCommsTabs();
+  if (typeof renderAdminDrawer === "function") renderAdminDrawer();
+  if (typeof applyClubIdentity === "function") applyClubIdentity();
+  if (typeof applyAppModules === "function") applyAppModules();
+  updateCommsBadge();
+};
+
+// --- DYNAMIC TIMETABLE RESOLVER ---
+function getDynamicStopDisplay(matchId, busId, rawStop) {
+  if (!rawStop) return "Pickup TBA";
+  var cleanName = rawStop.split("(")[0].trim();
+  var match = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(matchId); });
+  if (match && match.buses) {
+    var bus = match.buses.find(function(b) { return b.busId === (busId || 1); }) || match.buses[0];
+    if (bus && bus.stops) {
+      var foundStop = bus.stops.find(function(s) {
+        return s.name.trim().toLowerCase() === cleanName.toLowerCase();
+      });
+      if (foundStop) {
+        return foundStop.name + " (" + foundStop.time + ")";
+      }
+    }
+  }
+  return rawStop;
+}
+
+window.reactAnnouncement = function(postId) {
+  var post = (appState.announcements || []).find(function(a) { return a.id === postId; });
+  if (post) {
+    post.reactions = (post.reactions || 0) + 1;
+    saveState();
+    if (typeof renderHUDView === "function") renderHUDView();
+    if (sbClient) {
+      sbClient.from("announcements").update({ reactions: post.reactions }).eq("id", postId).then(function() {});
+    }
+  }
+};
+
+window.dismissAnnouncement = function(postId) {
+  var post = (appState.announcements || []).find(function(a) { return a.id === postId; });
+  if (post) {
+    if (!post.readBy) post.readBy = [];
+    var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+    if (post.readBy.indexOf(cur) === -1) {
+      post.readBy.push(cur);
+    }
+    saveState();
+    if (typeof renderHUDView === "function") renderHUDView();
+    if (sbClient) {
+      sbClient.from("announcements").update({ read_by: post.readBy }).eq("id", postId).then(function() {});
+    }
+  }
+};
+
+window.promptPayMembershipDues = function() {
+  var user = getCurrentUserRecord();
+  var fee = (user.category === "Child" ? appState.duesConfig.juniorFee : appState.duesConfig.adultFee);
+  if (user.membershipTier === "Senior") fee = appState.duesConfig.seniorFee;
+  if (user.membershipTier === "Life") fee = 0.00;
+
+  if (user.balance < fee) {
+    alert("Insufficient balance! You need £" + fee.toFixed(2) + " to settle annual dues, but balance is £" + user.balance.toFixed(2) + ".\nPlease top up your wallet.");
+    return;
+  }
+
+  window.showConfirmDialog(
+    "Renew Annual Membership Subs",
+    "<strong>Season:</strong> " + appState.duesConfig.activeSeason + "<br><strong>Tier:</strong> " + user.membershipTier + "<br><strong>Total to Pay:</strong> £" + fee.toFixed(2) + "<br><br>Settle annual dues to restore travel and ticket privileges.",
+    function() {
+      user.balance -= fee;
+      user.membershipStatus = "active";
+      user.membershipSeason = appState.duesConfig.activeSeason;
+      user.validUntil = "2027-07-31";
+      logForensicTransaction(user.name, "Member", "Branch", "SUBS_DUES", "Paid " + appState.duesConfig.activeSeason + " Annual Dues (" + user.membershipTier + ")", fee, 0, fee);
+      saveState();
+      window.refreshAllViews();
+      alert("🎉 Membership Renewed! Your " + appState.duesConfig.activeSeason + " Season Pass is now ACTIVE.");
+    }
+  );
+};
+
+// --- MULTI-PASSENGER PARTY COACH BOOKING ENGINE ---
+var currentBookingParty = [];
+
+function initBookingParty() {
+  var user = getCurrentUserRecord();
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+
+  var leadAlreadyBooked = (appState.bookings || []).some(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(user.name) !== -1;
+  });
+
+  currentBookingParty = [
+    {
+      id: "lead-" + user.name,
+      name: user.name,
+      type: user.category || "Adult",
+      isLead: true,
+      alreadyBooked: leadAlreadyBooked,
+      checked: !leadAlreadyBooked
+    }
+  ];
+
+  var myFriends = (appState.friendsAndFamily || []).filter(function(f) {
+    return f.owner === user.name && f.status === "approved";
+  });
+
+  myFriends.forEach(function(f) {
+    var friendBooked = (appState.bookings || []).some(function(b) {
+      return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(f.targetName) !== -1;
+    });
+    currentBookingParty.push({
+      id: "fnf-" + f.targetName,
+      name: f.targetName,
+      type: f.type || "Adult",
+      relation: f.relation,
+      isLinked: true,
+      alreadyBooked: friendBooked,
+      checked: false
+    });
+  });
+}
+
+function renderBusBookingView() {
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var buses = (activeMatch && activeMatch.buses) ? activeMatch.buses : [];
+
+  var busSelectorGroup = document.getElementById("booking-bus-selector-group");
+  var busSelectElem = document.getElementById("booking-bus-select");
+
+  if (busSelectorGroup && busSelectElem) {
+    if (buses.length > 1) {
+      busSelectorGroup.style.display = "block";
+      var currentBusVal = parseInt(busSelectElem.value) || appState.selectedBookingBusId;
+      busSelectElem.innerHTML = "";
+      buses.forEach(function(b) {
+        var opt = document.createElement("option");
+        opt.value = b.busId;
+        opt.textContent = b.title + " (" + (b.capacity || 53) + " Seats)";
+        if (b.busId === currentBusVal) opt.selected = true;
+        busSelectElem.appendChild(opt);
+      });
+      appState.selectedBookingBusId = parseInt(busSelectElem.value) || buses[0].busId;
+    } else {
+      busSelectorGroup.style.display = "none";
+      appState.selectedBookingBusId = buses[0] ? buses[0].busId : 1;
+    }
+  }
+
+  initBookingParty();
+  window.updateBookingCoachUI();
+}
+
+window.updateBookingCoachUI = function() {
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  if (!activeMatch) return;
+  var buses = activeMatch.buses || [];
+
+  var busSelectElem = document.getElementById("booking-bus-select");
+  if (busSelectElem && buses.length > 1) {
+    appState.selectedBookingBusId = parseInt(busSelectElem.value) || 1;
+  }
+
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+    busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS
+  };
+
+  var titleElem = document.getElementById("travel-coach-title");
+  var subElem = document.getElementById("travel-coach-subtitle");
+  var pricePill = document.getElementById("travel-coach-price-pill");
+  var busCountLabel = document.getElementById("travel-bus-count-label");
+
+  if (titleElem) titleElem.textContent = "Sunderland vs " + activeMatch.opponent;
+  if (subElem) subElem.textContent = selectedBus.subtitle || (selectedBus.title + " • Official Branch Travel");
+  if (busCountLabel) busCountLabel.textContent = "Fleet: " + buses.length + " Coach" + (buses.length > 1 ? "es" : "");
+
+  if (selectedBus.isFreeBus) {
+    if (pricePill) pricePill.textContent = "FREE BUS (Branch Sponsored)";
+  } else {
+    if (pricePill) pricePill.textContent = "£" + selectedBus.adultFare.toFixed(2) + " Adult • £" + selectedBus.juniorFare.toFixed(2) + " Junior";
+  }
+
+  var stopSelect = document.getElementById("booking-stop");
+  if (stopSelect) {
+    var prevVal = stopSelect.value;
+    stopSelect.innerHTML = "";
+    var coachStops = selectedBus.stops || DEFAULT_STOPS;
+    coachStops.forEach(function(s) {
+      var opt = document.createElement("option");
+      opt.value = s.name;
+      opt.textContent = s.name + " (" + s.time + ")";
+      if (prevVal && prevVal === s.name) opt.selected = true;
+      stopSelect.appendChild(opt);
+    });
+  }
+
+  var busBookings = (appState.bookings || []).filter(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && (b.busId || 1) === selectedBus.busId;
+  });
+  var totalBooked = 0;
+  busBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
+
+  var cap = selectedBus.capacity || 53;
+  var rem = cap - totalBooked;
+  var statusElem = document.getElementById("seats-status");
+  var barElem = document.getElementById("seats-bar");
+  if (statusElem) statusElem.textContent = rem > 0 ? rem + " / " + cap + " Seats on " + selectedBus.title : selectedBus.title + " FULL";
+  if (barElem) barElem.style.width = Math.min(100, Math.round((totalBooked / (cap || 1)) * 100)) + "%";
+
+  renderActiveBookingsSummary(activeMatch);
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+function renderActiveBookingsSummary(activeMatch) {
+  var container = document.getElementById("my-active-bookings-summary");
+  if (!container) return;
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myBookings = (appState.bookings || []).filter(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(cur) !== -1;
+  });
+
+  if (myBookings.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  var html = "<div style='font-size:11px; font-weight:800; color:var(--green); margin-bottom:6px;'>✓ YOUR CONFIRMED SEATS FOR THIS MATCH:</div>";
+  myBookings.forEach(function(b) {
+    var resolvedStop = getDynamicStopDisplay(activeMatch.id, b.busId, b.stop);
+    var seats = (b.adults || 0) + (b.juniors || 0);
+
+    html += 
+      "<div style='background:#064e3b; border:1px solid #10b981; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; color:#fff;'>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+          "<strong>" + b.name + " (" + seats + " Seat" + (seats > 1 ? "s" : "") + ")</strong>" +
+          "<span style='font-weight:700; color:var(--safc-gold);'>Bus #" + (b.busId || 1) + "</span>" +
+        "</div>" +
+        "<div style='margin-top:2px; font-size:10px;'>🚏 Pickup: <strong>" + resolvedStop + "</strong></div>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px;'>" +
+          "<span style='font-size:10px; color:#a7f3d0;'>Status: " + (b.boarded ? "Boarded ✓" : "Seat Reserved") + "</span>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px; color:#f87171; border-color:#f87171;' onclick='window.cancelMyBooking(" + b.id + ")'>Cancel & Refund (£" + b.total.toFixed(2) + ")</button>" +
+        "</div>" +
+      "</div>";
+  });
+
+  container.innerHTML = html;
+}
+
+function renderPartyPassengersList() {
+  var listContainer = document.getElementById("party-passengers-list");
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+
+  currentBookingParty.forEach(function(p, idx) {
+    var row = document.createElement("div");
+    var rowClass = "party-member-row";
+    if (p.isLead) rowClass += " lead";
+    else if (p.isGuest) rowClass += " guest";
+    row.className = rowClass;
+
+    var badgeText = p.isLead ? "Lead" : (p.relation ? p.relation : (p.isGuest ? "Guest" : "Member"));
+    var disabledAttr = p.alreadyBooked ? "disabled" : "";
+    var checkedAttr = p.checked ? "checked" : "";
+
+    row.innerHTML = 
+      "<div style='display:flex; align-items:center; gap:8px;'>" +
+        "<input type='checkbox' " + checkedAttr + " " + disabledAttr + " onchange='window.togglePartyPassenger(" + idx + ", this.checked)' />" +
+        "<div>" +
+          "<strong>" + p.name + "</strong> " +
+          "<span style='font-size:9px; color:var(--safc-gold);'>(" + p.type + " • " + badgeText + ")</span>" +
+          (p.alreadyBooked ? "<span style='display:block; font-size:9px; color:var(--green); font-weight:700;'>✓ Seat Already Confirmed</span>" : "") +
+        "</div>" +
+      "</div>" +
+      (!p.isLead && !p.isLinked ? "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.removePartyPassenger(" + idx + ")'>✕</button>" : "");
+
+    listContainer.appendChild(row);
+  });
+}
+
+window.togglePartyPassenger = function(idx, isChecked) {
+  if (currentBookingParty[idx]) {
+    currentBookingParty[idx].checked = isChecked;
+    window.updatePartyFareCalculation();
+  }
+};
+
+window.removePartyPassenger = function(idx) {
+  currentBookingParty.splice(idx, 1);
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+window.updatePartyStopSelection = function() {
+  window.updatePartyFareCalculation();
+};
+
+window.updatePartyFareCalculation = function() {
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var buses = (activeMatch && activeMatch.buses) ? activeMatch.buses : [];
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+    adultFare: 12.00, juniorFare: 8.00, isFreeBus: false
+  };
+
+  var adultCount = 0;
+  var juniorCount = 0;
+
+  currentBookingParty.forEach(function(p) {
+    if (p.checked && !p.alreadyBooked) {
+      if (p.type === "Junior" || p.type === "Child") juniorCount++;
+      else adultCount++;
+    }
+  });
+
+  var totalFare = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
+
+  var fareText = document.getElementById("party-total-fare-text");
+  var bookBtn = document.getElementById("btn-book-seat");
+
+  if (fareText) {
+    fareText.innerHTML = selectedBus.isFreeBus ? 
+      "<span style='color:var(--green);'>FREE (Branch Sponsored)</span>" : 
+      "£" + totalFare.toFixed(2) + " <span style='font-size:10px; color:#94a3b8;'>(" + adultCount + " Adult" + (adultCount !== 1 ? "s" : "") + ", " + juniorCount + " Junior" + (juniorCount !== 1 ? "s" : "") + ")</span>";
+  }
+
+  if (bookBtn) {
+    var totalSelected = adultCount + juniorCount;
+    if (totalSelected === 0) {
+      bookBtn.textContent = "Select At Least 1 Passenger";
+      bookBtn.disabled = true;
+    } else {
+      bookBtn.textContent = "Book " + totalSelected + " Seat" + (totalSelected > 1 ? "s" : "") + " (" + (selectedBus.isFreeBus ? "FREE" : "£" + totalFare.toFixed(2)) + ")";
+      bookBtn.disabled = false;
+    }
+  }
+};
+
+window.handlePartyMemberSearch = function(query) {
+  var box = document.getElementById("party-member-autocomplete-box");
+  if (!box) return;
+
+  var q = (query || "").trim().toLowerCase();
+  if (q.length < 2) {
+    box.style.display = "none";
+    return;
+  }
+
+  var existingNames = currentBookingParty.map(function(p) { return p.name.toLowerCase(); });
+  var matches = (appState.users || []).filter(function(u) {
+    var matchName = u.name.toLowerCase().indexOf(q) !== -1;
+    var matchNo = u.memberNo && u.memberNo.toLowerCase().indexOf(q) !== -1;
+    var notInParty = existingNames.indexOf(u.name.toLowerCase()) === -1;
+    return (matchName || matchNo) && notInParty;
+  });
+
+  if (matches.length === 0) {
+    box.innerHTML = "<div style='padding:6px 10px; font-size:10px; color:#94a3b8;'>No members match '" + query + "'</div>";
+    box.style.display = "block";
+    return;
+  }
+
+  var html = "";
+  matches.slice(0, 6).forEach(function(m) {
+    html += 
+      "<div class='autocomplete-item' onclick='window.selectPartyMember(\"" + m.name.replace(/'/g, "\\'") + "\", \"" + (m.category || "Adult") + "\")'>" +
+        "<strong>" + m.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + m.memberNo + " • " + m.category + ")</span>" +
+      "</div>";
+  });
+
+  box.innerHTML = html;
+  box.style.display = "block";
+};
+
+window.selectPartyMember = function(memberName, category) {
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var isBooked = (appState.bookings || []).some(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(memberName) !== -1;
+  });
+
+  currentBookingParty.push({
+    id: "member-" + memberName,
+    name: memberName,
+    type: category || "Adult",
+    isMember: true,
+    alreadyBooked: isBooked,
+    checked: !isBooked
+  });
+
+  var input = document.getElementById("party-search-member-input");
+  var box = document.getElementById("party-member-autocomplete-box");
+  if (input) input.value = "";
+  if (box) box.style.display = "none";
+
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+window.addPartyGuestPassenger = function() {
+  var nameInput = document.getElementById("party-guest-name-input");
+  var typeSelect = document.getElementById("party-guest-type-select");
+  var guestName = nameInput ? nameInput.value.trim() : "";
+  var guestType = typeSelect ? typeSelect.value : "Adult";
+
+  if (!guestName) {
+    alert("Please enter the guest passenger's name.");
+    return;
+  }
+
+  currentBookingParty.push({
+    id: "guest-" + Date.now(),
+    name: guestName + " (Guest)",
+    type: guestType,
+    isGuest: true,
+    alreadyBooked: false,
+    checked: true
+  });
+
+  if (nameInput) nameInput.value = "";
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+window.openBookingModal = function() {
+  if (!verifyMembershipAccess("book matchday coach travel")) return;
+
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var buses = activeMatch.buses || [];
+  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+    busId: 1, title: "Bus 1", adultFare: 12.00, juniorFare: 8.00, isFreeBus: false
+  };
+
+  var selectedPassengers = currentBookingParty.filter(function(p) { return p.checked && !p.alreadyBooked; });
+  if (selectedPassengers.length === 0) {
+    alert("Please select at least 1 passenger to book.");
+    return;
+  }
+
+  var adultCount = 0;
+  var juniorCount = 0;
+  var passengerNames = [];
+
+  selectedPassengers.forEach(function(p) {
+    passengerNames.push(p.name + (p.type === "Junior" || p.type === "Child" ? " (Junior)" : ""));
+    if (p.type === "Junior" || p.type === "Child") juniorCount++;
+    else adultCount++;
+  });
+
+  var stop = document.getElementById("booking-stop").value;
+  var total = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
+
+  var user = getCurrentUserRecord();
+  if (user.balance < total) {
+    alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2) + ".\nPlease top up your wallet.");
+    return;
+  }
+
+  var resolvedStop = getDynamicStopDisplay(activeMatch.id, selectedBus.busId, stop);
+
+  window.showConfirmDialog(
+    "Confirm Coach Party Booking",
+    "<strong>Fixture:</strong> Sunderland vs " + activeMatch.opponent + "<br>" +
+    "<strong>Coach:</strong> " + selectedBus.title + "<br>" +
+    "<strong>Pickup Point:</strong> " + resolvedStop + "<br>" +
+    "<strong>Traveling Party (" + selectedPassengers.length + "):</strong> " + passengerNames.join(", ") + "<br>" +
+    "<strong>Total Fare:</strong> " + (selectedBus.isFreeBus ? "<span style='color:var(--green); font-weight:800;'>FREE (Branch Sponsored)</span>" : "£" + total.toFixed(2)),
+    function() {
+      if (total > 0) user.balance -= total;
+      logForensicTransaction(
+        appState.currentUser.name,
+        "Member",
+        "Branch",
+        "BUS_BOOKING",
+        "Coach vs " + activeMatch.opponent + " (" + selectedBus.title + "): " + passengerNames.join(", ") + " [" + stop + "]",
+        total,
+        0,
+        total
+      );
+
+      var newBooking = {
+        id: Date.now(),
+        matchId: activeMatch.id,
+        busId: selectedBus.busId || 1,
+        name: passengerNames.join(", "),
+        stop: stop,
+        adults: adultCount,
+        juniors: juniorCount,
+        total: total,
+        boarded: false
+      };
+
+      appState.bookings.push(newBooking);
+      saveState();
+      window.refreshAllViews();
+
+      if (sbClient) {
+        sbClient.from("bus_bookings").insert([{
+          id: newBooking.id,
+          match_id: newBooking.matchId,
+          bus_id: newBooking.busId,
+          name: newBooking.name,
+          stop: newBooking.stop,
+          adults: newBooking.adults,
+          juniors: newBooking.juniors,
+          total: newBooking.total,
+          boarded: false
+        }]).then(function() {});
+
+        sbClient.from("members")
+          .update({ balance: user.balance })
+          .eq("member_no", user.memberNo)
+          .then(function() {});
+      }
+
+      alert("✓ Booking confirmed! " + selectedPassengers.length + " seat(s) reserved on " + selectedBus.title + ".");
+    }
+  );
+};
+
+window.cancelMyBooking = function(bookingId) {
+  var bIdx = (appState.bookings || []).findIndex(function(b) { return b.id === bookingId; });
+  if (bIdx === -1) return;
+  var booking = appState.bookings[bIdx];
+
+  window.showConfirmDialog(
+    "Cancel Coach Booking",
+    "Are you sure you want to cancel this booking for <strong>" + booking.name + "</strong>?<br><br>" +
+    "A full refund of <strong>£" + booking.total.toFixed(2) + "</strong> will be credited directly to your branch wallet.",
+    function() {
+      var user = getCurrentUserRecord();
+      if (booking.total > 0) {
+        user.balance += booking.total;
+        logForensicTransaction(
+          "Branch",
+          "System",
+          user.name,
+          "BUS_REFUND",
+          "Refund: Cancelled coach booking #" + booking.id + " (" + booking.name + ")",
+          0,
+          booking.total,
+          -booking.total
+        );
+      }
+
+      appState.bookings.splice(bIdx, 1);
+      saveState();
+      window.refreshAllViews();
+
+      if (sbClient) {
+        sbClient.from("bus_bookings").delete().eq("id", bookingId).then(function() {});
+        sbClient.from("members").update({ balance: user.balance }).eq("member_no", user.memberNo).then(function() {});
+      }
+
+      alert("✓ Coach booking cancelled. £" + booking.total.toFixed(2) + " refunded to your wallet.");
+    }
+  );
+};
+
+// --- AWAY FIXTURE EXPRESSIONS OF INTEREST ---
+function renderMemberAwayView() {
+  var sel = document.getElementById("member-away-game-select");
+  var card = document.getElementById("member-away-status-card");
+  if (!sel || !card) return;
+
+  var currentVal = sel.value;
+  sel.innerHTML = "";
+  (appState.awayFixtures || []).forEach(function(f) {
+    var opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = f.opponent + " (A) • " + f.date;
+    if (currentVal && currentVal === f.id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (!sel.value && appState.awayFixtures && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
+
+  var selectedId = sel.value;
+  var fixture = (appState.awayFixtures || []).find(function(f) { return f.id === selectedId; });
+  if (!fixture) return;
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myReg = (appState.awayRegistrations || []).find(function(r) {
+    return r.fixtureId === selectedId && r.memberName === cur;
+  });
+
+  var html = 
+    "<div class='flex-between'>" +
+      "<strong>" + fixture.opponent + " (Away)</strong>" +
+      "<span class='badge-gold'>" + fixture.date + " (" + fixture.time + ")</span>" +
+    "</div>" +
+    "<div class='text-xs text-muted mt-2'>Branch Ticket Quota: <strong>" + fixture.allocation + " Tickets</strong></div>";
+
+  if (myReg) {
+    var allocPill = myReg.allocated ? 
+      "<span style='color:var(--green); font-weight:800;'>✓ TICKET ALLOCATED BY COMMITTEE</span>" : 
+      "<span style='color:var(--safc-gold); font-weight:800;'>⏳ Interest Registered (Awaiting Club Allocation)</span>";
+
+    html += 
+      "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin:10px 0; font-size:11px;'>" +
+        "<div>Status: " + allocPill + "</div>" +
+        "<div style='color:#cbd5e1; margin-top:4px;'>Party: " + myReg.party.join(", ") + "</div>" +
+      "</div>" +
+      "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Expression of Interest</button>";
+  } else {
+    var lead = getCurrentUserRecord();
+    var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === cur && f.status === "approved"; });
+
+    html += 
+      "<div style='margin-top:10px;'>" +
+        "<label class='form-label'>Traveling Party (Friends & Family)</label>" +
+        "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:11px;'>" +
+          "<input type='checkbox' checked disabled /> <strong>" + lead.name + "</strong> (" + lead.category + " - Lead)" +
+        "</div>";
+
+    myFriends.forEach(function(f) {
+      html += 
+        "<div style='background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;'>" +
+          "<input type='checkbox' class='away-party-member-cb' data-name='" + f.targetName + "' data-type='" + f.type + "' /> " +
+          "<strong>" + f.targetName + "</strong> (" + f.type + " - " + f.relation + ")" +
+        "</div>";
+    });
+
+    html += 
+        "<button class='btn btn-red btn-sm mt-2' style='width:100%;' onclick='window.registerAwayInterest(\"" + fixture.id + "\")'>Register Expression of Interest</button>" +
+      "</div>";
+  }
+
+  card.innerHTML = html;
+}
+
+window.registerAwayInterest = function(fixtureId) {
+  if (!verifyMembershipAccess("apply for away match tickets")) return;
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var party = [cur + " (Adult)"];
+  document.querySelectorAll(".away-party-member-cb:checked").forEach(function(cb) {
+    party.push(cb.getAttribute("data-name") + " (" + cb.getAttribute("data-type") + ")");
+  });
+
+  var newReg = {
+    fixtureId: fixtureId,
+    memberName: cur,
+    party: party,
+    allocated: false
+  };
+
+  if (!appState.awayRegistrations) appState.awayRegistrations = [];
+  appState.awayRegistrations.push(newReg);
+  saveState();
+  renderMemberAwayView();
+
+  if (sbClient) {
+    sbClient.from("away_registrations").insert([{
+      fixture_id: newReg.fixtureId,
+      member_name: newReg.memberName,
+      party: newReg.party,
+      allocated: false
+    }]).then(function() {});
+  }
+
+  alert("✓ Expression of Interest registered for party of " + party.length + ".");
+};
+
+window.withdrawAwayInterest = function(fixtureId) {
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var idx = (appState.awayRegistrations || []).findIndex(function(r) {
+    return r.fixtureId === fixtureId && r.memberName === cur;
+  });
+  if (idx !== -1) {
+    appState.awayRegistrations.splice(idx, 1);
+    saveState();
+    renderMemberAwayView();
+
+    if (sbClient) {
+      sbClient.from("away_registrations").delete().eq("fixture_id", fixtureId).eq("member_name", cur).then(function() {});
+    }
+
+    alert("✓ Expression of Interest withdrawn.");
+  }
+};
+
+// --- MEMBER PROFILE & IDENTITY PASS ---
+function renderProfilePassView() {
+  var user = getCurrentUserRecord();
+  var cardNameElem = document.getElementById("card-name");
+  var cardNoElem = document.getElementById("card-no");
+  var avatarImg = document.getElementById("profile-avatar-preview");
+
+  var displayNameText = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
+  if (cardNameElem) cardNameElem.textContent = displayNameText;
+  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (user.category || "Adult");
+
+  if (avatarImg) {
+    if (user.photoUrl) {
+      avatarImg.src = user.photoUrl;
+    } else {
+      avatarImg.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+    }
+  }
+
+  var nickInput = document.getElementById("profile-edit-nickname");
+  var phoneInput = document.getElementById("profile-edit-phone");
+  var emNameInput = document.getElementById("profile-edit-emergency-name");
+  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
+
+  if (nickInput) nickInput.value = user.nickname || "";
+  if (phoneInput) phoneInput.value = user.phone || "";
+  if (emNameInput) emNameInput.value = user.emergencyName || "";
+  if (emPhoneInput) emPhoneInput.value = user.emergencyPhone || "";
+}
+
+window.handleProfilePhotoUpload = function(event) {
+  var file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (file.size > 2 * 1024 * 1024) {
+    alert("Please select a photo smaller than 2MB.");
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    var user = getCurrentUserRecord();
+    user.photoUrl = dataUrl;
+
+    var preview = document.getElementById("profile-avatar-preview");
+    if (preview) preview.src = dataUrl;
+
+    saveState();
+    alert("✓ Profile photo updated!");
+
+    if (sbClient) {
+      sbClient.from("members").update({ photo_url: dataUrl }).eq("member_no", user.memberNo).then(function() {});
+    }
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveMemberProfile = function() {
+  var user = getCurrentUserRecord();
+  var nickInput = document.getElementById("profile-edit-nickname");
+  var phoneInput = document.getElementById("profile-edit-phone");
+  var emNameInput = document.getElementById("profile-edit-emergency-name");
+  var emPhoneInput = document.getElementById("profile-edit-emergency-phone");
+
+  user.nickname = nickInput ? nickInput.value.trim() : "";
+  user.phone = phoneInput ? phoneInput.value.trim() : "";
+  user.emergencyName = emNameInput ? emNameInput.value.trim() : "";
+  user.emergencyPhone = emPhoneInput ? emPhoneInput.value.trim() : "";
+
+  saveState();
+  renderProfilePassView();
+
+  var displayName = document.getElementById("display-name");
+  if (displayName) {
+    displayName.textContent = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
+  }
+
+  if (sbClient) {
+    sbClient.from("members")
+      .update({
+        nickname: user.nickname,
+        phone: user.phone,
+        emergency_name: user.emergencyName,
+        emergency_phone: user.emergencyPhone
+      })
+      .eq("member_no", user.memberNo)
+      .then(function() {});
+  }
+
+  alert("✓ Member profile details saved successfully.");
+};
+
+function renderFriendsFamilyChecklist() {
+  var container = document.getElementById("fnf-manager-list");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myFriends = (appState.friendsAndFamily || []).filter(function(f) { 
+    return f.owner === cur; 
+  });
+
+  if (myFriends.length === 0) {
+    container.innerHTML = "<div class='text-xs text-muted' style='padding:6px 0;'>No linked friends or family yet. Use the form below to connect family members.</div>";
+    return;
+  }
+
+  myFriends.forEach(function(f) {
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
+    row.innerHTML = 
+      "<div>" +
+        "<strong>" + f.targetName + "</strong> (" + f.relation + ")<br>" +
+        "<span style='color:var(--safc-gold); font-size:10px;'>" + f.type + " • " + (f.memberNo || "Member") + "</span>" +
+      "</div>" +
+      "<div style='display:flex; align-items:center; gap:6px;'>" +
+        "<span style='color:var(--green); font-size:10px; font-weight:700;'>✓ Active</span>" +
+        "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.unlinkFriendFamily(" + f.id + ")'>Unlink</button>" +
+      "</div>";
+    container.appendChild(row);
+  });
+}
+
+window.unlinkFriendFamily = function(linkId) {
+  var link = (appState.friendsAndFamily || []).find(function(f) { return f.id === linkId; });
+  if (!link) return;
+
+  window.showConfirmDialog(
+    "Unlink Connection",
+    "Are you sure you want to disconnect from <strong>" + link.targetName + "</strong> (" + link.relation + ")?<br><br>You will no longer be able to book travel or away tickets on their behalf.",
+    function() {
+      appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) {
+        var isDirect = (f.owner === link.owner && f.targetName === link.targetName);
+        var isReciprocal = (f.owner === link.targetName && f.targetName === link.owner);
+        return !isDirect && !isReciprocal;
+      });
+      saveState();
+      window.refreshAllViews();
+      alert("✓ Connection removed.");
+    }
+  );
+};
+
+window.requestMemberLink = function() {
+  var searchInput = document.getElementById("fnf-search-input");
+  var relSelect = document.getElementById("fnf-relation-select");
+  var targetName = searchInput ? searchInput.value.trim() : "";
+  var relation = relSelect ? relSelect.value : "Friend";
+
+  if (!targetName) {
+    alert("Please enter a member name or number.");
+    return;
+  }
+
+  var found = (appState.users || []).find(function(u) {
+    return u.name.toLowerCase() === targetName.toLowerCase() || (u.memberNo && u.memberNo.toLowerCase() === targetName.toLowerCase());
+  });
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var finalName = found ? found.name : targetName;
+  var finalType = (found && found.category === "Child") || relation === "Child" ? "Child" : "Adult";
+  var finalNo = found ? found.memberNo : "COX-" + Math.floor(100 + Math.random() * 900);
+
+  if (finalType === "Child") {
+    if (!appState.pendingLinkRequests) appState.pendingLinkRequests = [];
+    appState.pendingLinkRequests.push({
+      id: Date.now(),
+      requester: cur,
+      targetName: finalName,
+      relation: relation,
+      type: finalType,
+      status: "pending_admin"
+    });
+    alert("🛡️ Safeguarding Verification Submitted:\n\nUnder branch rules, links involving members under 18 must be approved by the Branch Secretary before bookings can be made.");
+  } else {
+    if (!appState.friendsAndFamily) appState.friendsAndFamily = [];
+    appState.friendsAndFamily.push({
+      id: Date.now(),
+      owner: cur,
+      targetName: finalName,
+      relation: relation,
+      type: finalType,
+      memberNo: finalNo,
+      status: "approved"
+    });
+    appState.friendsAndFamily.push({
+      id: Date.now() + 1,
+      owner: finalName,
+      targetName: cur,
+      relation: relation === "Child" ? "Parent" : "Friend",
+      type: "Adult",
+      memberNo: appState.currentUser.memberNo,
+      status: "approved"
+    });
+    alert("✓ Link established with " + finalName + ".");
+  }
+
+  if (searchInput) searchInput.value = "";
+  saveState();
+  window.refreshAllViews();
+};
+
+// --- WALLET STATEMENT & EXPORT ---
+window.handleStatementTimeframeChange = function(val) {
+  var customBox = document.getElementById("statement-custom-date-box");
+  if (customBox) {
+    customBox.style.display = (val === "CUSTOM") ? "grid" : "none";
+  }
+  renderWalletStatement();
+};
+
+function renderWalletStatement() {
+  var container = document.getElementById("wallet-statement-list");
+  var title = document.getElementById("wallet-statement-title");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  if (title) title.textContent = "💳 " + current + "'s Statement";
+
+  var categoryFilter = document.getElementById("filter-statement-category") ? document.getElementById("filter-statement-category").value : "ALL";
+  var directionFilter = document.getElementById("filter-statement-direction") ? document.getElementById("filter-statement-direction").value : "ALL";
+  var timeFilter = document.getElementById("filter-statement-time") ? document.getElementById("filter-statement-time").value : "ALL";
+  var searchKeyword = document.getElementById("filter-statement-search") ? document.getElementById("filter-statement-search").value.toLowerCase().trim() : "";
+
+  var customStartDate = document.getElementById("filter-statement-start-date") ? document.getElementById("filter-statement-start-date").value : "";
+  var customEndDate = document.getElementById("filter-statement-end-date") ? document.getElementById("filter-statement-end-date").value : "";
+
+  var now = new Date();
+  var myTxns = (appState.masterAuditTrail || []).filter(function(t) {
+    var isMyDebit = (t.actor === current && t.debit > 0);
+    var isMyCredit = (t.target === current && t.credit > 0);
+    if (!isMyDebit && !isMyCredit) return false;
+
+    if (categoryFilter !== "ALL") {
+      if (categoryFilter === "BUS" && t.category !== "BUS_BOOKING" && t.category !== "BUS_REFUND") return false;
+      if (categoryFilter === "CARD" && t.category !== "CARD" && t.category !== "FOOTBALL_CARD" && t.category !== "CARD_WINNER_PAYOUT") return false;
+      if (categoryFilter === "AWAY" && t.category.indexOf("AWAY") === -1) return false;
+      if (categoryFilter === "BONUS" && t.category.indexOf("BONUS") === -1) return false;
+      if (categoryFilter === "TOPUP" && t.category !== "TOPUP" && t.category !== "MEMBER_TOPUP") return false;
+      if (categoryFilter === "SUBS" && t.category !== "SUBS_DUES") return false;
+      if (categoryFilter === "WITHDRAWAL") {
+        var isWd = (t.category === "CARD_WINNER_PAYOUT" || t.category === "WITHDRAWAL" || t.desc.toLowerCase().indexOf("withdrawal") !== -1 || t.desc.toLowerCase().indexOf("payout") !== -1);
+        if (!isWd) return false;
+      }
+      if (categoryFilter === "PRIZE" && t.category !== "CARD_WINNER_PAYOUT") return false;
+    }
+
+    if (directionFilter === "IN" && !isMyCredit) return false;
+    if (directionFilter === "OUT" && !isMyDebit) return false;
+
+    if (timeFilter !== "ALL") {
+      var txnDate = new Date(t.timestamp.replace(" ", "T"));
+      var diffDays = (now - txnDate) / (1000 * 60 * 60 * 24);
+      if (timeFilter === "7D" && diffDays > 7) return false;
+      if (timeFilter === "30D" && diffDays > 30) return false;
+      if (timeFilter === "YEAR" && diffDays > 365) return false;
+      if (timeFilter === "CUSTOM") {
+        var txnYMD = t.timestamp.substring(0, 10);
+        if (customStartDate && txnYMD < customStartDate) return false;
+        if (customEndDate && txnYMD > customEndDate) return false;
+      }
+    }
+
+    if (searchKeyword) {
+      var matchText = (t.desc + " " + t.category + " " + t.txnId).toLowerCase();
+      if (matchText.indexOf(searchKeyword) === -1) return false;
+    }
+    return true;
+  });
+
+  var filteredIn = 0;
+  var filteredOut = 0;
+  myTxns.forEach(function(t) {
+    if (t.target === current && t.credit > 0) filteredIn += t.credit;
+    if (t.actor === current && t.debit > 0) filteredOut += t.debit;
+  });
+  var netFlow = filteredIn - filteredOut;
+
+  var summaryBox = document.getElementById("statement-filtered-summary");
+  if (summaryBox) {
+    summaryBox.innerHTML = 
+      "<span>In: <strong style='color:var(--green);'>+£" + filteredIn.toFixed(2) + "</strong></span>" +
+      "<span>Out: <strong style='color:#ef4444;'>-£" + filteredOut.toFixed(2) + "</strong></span>" +
+      "<span>Net: <strong style='color:" + (netFlow >= 0 ? "var(--green)" : "#ef4444") + ";'>" + (netFlow >= 0 ? "+£" : "-£") + Math.abs(netFlow).toFixed(2) + "</strong></span>";
+  }
+
+  if (myTxns.length === 0) {
+    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; padding:10px 0; text-align:center;'>No transactions match your active filter criteria.</div>";
+    return;
+  }
+
+  myTxns.slice(0, 25).forEach(function(item) {
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding:8px 0; font-size:12px;";
+    var isCredit = (item.target === current && item.credit > 0);
+    var color = isCredit ? "var(--green)" : "#ef4444";
+    var prefix = isCredit ? "+£" : "-£";
+    var amt = isCredit ? item.credit : item.debit;
+    row.innerHTML = 
+      "<div><strong>" + item.desc + "</strong><br><span style='font-size:10px; color:#94a3b8;'>" + item.timestamp.substring(0, 16) + " • " + item.txnId + "</span></div>" +
+      "<div style='font-weight:700; color:" + color + ";'>" + prefix + amt.toFixed(2) + "</div>";
+    container.appendChild(row);
+  });
+}
+
+window.exportMyStatementCSV = function() {
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var myTxns = (appState.masterAuditTrail || []).filter(function(t) {
+    return t.actor === current || t.target === current;
+  });
+
+  var csv = "Txn ID,Timestamp,Category,Description,Debit (Out),Credit (In),Balance After\n";
+  myTxns.forEach(function(t) {
+    var debitStr = (t.actor === current && t.debit > 0) ? "£" + t.debit.toFixed(2) : "£0.00";
+    var creditStr = (t.target === current && t.credit > 0) ? "£" + t.credit.toFixed(2) : "£0.00";
+    csv += '"' + t.txnId + '","' + t.timestamp + '","' + t.category + '","' + t.desc.replace(/"/g, '""') + '","' + debitStr + '","' + creditStr + '","£' + (t.balanceAfter || 0).toFixed(2) + '"\n';
+  });
+
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var url = window.URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.setAttribute("href", url);
+  a.setAttribute("download", current.replace(/\s+/g, "_") + "_Branch_Statement.csv");
+  a.click();
+};
+
+// --- COMMS & CHAT HUB ---
+window.switchCommsSubTab = function(subId) {
+  var pBus = document.getElementById("comms-sub-bus");
+  var pDm = document.getElementById("comms-sub-dm");
+  var pDesk = document.getElementById("comms-sub-desk");
+
+  if (pBus) pBus.style.display = (subId === "bus") ? "block" : "none";
+  if (pDm) pDm.style.display = (subId === "dm") ? "block" : "none";
+  if (pDesk) pDesk.style.display = (subId === "desk") ? "block" : "none";
+
+  var bBus = document.getElementById("btn-sub-bus");
+  var bDm = document.getElementById("btn-sub-dm");
+  var bDesk = document.getElementById("btn-sub-desk");
+
+  if (bBus) bBus.className = (subId === "bus") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+  if (bDm) bDm.className = (subId === "dm") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+  if (bDesk) bDesk.className = (subId === "desk") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+};
+
+function renderCommsTabs() {
+  if (typeof renderMatchdayBusChat === "function") renderMatchdayBusChat();
+  renderDirectMessagesView();
+  if (typeof renderCommitteeDeskView === "function") renderCommitteeDeskView();
+}
+
+function purgeExpiredMatchdayChat() {
+  if (!appState || !appState.matchdayChat) return;
+  var now = Date.now();
+  var ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  var beforeCount = appState.matchdayChat.length;
+  appState.matchdayChat = appState.matchdayChat.filter(function(msg) {
+    if (!msg.timestamp) return true;
+    return (now - msg.timestamp) < ONE_DAY_MS;
+  });
+  if (appState.matchdayChat.length !== beforeCount) {
+    saveState();
+  }
+}
+
+function renderMatchdayBusChat() {
+  purgeExpiredMatchdayChat();
+  var container = document.getElementById("bus-chat-messages");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var activeMatch = (appState.homeMatches && appState.homeMatches.length > 0)
+    ? (appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0])
+    : { id: "H-01", opponent: "Coventry City" };
+
+  var titleElem = document.getElementById("bus-chat-match-title");
+  if (titleElem) {
+    titleElem.textContent = (activeMatch.opponent || "Matchday") + " (H) Bus Chat";
+  }
+
+  var adminActions = document.getElementById("bus-chat-admin-actions");
+  if (adminActions) {
+    adminActions.style.display = (appState.currentUser && appState.currentUser.role === "admin") ? "block" : "none";
+  }
+
+  var currentMatchMsgs = (appState.matchdayChat || []).filter(function(msg) {
+    return !msg.matchId || String(msg.matchId) === String(activeMatch.id);
+  });
+
+  if (currentMatchMsgs.length === 0) {
+    container.innerHTML = 
+      "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:20px 0;'>" +
+        "🚌 No messages yet for Sunderland vs " + activeMatch.opponent + ".<br>" +
+        "<span style='font-size:9px; color:#64748b;'>Chat is live for travelling passengers only. Messages clear 24h after matchday.</span>" +
+      "</div>";
+  } else {
+    currentMatchMsgs.forEach(function(msg) {
+      var isMe = msg.sender === (appState.currentUser ? appState.currentUser.name : "");
+      var bubble = document.createElement("div");
+      bubble.style.cssText = "margin-bottom:8px; display:flex; flex-direction:column; align-items:" + (isMe ? "flex-end" : "flex-start") + ";";
+      bubble.innerHTML = 
+        "<div style='font-size:9px; color:#94a3b8; margin-bottom:2px;'>" + msg.sender + " • " + msg.time + "</div>" +
+        "<div style='background:" + (isMe ? "var(--safc-red)" : "#1e293b") + "; color:#fff; padding:6px 10px; border-radius:10px; font-size:12px; max-width:80%; line-height:1.4;'>" + msg.text + "</div>";
+      container.appendChild(bubble);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var isMuted = appState.moderation && appState.moderation.mutedMembers && appState.moderation.mutedMembers.indexOf(current) !== -1;
+  var isRevoked = appState.moderation && appState.moderation.revokedMembers && appState.moderation.revokedMembers.indexOf(current) !== -1;
+
+  var input = document.getElementById("bus-chat-input");
+  var sendBtn = document.getElementById("bus-chat-send-btn");
+  var statusNotice = document.getElementById("bus-chat-status-notice");
+
+  if (isRevoked) {
+    if (input) input.disabled = true; 
+    if (sendBtn) sendBtn.disabled = true;
+    if (statusNotice) statusNotice.innerHTML = "<span style='color:#ef4444; font-weight:800;'>⛔ Messaging privileges revoked across branch. Subject to Committee Quorum Vote.</span>";
+  } else if (isMuted) {
+    if (input) input.disabled = true; 
+    if (sendBtn) sendBtn.disabled = true;
+    if (statusNotice) statusNotice.innerHTML = "<span style='color:#facc15; font-weight:800;'>🚫 Chat Muted for language/aggression. Incident forwarded for Committee Review.</span>";
+  } else {
+    if (input) input.disabled = false; 
+    if (sendBtn) sendBtn.disabled = false;
+    if (statusNotice) statusNotice.innerHTML = "<span style='color:#94a3b8; font-size:10px;'>Active Safeguarding Engine: Profanity, aggression & abusive slang moderated.</span>";
+  }
+}
+
+window.sendMatchdayBusMessage = function() {
+  var input = document.getElementById("bus-chat-input");
+  var text = input ? input.value.trim() : "";
+  if (!text) return;
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+
+  var activeMatch = (appState.homeMatches && appState.homeMatches.length > 0)
+    ? (appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0])
+    : { id: "H-01", opponent: "Coventry City" };
+
+  var analysis = detectAbuseOrProfanity(text);
+
+  if (analysis.flagged) {
+    if (!appState.moderation.strikes) appState.moderation.strikes = {};
+    if (!appState.moderation.strikes[current]) appState.moderation.strikes[current] = 0;
+    appState.moderation.strikes[current]++;
+    var strikeCount = appState.moderation.strikes[current];
+
+    var fullHistory = (appState.matchdayChat || []).map(function(m) {
+      return m.sender + " (" + m.time + "): " + m.text;
+    });
+    fullHistory.push(current + " (" + new Date().toTimeString().substring(0, 5) + "): " + text + " [FLAGGED - BAN TRIGGER]");
+    input.value = "";
+
+    if (strikeCount === 1) {
+      alert("⚠️ SAFEGUARDING WARNING (STRIKE 1):\n" + analysis.reason + "\n\nProfanity and aggressive talk are strictly prohibited around juniors on branch travel.\n\nNext infraction will immediately mute your account.");
+      return;
+    } else if (strikeCount === 2) {
+      if (!appState.moderation.mutedMembers) appState.moderation.mutedMembers = [];
+      appState.moderation.mutedMembers.push(current);
+      appState.moderation.incidents.unshift({
+        id: "INC-" + Date.now(),
+        member: current,
+        timestamp: new Date().toISOString().substring(0, 16),
+        status: "active_ban",
+        reason: "Repeat infraction (Strike 2): " + analysis.reason,
+        offendingText: text,
+        transcriptContext: fullHistory,
+        internalDiscussion: [],
+        votes: {}
+      });
+      saveState();
+      renderMatchdayBusChat();
+      updateAdminDrawerBadge();
+      alert("🚫 CHAT MUTED (STRIKE 2):\n" + analysis.reason + "\n\nYou have been muted from Matchday Chat. The transcript has been forwarded to the Committee Review Board.");
+      return;
+    } else {
+      if (!appState.moderation.revokedMembers) appState.moderation.revokedMembers = [];
+      appState.moderation.revokedMembers.push(current);
+      appState.moderation.incidents.unshift({
+        id: "INC-" + Date.now(),
+        member: current,
+        timestamp: new Date().toISOString().substring(0, 16),
+        status: "active_ban",
+        reason: "Severe Infraction (Strike 3): " + analysis.reason,
+        offendingText: text,
+        transcriptContext: fullHistory,
+        internalDiscussion: [],
+        votes: {}
+      });
+      saveState();
+      renderMatchdayBusChat();
+      updateAdminDrawerBadge();
+      alert("⛔ PRIVILEGES REVOKED (STRIKE 3):\nAll messaging privileges revoked. Subject to formal Committee Board Deliberation.");
+      return;
+    }
+  }
+
+  var now = new Date();
+  var newMsg = {
+    id: Date.now(),
+    matchId: activeMatch.id,
+    timestamp: now.getTime(),
+    sender: current,
+    time: now.toTimeString().substring(0, 5),
+    text: text
+  };
+
+  if (!appState.matchdayChat) appState.matchdayChat = [];
+  appState.matchdayChat.push(newMsg);
+  input.value = "";
+  saveState();
+  renderMatchdayBusChat();
+  updateCommsBadge();
+
+  if (sbClient) {
+    sbClient.from("matchday_chat").insert([newMsg]).then(function() {});
+  }
+};
+
+window.adminPurgeMatchdayChat = function() {
+  var activeMatch = (appState.homeMatches && appState.homeMatches.length > 0)
+    ? (appState.homeMatches.find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0])
+    : { id: "H-01", opponent: "Coventry City" };
+
+  if (!confirm("Clear all bus chat messages for Sunderland vs " + activeMatch.opponent + "?\n\nThis will purge chat for this match across all devices.")) return;
+
+  appState.matchdayChat = (appState.matchdayChat || []).filter(function(m) {
+    return m.matchId && String(m.matchId) !== String(activeMatch.id);
+  });
+
+  saveState();
+  renderMatchdayBusChat();
+  updateCommsBadge();
+
+  if (sbClient) {
+    sbClient.from("matchday_chat").delete().eq("match_id", activeMatch.id).then(function() {});
+  }
+
+  alert("🧹 Matchday bus chat cleared for " + activeMatch.opponent + ".");
+};
+
 // --- 1-TO-1 DIRECT MESSAGING ENGINE (ADULT-TO-ADULT ONLY) ---
 window._activeDMRecipient = null;
 
@@ -732,7 +2056,6 @@ function renderDirectMessagesView() {
   var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
   var curRecord = getCurrentUserRecord();
 
-  // Safeguarding lockout for minors
   if (curRecord && curRecord.category === "Child") {
     container.innerHTML = 
       "<div style='color:#ef4444; background:#1e0508; border:1px solid #7f1d1d; padding:12px; border-radius:8px; font-size:12px; line-height:1.5;'>" +
@@ -742,7 +2065,6 @@ function renderDirectMessagesView() {
     return;
   }
 
-  // Restore direct messages store
   if (!appState.directMessages) {
     try {
       appState.directMessages = JSON.parse(localStorage.getItem("coxhoe_dms_v20")) || [];
@@ -751,7 +2073,6 @@ function renderDirectMessagesView() {
     }
   }
 
-  // Adult member recipient list
   var eligibleUsers = (appState.users || []).filter(function(u) {
     return u.name !== current && u.hasAppAccount && u.category !== "Child";
   });
@@ -765,7 +2086,6 @@ function renderDirectMessagesView() {
     return "<option value='" + u.name + "' " + sel + ">" + u.name + " (" + (u.membershipTier || "Adult") + ")</option>";
   }).join("");
 
-  // Filter messages for active conversation
   var conversation = appState.directMessages.filter(function(m) {
     return (m.from === current && m.to === window._activeDMRecipient) ||
            (m.from === window._activeDMRecipient && m.to === current);
@@ -824,7 +2144,6 @@ window.sendDirectMessage = function() {
 
   var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
 
-  // Safeguarding check
   var analysis = (typeof detectAbuseOrProfanity === "function") ? detectAbuseOrProfanity(text) : { flagged: false };
   if (analysis.flagged) {
     alert("⚠️ MESSAGE BLOCKED BY SAFEGUARDING ENGINE:\n" + analysis.reason + "\n\nAbusive language is prohibited on branch platforms.");
@@ -3933,3 +5252,342 @@ setTimeout(function() {
   if (typeof window.renderFootballGrid === "function") window.renderFootballGrid();
   if (typeof window.renderAdminFootballCardManager === "function") window.renderAdminFootballCardManager();
 }, 150);
+
+// // ========================================================
+// SECTION 8: SECTIONAL APP MODULES & WHITE-LABEL BRANDING
+// ========================================================
+
+// Temporary upload state cache
+window._tempCrestLogoUrl = undefined;
+
+// 1. Initialize Club Identity & Feature Modules in State
+(function initClubModulesState() {
+  if (typeof appState === "undefined" || !appState) return;
+
+  var defaultIdentity = {
+    clubName: "Coxhoe Branch",
+    subTitle: "Supporters Club",
+    badgeInitials: "SAFC",
+    crestLogoUrl: null
+  };
+
+  try {
+    var savedId = localStorage.getItem("coxhoe_club_identity_v20");
+    appState.clubIdentity = savedId ? Object.assign(defaultIdentity, JSON.parse(savedId)) : defaultIdentity;
+  } catch (e) {
+    appState.clubIdentity = defaultIdentity;
+  }
+
+  var defaultModules = {
+    travel: true,          // Coach booking, stops & manifest
+    awayTickets: true,     // Away match ticket ballots
+    fundraiser: true,      // 40-Team Matchday Football Card
+    commsBusChat: false,   // Matchday bus chat (defaulted off for clean ops)
+    commsHelpdesk: true,   // Direct committee mailbox
+    duesAndPass: true      // Digital passes & wallet ledger
+  };
+
+  try {
+    var savedMods = localStorage.getItem("coxhoe_modules_v20");
+    appState.modules = savedMods ? Object.assign(defaultModules, JSON.parse(savedMods)) : defaultModules;
+  } catch (e) {
+    appState.modules = defaultModules;
+  }
+})();
+
+// 2. Apply White-Label Branding to Top Header
+window.applyClubIdentity = function() {
+  if (!appState || !appState.clubIdentity) return;
+  var id = appState.clubIdentity;
+
+  var crestElem = document.getElementById("header-crest-badge");
+  var titleElem = document.getElementById("header-brand-title");
+  var subElem = document.getElementById("header-brand-sub");
+
+  if (crestElem) {
+    if (id.crestLogoUrl) {
+      crestElem.innerHTML = "<img src='" + id.crestLogoUrl + "' style='width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;' alt='Club Crest' />";
+      crestElem.style.padding = "0";
+      crestElem.style.overflow = "hidden";
+      crestElem.style.background = "#0f172a";
+      crestElem.style.border = "2px solid var(--safc-gold, #facc15)";
+    } else {
+      crestElem.innerHTML = id.badgeInitials || "SAFC";
+      crestElem.style.padding = "";
+      crestElem.style.overflow = "";
+      crestElem.style.background = "";
+      crestElem.style.border = "2px solid var(--safc-gold, #facc15)";
+    }
+  }
+
+  if (titleElem && id.clubName) titleElem.textContent = id.clubName;
+  if (subElem && id.subTitle) subElem.textContent = id.subTitle;
+
+  document.title = (id.clubName || "Club Portal") + " - " + (id.badgeInitials || "Branch");
+};
+
+// 3. Dynamic UI Visibility Controller
+window.applyAppModules = function() {
+  if (!appState || !appState.modules) return;
+  var mods = appState.modules;
+
+  // Bottom Navigation Items
+  var navTravel = document.getElementById("nav-travel");
+  var navFundraiser = document.getElementById("nav-fundraiser");
+  var navComms = document.getElementById("nav-comms");
+  var navProfile = document.getElementById("nav-profile");
+
+  if (navTravel) navTravel.style.display = mods.travel ? "flex" : "none";
+  if (navFundraiser) navFundraiser.style.display = mods.fundraiser ? "flex" : "none";
+  if (navProfile) navProfile.style.display = mods.duesAndPass ? "flex" : "none";
+
+  var commsAny = mods.commsBusChat || mods.commsHelpdesk;
+  if (navComms) navComms.style.display = commsAny ? "flex" : "none";
+
+  // Balance remaining tabs evenly across the screen
+  var navItems = document.querySelectorAll(".bottom-nav .nav-item");
+  navItems.forEach(function(item) {
+    item.style.flex = "1";
+    item.style.width = "auto";
+  });
+
+  // Home HUD Contextual Cards
+  var hudFundraiserCard = document.getElementById("hud-card-fundraiser-pulse");
+  if (hudFundraiserCard) {
+    hudFundraiserCard.style.display = mods.fundraiser ? "block" : "none";
+  }
+
+  var hudTravelCard = document.getElementById("hud-travel-card-status");
+  if (hudTravelCard && !mods.travel) {
+    hudTravelCard.style.display = "none";
+  }
+
+  // Away Tickets Card
+  var awayCard = document.getElementById("member-away-status-card");
+  if (awayCard && awayCard.parentElement) {
+    awayCard.parentElement.style.display = mods.awayTickets ? "block" : "none";
+  }
+
+  // Comms Sub-Tabs
+  var btnBus = document.getElementById("btn-sub-bus");
+  var btnDesk = document.getElementById("btn-sub-desk");
+
+  if (btnBus) btnBus.style.display = mods.commsBusChat ? "block" : "none";
+  if (btnDesk) btnDesk.style.display = mods.commsHelpdesk ? "block" : "none";
+
+  if (!mods.commsBusChat && mods.commsHelpdesk) {
+    if (typeof switchCommsSubTab === "function") switchCommsSubTab("desk");
+  } else if (mods.commsBusChat && !mods.commsHelpdesk) {
+    if (typeof switchCommsSubTab === "function") switchCommsSubTab("bus");
+  }
+};
+
+// 4. Admin Module Manager & Branding Pane Renderer
+window.renderAdminModulesManager = function() {
+  var container = document.getElementById("admin-modules-switches-container") || document.getElementById("admin-pane-modules");
+  if (!container || !appState) return;
+
+  var mods = appState.modules || {};
+  var id = appState.clubIdentity || { clubName: "Coxhoe Branch", subTitle: "Supporters Club", badgeInitials: "SAFC", crestLogoUrl: null };
+  var currentLogo = (typeof window._tempCrestLogoUrl !== "undefined") ? window._tempCrestLogoUrl : id.crestLogoUrl;
+
+  var html = 
+    "<div class='admin-card' style='background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
+      "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:4px;'>🏢 Club & Branch Identity (White-Label)</strong>" +
+      "<p class='text-xs text-muted mb-2'>Re-skin the top header branding and upload your official club crest logo.</p>" +
+
+      // Club Crest Photo Upload Suite
+      "<div style='background:#1e293b; padding:10px; border-radius:6px; margin-bottom:10px; border:1px solid #334155;'>" +
+        "<label class='form-label' style='font-size:10px; color:var(--safc-gold); margin-bottom:6px;'>Club Crest Photo</label>" +
+        "<div style='display:flex; align-items:center; gap:12px;'>" +
+          "<div id='admin-crest-preview-box' style='width:52px; height:52px; border-radius:50%; border:2px solid var(--safc-gold); background:#0f172a; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;'>" +
+            (currentLogo 
+              ? "<img id='admin-crest-preview-img' src='" + currentLogo + "' style='width:100%; height:100%; object-fit:cover;' alt='Crest Preview' />"
+              : "<span style='font-weight:900; font-size:12px; color:var(--safc-gold);'>SAFC</span>") +
+          "</div>" +
+          "<div style='flex:1;'>" +
+            "<input type='file' id='admin-crest-file-input' accept='image/*' style='display:none;' onchange='window.handleClubCrestUpload(event)' />" +
+            "<div style='display:flex; gap:6px;'>" +
+              "<button type='button' class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px;' onclick='document.getElementById(\"admin-crest-file-input\").click()'>" +
+                "📷 Upload Photo" +
+              "</button>" +
+              (currentLogo 
+                ? "<button type='button' class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 8px; color:#ef4444; border-color:#ef4444;' onclick='window.removeClubCrestPhoto()'>Remove</button>" 
+                : "") +
+            "</div>" +
+            "<span style='font-size:9px; color:#94a3b8; display:block; margin-top:4px;'>PNG, JPG or SVG (Max 2MB). Fits round crest.</span>" +
+          "</div>" +
+        "</div>" +
+      "</div>" +
+
+      // Name & Subtitle Inputs
+      "<div class='form-group' style='margin-bottom:6px;'>" +
+        "<label class='form-label' style='font-size:9px;'>Club / Branch Name</label>" +
+        "<input type='text' id='admin-branding-name' class='form-input' value='" + (id.clubName || "") + "' style='padding:6px; font-size:11px;' />" +
+      "</div>" +
+
+      "<div class='form-group' style='margin-bottom:8px;'>" +
+        "<label class='form-label' style='font-size:9px;'>Sub-Heading / Tagline</label>" +
+        "<input type='text' id='admin-branding-sub' class='form-input' value='" + (id.subTitle || "") + "' style='padding:6px; font-size:11px;' />" +
+      "</div>" +
+
+      "<button class='btn btn-gold btn-sm' style='width:100%; font-size:10px;' onclick='window.saveClubBranding()'>💾 Save Club Identity</button>" +
+    "</div>" +
+
+    "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:6px;'>🧩 Functional Feature Toggles</strong>";
+
+  var moduleDefinitions = [
+    {
+      key: "travel",
+      icon: "🚌",
+      title: "Coach Travel & Bus Fleet",
+      desc: "Manages matchday coach booking, multi-passenger parties, village pickup stops, and door check-in manifests."
+    },
+    {
+      key: "awayTickets",
+      icon: "🎟️",
+      title: "Away Match Tickets",
+      desc: "Allows members to submit expressions of interest for club away ticket allocations with committee assignation."
+    },
+    {
+      key: "fundraiser",
+      icon: "⚽",
+      title: "Matchday Scratch Card (Fundraiser)",
+      desc: "40-team multi-selection football card with 50/50 prize splitting and winner announcements."
+    },
+    {
+      key: "commsBusChat",
+      icon: "💬",
+      title: "Matchday Bus Chat",
+      desc: "Live passenger chatter tethered to the active fixture with 24h auto-expiry and language safeguards."
+    },
+    {
+      key: "commsHelpdesk",
+      icon: "🛡️",
+      title: "Committee Helpdesk & Mailbox",
+      desc: "Private member query routing with dual red/gold notification badges and internal committee notes."
+    },
+    {
+      key: "duesAndPass",
+      icon: "🪪",
+      title: "Membership Passes & Wallet Ledger",
+      desc: "Digital membership cards, annual dues renewal gates, and downloadable audit trail statements."
+    }
+  ];
+
+  moduleDefinitions.forEach(function(mod) {
+    var isEnabled = !!mods[mod.key];
+    html += 
+      "<div class='admin-card' style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:10px 12px; margin-bottom:8px; border-left:3px solid " + (isEnabled ? "var(--green)" : "#475569") + ";'>" +
+        "<div style='flex:1; padding-right:12px;'>" +
+          "<div style='display:flex; align-items:center; gap:6px;'>" +
+            "<span style='font-size:14px;'>" + mod.icon + "</span>" +
+            "<strong style='font-size:12px; color:#fff;'>" + mod.title + "</strong>" +
+          "</div>" +
+          "<p style='font-size:10px; color:#94a3b8; margin:3px 0 0 0; line-height:1.4;'>" + mod.desc + "</p>" +
+        "</div>" +
+        "<div>" +
+          "<button class='btn btn-sm " + (isEnabled ? "btn-gold" : "btn-outline") + "' style='min-width:70px; font-weight:800; font-size:10px; padding:6px 8px; border-color:" + (isEnabled ? "var(--safc-gold)" : "#64748b") + "; color:" + (isEnabled ? "#000" : "#94a3b8") + ";' onclick='window.toggleAppModule(\"" + mod.key + "\")'>" +
+            (isEnabled ? "✓ ACTIVE" : "OFF") +
+          "</button>" +
+        "</div>" +
+      "</div>";
+  });
+
+  container.innerHTML = html;
+};
+
+// 5. Handle Club Crest Photo Selection & Reader
+window.handleClubCrestUpload = function(event) {
+  var file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (file.size > 2 * 1024 * 1024) {
+    alert("Please select a crest image smaller than 2MB.");
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    window._tempCrestLogoUrl = e.target.result;
+    window.renderAdminModulesManager();
+  };
+  reader.readAsDataURL(file);
+};
+
+// 6. Remove Club Crest Photo
+window.removeClubCrestPhoto = function() {
+  window._tempCrestLogoUrl = null;
+  if (appState.clubIdentity) {
+    appState.clubIdentity.crestLogoUrl = null;
+  }
+  window.renderAdminModulesManager();
+};
+
+// 7. Save Club Branding
+window.saveClubBranding = function() {
+  var nameInput = document.getElementById("admin-branding-name");
+  var subInput = document.getElementById("admin-branding-sub");
+
+  if (!appState.clubIdentity) appState.clubIdentity = {};
+  appState.clubIdentity.clubName = nameInput ? nameInput.value.trim() : "Coxhoe Branch";
+  appState.clubIdentity.subTitle = subInput ? subInput.value.trim() : "Supporters Club";
+
+  if (typeof window._tempCrestLogoUrl !== "undefined") {
+    appState.clubIdentity.crestLogoUrl = window._tempCrestLogoUrl;
+  }
+
+  try {
+    localStorage.setItem("coxhoe_club_identity_v20", JSON.stringify(appState.clubIdentity));
+  } catch (e) {}
+
+  window.applyClubIdentity();
+  window.renderAdminModulesManager();
+  alert("✓ Club branding saved! Crest photo, club name, and subtitle updated.");
+};
+
+window.toggleAppModule = function(moduleKey) {
+  if (!appState || !appState.modules) return;
+
+  appState.modules[moduleKey] = !appState.modules[moduleKey];
+
+  try {
+    localStorage.setItem("coxhoe_modules_v20", JSON.stringify(appState.modules));
+  } catch (e) {}
+
+  window.applyAppModules();
+  window.renderAdminModulesManager();
+  if (typeof updateCommsBadge === "function") updateCommsBadge();
+};
+
+// 8. Automatic Hook into Admin Dropdown Navigation
+var _prevSwitchAdminToolForModules = window.switchAdminTool;
+window.switchAdminTool = function(toolId) {
+  if (_prevSwitchAdminToolForModules) _prevSwitchAdminToolForModules(toolId);
+  if (toolId === "modules") {
+    setTimeout(function() {
+      if (typeof window.renderAdminModulesManager === "function") {
+        window.renderAdminModulesManager();
+      }
+    }, 20);
+  }
+};
+
+var _prevOpenAdminDrawerForModules = window.openAdminDrawer;
+window.openAdminDrawer = function() {
+  if (_prevOpenAdminDrawerForModules) _prevOpenAdminDrawerForModules();
+  var sel = document.getElementById("admin-tool-select");
+  if (sel && sel.value === "modules") {
+    setTimeout(function() {
+      if (typeof window.renderAdminModulesManager === "function") {
+        window.renderAdminModulesManager();
+      }
+    }, 20);
+  }
+};
+
+// Initial sync on startup
+setTimeout(function() {
+  if (typeof window.applyClubIdentity === "function") window.applyClubIdentity();
+  if (typeof window.applyAppModules === "function") window.applyAppModules();
+}, 80);
