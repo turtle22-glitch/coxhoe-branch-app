@@ -36,10 +36,6 @@
           <div id="header-brand-sub" class="brand-sub">Supporters Club</div>
         </div>
       </div>
-      <div id="user-header-info" style="display: none; text-align: right;">
-        <div id="display-name" style="font-size: 13px; font-weight: 700;">Member</div>
-        <div id="display-balance" style="font-size: 11px; color: var(--safc-gold); font-weight: 600;">£35.00</div>
-      </div>
     </div>
   </header>
 
@@ -58,34 +54,125 @@
     <div id="deact-msg"></div>
   </div>
 
-  <!-- 1. SIGN IN SCREEN -->
+  <!-- VIEW 0: LOGIN, QUICK-UNLOCK & MEMBER REGISTRATION -->
   <section id="view-login" class="tab-view active">
-    <div class="card" style="margin-top: 10px;">
-      <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">Sign In to Branch Portal</h2>
-      <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">Matchday HUD, travel, away tickets, dues & pass.</p>
-
-      <div class="form-group">
-        <label class="form-label">Full Name</label>
-        <input type="text" id="login-username" class="form-input" value="Gary Miller" />
+    <!-- 1. Returning Member Quick-Unlock Card (Shown automatically when a device session exists) -->
+    <div id="login-quick-unlock-card" class="card" style="display:none; border-top:3px solid var(--safc-gold); background:linear-gradient(180deg, #1e293b 0%, #0f172a 100%);">
+      <div class="flex-between" style="margin-bottom:8px;">
+        <span class="badge-gold">⚡ QUICK UNLOCK</span>
+        <button type="button" class="btn btn-outline btn-sm" style="font-size:10px; padding:3px 8px;" onclick="window.clearSavedDeviceUser()">Switch Account</button>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">Password</label>
-        <input type="password" id="login-password" class="form-input" value="password123" />
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+        <img id="quick-unlock-avatar" src="" alt="Member Avatar" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid var(--safc-gold); background:#0f172a;" />
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">Welcome back,</div>
+          <strong id="quick-unlock-name" style="font-size:16px; color:#fff; display:block;">Gary Miller</strong>
+          <span id="quick-unlock-meta" style="font-size:10px; color:var(--safc-gold); font-weight:700;">Member #COX-084 • Adult</span>
+        </div>
       </div>
 
-      <button class="btn btn-red" onclick="handleLogin()" style="margin-bottom: 8px;">Sign In</button>
+      <div id="quick-unlock-pin-box" style="margin-bottom:8px;">
+        <label class="form-label">Enter 4-Digit Security PIN</label>
+        <div style="display:flex; gap:8px;">
+          <input type="password" id="quick-unlock-pin-input" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="flex:1; text-align:center; letter-spacing:6px; font-size:16px; font-weight:800;" />
+          <button type="button" class="btn btn-red" style="width:auto; min-width:110px;" onclick="window.handlePinQuickUnlock()">🔓 Unlock</button>
+        </div>
+      </div>
 
-      <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
-        <div style="font-size: 9px; color: var(--text-muted); margin-bottom: 6px;">QUICK TESTING IDENTITIES:</div>
-        <div style="display: flex; gap: 4px; margin-bottom: 4px;">
-          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="quickLogin('Gary Miller', 'member', 'COX-084')">Gary (Active)</button>
-          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="quickLogin('Graham (Secretary)', 'admin', 'ADMIN-01')">Graham (Admin)</button>
+      <button type="button" id="btn-biometric-quick-unlock" class="btn btn-outline" style="display:none; width:100%; border-color:var(--safc-gold); color:var(--safc-gold); margin-top:6px;" onclick="window.handleBiometricQuickUnlock()">
+        🧬 Unlock with Biometrics (Face / Touch)
+      </button>
+    </div>
+
+    <!-- 2. Main Sign-In & Registration Card -->
+    <div class="card" style="border-top:3px solid var(--safc-red);">
+      <!-- Mode Switcher Tabs -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; background:#0f172a; padding:4px; border-radius:8px; margin-bottom:14px; border:1px solid #334155;">
+        <button type="button" id="tab-auth-signin" class="btn btn-red btn-sm" style="width:100%;" onclick="window.switchAuthMode('signin')">🔑 Sign In</button>
+        <button type="button" id="tab-auth-register" class="btn btn-outline btn-sm" style="width:100%; border:none;" onclick="window.switchAuthMode('register')">📝 Join Branch</button>
+      </div>
+
+      <!-- PANE A: MEMBER SIGN IN -->
+      <div id="auth-pane-signin">
+        <h2 style="font-size:17px; font-weight:900; margin-bottom:4px;">Supporter Portal Sign-In</h2>
+        <p class="text-xs text-muted mb-2">Enter your full name or official Coxhoe Branch membership number.</p>
+
+        <div class="form-group">
+          <label class="form-label">Full Name or Member #</label>
+          <input type="text" id="login-username" class="form-input" placeholder="e.g. Gary Miller or COX-084" autocomplete="username" />
         </div>
-        <div style="display: flex; gap: 4px;">
-          <button class="btn btn-outline btn-sm" style="flex:1; border-color:#ef4444; color:#f87171;" onclick="quickLogin('Billy Thompson', 'member', 'COX-099')">Billy (Lapsed Subs)</button>
-          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="quickLogin('Phoebe Miller', 'member', 'COX-085')">Phoebe (Child)</button>
+
+        <div class="form-group">
+          <label class="form-label">4-Digit PIN (If Configured on Account)</label>
+          <input type="password" id="login-pin-input" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Optional unless PIN is active" style="letter-spacing:3px;" />
         </div>
+
+        <button type="button" class="btn btn-red" onclick="window.handleLogin()">Sign In to Portal ➔</button>
+      </div>
+
+      <!-- PANE B: NEW MEMBER REGISTRATION -->
+      <div id="auth-pane-register" style="display:none;">
+        <h2 style="font-size:17px; font-weight:900; margin-bottom:4px;">Register Branch Membership</h2>
+        <p class="text-xs text-muted mb-2">Create your digital pass for coach travel, away ticket ballots, and branch updates.</p>
+
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input type="text" id="reg-full-name" class="form-input" placeholder="e.g. Chris Jordan" />
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div class="form-group">
+            <label class="form-label">Date of Birth *</label>
+            <input type="date" id="reg-dob" class="form-input" onchange="window.checkRegistrationAge()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Branch Nickname</label>
+            <input type="text" id="reg-nickname" class="form-input" placeholder="Optional" />
+          </div>
+        </div>
+
+        <!-- Dynamic Under-18 Safeguarding Box (Appears automatically if DOB is under 18) -->
+        <div id="reg-u18-guardian-box" style="display:none; background:#1e1b4b; border:1px solid var(--safc-gold); padding:10px; border-radius:8px; margin-bottom:10px;">
+          <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:4px;">🛡️ Under-18 Junior Safeguarding</strong>
+          <p style="font-size:10px; color:#cbd5e1; margin-bottom:6px; line-height:1.35;">
+            Junior accounts (£0 wallet, no DMs) must be linked to an adult parent/guardian in the branch within 7 days.
+          </p>
+          <label class="form-label">Parent / Guardian Name or Member # *</label>
+          <input type="text" id="reg-guardian-name" class="form-input" placeholder="e.g. Gary Miller or COX-084" />
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div class="form-group">
+            <label class="form-label">Mobile Number *</label>
+            <input type="tel" id="reg-phone" class="form-input" placeholder="07..." />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Set 4-Digit PIN</label>
+            <input type="password" id="reg-pin" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1973" style="text-align:center; letter-spacing:3px;" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Emergency Next-of-Kin (Name & Phone)</label>
+          <input type="text" id="reg-emergency" class="form-input" placeholder="For coach travel manifest safety" />
+        </div>
+
+        <button type="button" class="btn btn-gold" onclick="window.handleMemberRegistration()">✓ Complete Registration & Sign In</button>
+      </div>
+    </div>
+
+    <!-- 3. Sandbox / Persona Quick-Switch (Locked to Authenticated Admins Only) -->
+    <div id="login-demo-switcher-card" class="card" style="display:none; background:#0f172a; border:1px dashed var(--safc-gold);">
+      <div class="flex-between" style="margin-bottom:8px;">
+        <strong style="font-size:11px; color:var(--safc-gold);">🧪 Admin Persona Quick-Switch</strong>
+        <span class="badge-gold">Admin Device Only</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.quickLogin('Gary Miller', 'member', 'COX-084')">👤 Gary (Adult)</button>
+        <button type="button" class="btn btn-gold btn-sm" onclick="window.quickLogin('Graham (Secretary)', 'admin', 'ADMIN-01')">🛡️ Graham (Admin)</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.quickLogin('Phoebe Miller', 'member', 'COX-085')">🧒 Phoebe (Junior U18)</button>
+        <button type="button" class="btn btn-outline btn-sm" style="color:#f87171; border-color:#ef4444;" onclick="window.quickLogin('Billy Thompson', 'member', 'COX-099')">⚠️ Billy (Subs Overdue)</button>
       </div>
     </div>
   </section>
@@ -96,26 +183,30 @@
     <div id="hud-urgent-banner" style="display:none; background:#7f1d1d; border:1px solid #ef4444; color:#fff; padding:10px; border-radius:8px; font-size:11px; margin-bottom:10px; line-height:1.4;"></div>
 
     <!-- HUD Card 1: Quick Member Identity & Wallet Snapshot -->
-    <div class="card" style="margin-bottom:8px; padding:10px 12px; background:#0f172a; border:1px solid #334155;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <img id="hud-user-avatar" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>" style="width:36px; height:36px; border-radius:50%; border:1px solid var(--safc-gold); object-fit:cover;" alt="Avatar" />
+    <div class="card" style="margin-bottom:8px; padding:12px; background:#0f172a; border:1px solid #334155;">
+      <!-- Top Row: Avatar, Member Name & Membership Status Pill -->
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <img id="hud-user-avatar" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='42' height='42' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>" style="width:42px; height:42px; border-radius:50%; border:2px solid var(--safc-gold); object-fit:cover; flex-shrink:0;" alt="Avatar" />
           <div>
-            <div style="display:flex; align-items:center; gap:6px;">
-              <strong id="hud-member-name" style="font-size:13px; font-weight:800;">Gary Miller</strong>
-              <span id="hud-subs-badge" class="badge-gold" style="font-size:9px; padding:1px 5px;">● 2026/27 Active</span>
-            </div>
-            <div id="hud-member-no" style="font-size:10px; color:var(--text-muted);">Member #COX-084</div>
+            <strong id="hud-member-name" style="font-size:15px; font-weight:800; display:block; color:#fff;">Gary Miller</strong>
+            <div id="hud-member-no" style="font-size:11px; color:var(--text-muted); margin-top:2px;">Member #COX-084</div>
           </div>
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase;">Wallet Balance</div>
-          <div id="hud-wallet-balance" style="font-size:14px; font-weight:800; color:var(--safc-gold);">£35.00</div>
-          <div style="display:flex; gap:4px; margin-top:2px;">
-            <button class="btn btn-outline btn-sm" style="font-size:9px; padding:1px 6px;" onclick="switchTab('view-profile')">Pass 🪪</button>
-            <button class="btn btn-gold btn-sm" style="font-size:9px; padding:1px 6px;" onclick="var u=getCurrentUserRecord(); u.balance+=20.00; safePersistState(); window.updateBalanceDisplay(); alert('£20.00 added to wallet!');">+ Top Up</button>
-          </div>
+        <span id="hud-subs-badge" class="badge-gold" style="font-size:10px; font-weight:800; padding:4px 10px; border-radius:999px; white-space:nowrap;">
+          ● 2026/27 Active
+        </span>
+      </div>
+
+      <!-- Bottom Row: Wallet Balance & Top-Up Button (Auto-hides for U18) -->
+      <div id="hud-identity-action-row" style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid #1e293b;">
+        <div id="hud-wallet-balance-block">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase; font-weight:700;">Wallet Balance</div>
+          <div id="hud-wallet-balance" style="font-size:16px; font-weight:900; color:var(--safc-gold); margin-top:1px;">£35.00</div>
         </div>
+        <button id="hud-topup-btn" class="btn btn-gold btn-sm" style="height:34px; padding:0 14px; font-size:11px; font-weight:800; border-radius:6px;" onclick="window.handleWalletTopUp()">
+          + Top Up Wallet
+        </button>
       </div>
     </div>
 
@@ -142,7 +233,7 @@
       </div>
 
       <h3 id="hud-next-match-title" style="font-size:16px; font-weight:800; margin-bottom:2px;">Sunderland vs Coventry City</h3>
-      <p id="hud-next-match-venue" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Stadium of Light • Championship</p>
+      <p id="hud-next-match-venue" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Stadium of Light • Premier League</p>
 
       <!-- Live Bus Departure Countdown Box -->
       <div id="hud-countdown-box" style="background:#0f172a; border:1px solid #334155; padding:8px 10px; border-radius:6px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
@@ -287,52 +378,52 @@
 
   </section>
 
- <!-- 4. FUNDRAISER -->
+ <!-- VIEW 3: FUNDRAISER (MATCHDAY FOOTBALL CARD) -->
  <section id="view-fundraising" class="tab-view">
-
-  <!-- Fundraiser Hub Header -->
-  <div class="card" style="border-top: 3px solid var(--safc-gold); margin-bottom: 8px;">
+  <!-- Top Info Box (You can freely overtype any wording inside this card) -->
+  <div class="card" style="background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-left:4px solid var(--safc-gold);">
     <div class="flex-between">
       <div>
-        <span style="font-size:9px; font-weight:800; color:var(--safc-gold); text-transform:uppercase;">Official Branch Fundraising</span>
-        <h2 style="font-size:16px; font-weight:800; margin:2px 0;">Matchday Football Card</h2>
+        <span style="font-size:9px; font-weight:800; color:var(--safc-gold); letter-spacing:0.8px; text-transform:uppercase;">OFFICIAL BRANCH FUNDRAISING</span>
+        <h2 style="font-size:17px; font-weight:900; margin-top:2px;">Matchday Football Card</h2>
       </div>
-      <span class="badge-gold">100% Branch Funded</span>
+      <span class="badge-gold" style="padding:4px 8px; font-size:9px;">100% Branch Funded</span>
     </div>
-    <p class="text-xs text-muted mt-1">All profits directly subsidize branch travel and junior member initiatives.</p>
+    <p class="text-xs text-muted mt-2">All profits directly subsidize branch travel and junior member initiatives.</p>
   </div>
 
-  <!-- ⚽ 40-SQUARE FOOTBALL SCRATCH CARD -->
+  <!-- Bottom Scratch Card Box (With Dynamic IDs for Title, Subtext & Prize) -->
   <div class="card">
-    <div class="flex-between" style="margin-bottom:6px;">
-      <span style="background:var(--safc-red); color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:4px;">MATCHDAY SPECIAL</span>
-      <span id="card-sold-summary" class="badge-gold">2 / 40 Claimed</span>
+    <div class="flex-between" style="margin-bottom:8px;">
+      <span class="badge-red" style="padding:3px 8px; font-size:9px;">MATCHDAY SPECIAL</span>
+      <span id="card-sold-summary" class="badge-gold" style="padding:3px 8px; font-size:9px;">0 / 40 Claimed</span>
     </div>
 
-    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:8px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px;">
       <div>
-        <h3 id="football-card-title" style="font-size:16px; font-weight:800; margin:0;">40-Team Scratch Card</h3>
-        <p class="text-xs text-muted" style="margin-top:2px;">£2.00 per team • £40 to winner • £40 to branch funds</p>
+        <h3 id="football-card-heading" style="font-size:16px; font-weight:900;">40-Team Scratch Card</h3>
+        <p id="football-card-subtext" class="text-xs text-muted">£2.00 per team • £40 to winner • £40 to branch funds</p>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase;">Winner Prize</div>
-        <div style="font-size:16px; font-weight:800; color:var(--green);">£40.00</div>
+        <span style="font-size:9px; color:var(--text-muted); font-weight:700; display:block;">WINNER PRIZE</span>
+        <strong id="football-card-prize-amount" style="font-size:16px; color:var(--green); font-weight:900;">£40.00</strong>
       </div>
     </div>
 
-    <!-- 40 Squares Grid -->
-    <div id="football-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:10px;"></div>
+    <!-- Dynamic Team Squares Grid -->
+    <div id="football-grid" class="grid-40"></div>
 
-    <!-- Claim Team Action Bar -->
-    <div id="football-card-action-bar" style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; display:flex; justify-content:space-between; align-items:center;">
-      <div>
-        <div id="football-selected-team-name" style="font-size:11px; font-weight:700;">Select an available team</div>
-        <div style="font-size:10px; color:var(--text-muted);">Cost: £2.00 deducted from wallet balance</div>
+    <!-- Bottom Claim Bar -->
+    <div style="margin-top:12px; padding-top:10px; border-top:1px solid #334155; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <div id="football-selected-team-name" style="font-size:11px;">
+        Select available team(s)
+        <div style="font-size:10px; color:#94a3b8;">£2.00 per square</div>
       </div>
-      <button id="btn-claim-football-team" class="btn btn-red btn-sm" disabled onclick="window.confirmFootballTeamPurchase()">Claim Team</button>
+      <button id="btn-claim-football-team" class="btn btn-gold btn-sm" style="min-width:130px;" onclick="window.confirmFootballTeamPurchase()" disabled>
+        Claim Teams
+      </button>
     </div>
   </div>
-
 </section>
 
   <!-- 5. COMMS -->
@@ -412,6 +503,7 @@
           <span style="font-size:9px; font-weight:800; color:var(--safc-gold);">BRANCH MEMBER IDENTITY</span>
           <h2 id="card-name" style="font-size:16px; font-weight:800; margin:2px 0;">Gary Miller</h2>
           <div id="card-no" style="font-size:11px; color:var(--text-muted);">Member #COX-084</div>
+          <button id="btn-remove-profile-photo" type="button" class="btn btn-outline btn-sm" style="display:none; margin-top:6px; padding:2px 8px; font-size:9px; color:#f87171; border-color:#ef4444;" onclick="window.removeMemberProfilePhoto()">🗑️ Remove Photo</button>
         </div>
       </div>
 
@@ -443,60 +535,12 @@
         <button class="btn btn-gold btn-sm" style="width:100%; font-size:10px;" onclick="window.saveMemberProfile()">💾 Save Profile Details</button>
       </div>
 
+      <button class="btn btn-outline" onclick="openSettingsDrawer()" style="width:100%; margin-bottom:8px; border-color:var(--safc-gold); color:var(--safc-gold); justify-content:space-between;">
+        <span>⚙️ App Settings & Privacy</span>
+        <span id="settings-summary-pill" style="font-size:11px; color:var(--text-muted); font-weight:600;">Medium • Theme ➔</span>
+      </button>
+
       <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="width:100%;">Log Out</button>
-    </div>
-
-    <!-- Card 2: 🎨 Kit Theme Engine & Display Preferences -->
-    <div class="card" style="border-top:3px solid var(--safc-gold);">
-      <div class="flex-between" style="margin-bottom:6px;">
-        <strong style="font-size:12px;">🎨 Kit Theme & Display Settings</strong>
-        <span id="theme-badge-label" class="badge-gold" style="font-size:9px;">1990 Vaux Home</span>
-      </div>
-      <p class="text-xs text-muted mb-2">Personalize the app interface using classic and modern SAFC kit palettes.</p>
-
-      <!-- Kit Theme Selector -->
-      <div class="form-group" style="margin-bottom:8px;">
-        <label class="form-label" style="font-size:10px; color:var(--safc-gold);">Select SAFC Kit Theme</label>
-        <select id="theme-kit-select" class="form-select" style="font-size:11px; padding:6px;" onchange="window.handleThemeSelectChange(this.value)">
-          <option value="1990-vaux-home">1. 1990 Vaux Home (Roker Scarlet, White & Amber)</option>
-          <option value="1990-vaux-away">2. 1990 Vaux Away (White & Blue Chevrons)</option>
-          <option value="1986-patrick-away">3. 1986 Patrick Away (Canary Yellow & Black)</option>
-          <option value="1992-fa-cup-away">4. 1992 FA Cup Final Away (Retro Turquoise & Cherry)</option>
-          <option value="1994-avec-gk">5. 1994 Avec Goalkeeper (Neon Yellow & Cobalt Mosaic)</option>
-          <option value="1998-lambtons-away">6. 1998 Lambton's Away (105-Point Navy & Gold Ale)</option>
-          <option value="2000-reg-vardy">7. 2000 Reg Vardy Home (Super Kev Premier Crimson)</option>
-          <option value="2023-stealth-third">8. 2023 Stealth Third (Blackout Graphite & Volt Neon)</option>
-          <option value="2024-mining-heritage">9. 2024 Mining Heritage (Durham Pithead Navy & Cyan)</option>
-          <option value="2026-hummel-elvis">10. 2026 Hummel Elvis Away (Bubblegum Terrace Pink)</option>
-        </select>
-      </div>
-
-      <!-- Color Swatch Strip -->
-      <div id="theme-swatch-box" style="display:flex; height:12px; border-radius:6px; overflow:hidden; border:1px solid #334155; margin-bottom:10px;">
-        <div id="swatch-c1" style="flex:2; background:#dc2626;"></div>
-        <div id="swatch-c2" style="flex:1; background:#ffffff;"></div>
-        <div id="swatch-c3" style="flex:1; background:#facc15;"></div>
-      </div>
-
-      <!-- Display & Privacy Toggles -->
-      <div style="background:#0f172a; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #334155;">
-        <strong style="font-size:10px; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:6px;">Display & Privacy Preferences</strong>
-        
-        <label style="display:flex; align-items:center; justify-content:space-between; font-size:11px; margin-bottom:6px; cursor:pointer;">
-          <span>High-Contrast Matchday Text Mode (Sunlight)</span>
-          <input type="checkbox" id="pref-high-contrast" onchange="window.toggleHighContrastMode(this.checked)" />
-        </label>
-
-        <label style="display:flex; align-items:center; justify-content:space-between; font-size:11px; margin-bottom:6px; cursor:pointer;">
-          <span>Show Branch Nickname on Public Manifest</span>
-          <input type="checkbox" id="pref-public-nickname" checked onchange="window.saveDisplayPreferences()" />
-        </label>
-
-        <label style="display:flex; align-items:center; justify-content:space-between; font-size:11px; cursor:pointer;">
-          <span>Matchday & Away Ticket Push Alerts</span>
-          <input type="checkbox" id="pref-notifications" checked onchange="window.saveDisplayPreferences()" />
-        </label>
-      </div>
     </div>
 
     <!-- Card 3: Friends & Family Network -->
@@ -511,8 +555,11 @@
 
       <div style="border-top:1px solid #334155; padding-top:8px; margin-top:8px;">
         <label class="form-label">Link Another Branch Member</label>
-        <div style="display:flex; gap:6px;">
-          <input type="text" id="fnf-search-input" class="form-input" placeholder="Type member name or number..." style="flex:2; font-size:11px;" />
+        <div style="display:flex; gap:6px; position:relative;">
+          <div style="flex:2; position:relative;">
+            <input type="text" id="fnf-search-input" class="form-input" placeholder="Type member name or number..." autocomplete="off" style="font-size:11px;" oninput="window.handleFnFMemberSearch(this.value)" />
+            <div id="fnf-autocomplete-box" class="autocomplete-dropdown" style="display:none;"></div>
+          </div>
           <select id="fnf-relation-select" class="form-select" style="flex:1; font-size:11px;">
             <option value="Friend">Friend</option>
             <option value="Family">Family</option>
@@ -524,10 +571,10 @@
     </div>
 
     <!-- Card 4: Financial Statement & Ledger -->
-    <div class="card">
+    <div id="profile-wallet-card" class="card">
       <div class="card-title">
         <span id="wallet-statement-title">💳 Wallet Statement</span>
-        <button class="btn btn-outline btn-sm" onclick="var u=getCurrentUserRecord(); u.balance+=20.00; logForensicTransaction(u.name, 'Member', u.name, 'TOPUP', 'Debit Card Deposit', 0, 20.00, 0); window.updateBalanceDisplay(); alert('£20.00 added to wallet!');">+ Top Up</button>
+        <button class="btn btn-outline btn-sm" onclick="window.handleWalletTopUp()">+ Top Up</button>
       </div>
 
       <div style="background:#0f172a; padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid #334155;">
@@ -903,6 +950,261 @@
     </div>
   </div>
 
+</div>
+
+<!-- APP SETTINGS, ACCESSIBILITY & GDPR DRAWER -->
+<div id="settings-drawer" class="admin-drawer hidden" role="dialog" aria-label="App Settings">
+  <div class="drawer-header">
+    <div>
+      <h3>⚙️ App Settings</h3>
+      <span class="text-xs text-muted">Accessibility, Themes, Privacy, Alerts & Security</span>
+    </div>
+    <button class="btn-close" onclick="closeSettingsDrawer()" aria-label="Close Settings">✕</button>
+  </div>
+
+  <div class="drawer-content">
+    <!-- 1. Accessibility & Text/Button Sizing (WCAG 2.2 AA) -->
+    <div class="card" style="border-top:3px solid var(--safc-gold);">
+      <div class="flex-between">
+        <strong>📐 Text, Buttons & Accessibility</strong>
+        <span id="ui-size-badge" class="badge-gold">Medium</span>
+      </div>
+      <p class="text-xs text-muted mt-1">Adjust text scale, button tap height (WCAG 44px+), and visual comfort.</p>
+
+      <div class="size-picker-grid" style="margin-bottom:12px;">
+        <button type="button" id="size-btn-small" class="size-option-btn" onclick="window.setAppUISize('small')">
+          <strong style="font-size:12px;">Small</strong>
+          <span style="font-size:10px;">Compact</span>
+        </button>
+        <button type="button" id="size-btn-medium" class="size-option-btn active" onclick="window.setAppUISize('medium')">
+          <strong style="font-size:14px;">Medium</strong>
+          <span style="font-size:10px;">Default</span>
+        </button>
+        <button type="button" id="size-btn-large" class="size-option-btn" onclick="window.setAppUISize('large')">
+          <strong style="font-size:16px;">Large</strong>
+          <span style="font-size:10px;">Terrace</span>
+        </button>
+      </div>
+
+      <div style="background:#0f172a; padding:8px 12px; border-radius:8px; border:1px solid #334155;">
+        <label class="settings-toggle-row">
+          <div>
+            <strong>☀️ High-Contrast Sunlight Mode</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Boosts contrast (7:1+) and borders for outdoor turnstile glare</div>
+          </div>
+          <input type="checkbox" id="pref-high-contrast" onchange="window.toggleHighContrastMode(this.checked)" />
+        </label>
+
+        <label class="settings-toggle-row">
+          <div>
+            <strong>🛑 Reduce Motion & Animations</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Disables UI transitions and pulsing effects</div>
+          </div>
+          <input type="checkbox" id="pref-reduce-motion" onchange="window.updateExtendedSettings()" />
+        </label>
+
+        <label class="settings-toggle-row">
+          <div>
+            <strong>👁️ Colour-Blind Safe Indicators</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Adds distinct borders & patterns to status badges and grid squares</div>
+          </div>
+          <input type="checkbox" id="pref-colorblind-safe" onchange="window.updateExtendedSettings()" />
+        </label>
+      </div>
+    </div>
+
+    <!-- 2. Kit Theme Selector -->
+    <div class="card" style="border-top:3px solid var(--safc-red);">
+      <div class="flex-between" style="margin-bottom:6px;">
+        <strong>🎨 SAFC Kit Theme</strong>
+        <span id="theme-badge-label" class="badge-gold">1990 Vaux Home</span>
+      </div>
+      <p class="text-xs text-muted mb-2">Personalize the app interface using classic and modern SAFC kit palettes.</p>
+
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label">Select Kit Palette</label>
+        <select id="theme-kit-select" class="form-select" onchange="window.handleThemeSelectChange(this.value)">
+          <option value="1990-vaux-home">1. 1990 Vaux Home (Roker Scarlet, White & Amber)</option>
+          <option value="1990-vaux-away">2. 1990 Vaux Away (White & Blue Chevrons)</option>
+          <option value="1986-patrick-away">3. 1986 Patrick Away (Canary Yellow & Black)</option>
+          <option value="1992-fa-cup-away">4. 1992 FA Cup Final Away (Retro Turquoise & Cherry)</option>
+          <option value="1994-avec-gk">5. 1994 Avec Goalkeeper (Neon Yellow & Cobalt Mosaic)</option>
+          <option value="1998-lambtons-away">6. 1998 Lambton's Away (105-Point Navy & Gold Ale)</option>
+          <option value="2000-reg-vardy">7. 2000 Reg Vardy Home (Super Kev Premier Crimson)</option>
+          <option value="2023-stealth-third">8. 2023 Stealth Third (Blackout Graphite & Volt Neon)</option>
+          <option value="2024-mining-heritage">9. 2024 Mining Heritage (Durham Pithead Navy & Cyan)</option>
+          <option value="2026-hummel-elvis">10. 2026 Hummel Elvis Away (Bubblegum Terrace Pink)</option>
+        </select>
+      </div>
+
+      <div id="theme-swatch-box" style="display:flex; height:12px; border-radius:6px; overflow:hidden; border:1px solid #334155;">
+        <div id="swatch-c1" style="flex:2; background:#dc2626;"></div>
+        <div id="swatch-c2" style="flex:1; background:#ffffff;"></div>
+        <div id="swatch-c3" style="flex:1; background:#facc15;"></div>
+      </div>
+    </div>
+
+    <!-- 3. Privacy & Safeguarding Controls -->
+    <div class="card" style="border-top:3px solid #3b82f6;">
+      <strong style="display:block; margin-bottom:4px;">🛡️ Privacy & Safeguarding</strong>
+      <p class="text-xs text-muted mb-2">Control how your name appears on public bus lists and who can message you.</p>
+
+      <div class="form-group">
+        <label class="form-label">Public Bus Manifest & Scratch Card Display</label>
+        <select id="pref-manifest-display" class="form-select" onchange="window.updateExtendedSettings()">
+          <option value="nickname">Show Branch Nickname (if set, else Full Name)</option>
+          <option value="fullname">Show Full Name (e.g. Gary Miller)</option>
+          <option value="initials">Show Initials & Surname Only (e.g. G. Miller)</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:4px;">
+        <label class="form-label">Who Can Send Me Private DMs</label>
+        <select id="pref-dm-privacy" class="form-select" onchange="window.updateExtendedSettings()">
+          <option value="all">All Verified Branch Members</option>
+          <option value="fnf">Friends & Family + Committee Only</option>
+          <option value="committee">Committee Volunteers Only</option>
+        </select>
+        <div id="u18-dm-safeguard-note" style="display:none; font-size:10px; color:var(--safc-gold); margin-top:4px;">
+          🔒 Under-18 Safeguarding: Junior messaging is locked to Committee & Linked Guardians.
+        </div>
+      </div>
+
+      <!-- Legacy hidden checkbox kept synced so existing saveDisplayPreferences calls never error -->
+      <input type="checkbox" id="pref-public-nickname" style="display:none;" checked />
+    </div>
+
+    <!-- 4. Granular Push Notification Channels (UK PECR Compliance) -->
+    <div class="card" style="border-top:3px solid #10b981;">
+      <div class="flex-between" style="margin-bottom:4px;">
+        <strong>🔔 Push Notification Channels</strong>
+        <span id="push-permission-badge" class="badge-gold">Checking...</span>
+      </div>
+      <p class="text-xs text-muted mb-2">Choose exactly which club alerts you want delivered to your device.</p>
+
+      <div style="display:flex; gap:6px; margin-bottom:8px;">
+        <button type="button" id="btn-enable-browser-push" class="btn btn-outline btn-sm" style="flex:1; border-color:var(--safc-gold); color:var(--safc-gold);" onclick="window.requestBrowserPushPermission()">
+          📲 Enable Device Push
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" style="flex:1;" onclick="window.sendTestClubNotification()">
+          🔔 Send Test Alert
+        </button>
+      </div>
+
+      <div style="background:#0f172a; padding:8px 12px; border-radius:8px; border:1px solid #334155;">
+        <label class="settings-toggle-row">
+          <div>
+            <strong>🚍 Urgent Coach & Pickup Changes</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Departure time updates, A1(M) delays & bus gate alerts</div>
+          </div>
+          <input type="checkbox" id="notif-travel-urgent" checked onchange="window.updateExtendedSettings()" />
+        </label>
+
+        <label class="settings-toggle-row">
+          <div>
+            <strong>🎟️ Away Ticket Ballot & Allocations</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Application windows and committee ticket results</div>
+          </div>
+          <input type="checkbox" id="notif-away-tickets" checked onchange="window.updateExtendedSettings()" />
+        </label>
+
+        <label class="settings-toggle-row">
+          <div>
+            <strong>🎯 Fundraiser & Scratch Card Draws</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Winning team reveals and £40 prize notifications</div>
+          </div>
+          <input type="checkbox" id="notif-fundraiser" checked onchange="window.updateExtendedSettings()" />
+        </label>
+
+        <label class="settings-toggle-row">
+          <div>
+            <strong>💬 Direct Messages & Helpdesk Replies</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Committee support responses and member DMs</div>
+          </div>
+          <input type="checkbox" id="notif-comms" checked onchange="window.updateExtendedSettings()" />
+        </label>
+      </div>
+
+      <input type="checkbox" id="pref-notifications" style="display:none;" checked />
+    </div>
+
+    <!-- 5. Security, PIN/Biometrics & Wallet Spend Guard -->
+    <div class="card" style="border-top:3px solid #a855f7;">
+      <div class="flex-between" style="margin-bottom:4px;">
+        <strong>🔐 Security & Wallet Protection</strong>
+        <span id="security-pin-status-badge" class="badge-gold">No PIN Set</span>
+      </div>
+      <p class="text-xs text-muted mb-2">Protect your account and prevent accidental matchday wallet purchases.</p>
+
+      <div id="settings-wallet-guard-box" style="background:#0f172a; padding:8px 12px; border-radius:8px; border:1px solid #334155; margin-bottom:10px;">
+        <label class="settings-toggle-row">
+          <div>
+            <strong>💳 Confirm Before Spending Wallet Funds</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Requires confirmation (or PIN) before coach or scratch card debits</div>
+          </div>
+          <input type="checkbox" id="pref-confirm-wallet-spend" checked onchange="window.updateExtendedSettings()" />
+        </label>
+
+        <label class="settings-toggle-row">
+          <div>
+            <strong>🧬 Biometric Quick-Unlock (Face / Touch)</strong>
+            <div style="font-size:10px; color:var(--text-muted);">Use device passkey/biometrics when signing in</div>
+          </div>
+          <input type="checkbox" id="pref-biometric-unlock" onchange="window.toggleBiometricEnrollment(this.checked)" />
+        </label>
+      </div>
+
+      <div style="background:#0f172a; padding:10px 12px; border-radius:8px; border:1px solid #334155;">
+        <label class="form-label">4-Digit Quick-Unlock & Spend PIN</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="password" id="settings-pin-input" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Enter 4-digit PIN..." style="flex:1; letter-spacing:4px; text-align:center;" />
+          <button type="button" class="btn btn-gold btn-sm" onclick="window.saveMemberSecurityPin()">Save PIN</button>
+          <button type="button" id="btn-clear-pin" class="btn btn-outline btn-sm" style="display:none; color:#f87171; border-color:#ef4444;" onclick="window.clearMemberSecurityPin()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. UK GDPR Data Rights & Club Rules -->
+    <div class="card" style="border-top:3px solid #64748b;">
+      <strong style="display:block; margin-bottom:4px;">⚖️ Your Data Rights (UK GDPR) & Rules</strong>
+      <p class="text-xs text-muted mb-2">Download a copy of all branch data held on your account or manage your membership record.</p>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.exportMyPersonalData()">
+          📥 Export My Data
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.togglePrivacyNoticeBox()">
+          📜 Privacy & Rules
+        </button>
+      </div>
+
+      <div id="gdpr-privacy-notice-box" style="display:none; background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; font-size:11px; color:#cbd5e1; line-height:1.45; margin-bottom:8px;">
+        <strong style="color:var(--safc-gold); display:block; margin-bottom:4px;">Coxhoe SAFC Supporters Club — Data & Privacy Notice</strong>
+        • <strong>Data Controller:</strong> Coxhoe Branch SAFC Committee.<br/>
+        • <strong>Data Collected:</strong> Name, membership number, contact phone, emergency next-of-kin, coach travel manifests, and branch wallet ledger.<br/>
+        • <strong>Lawful Basis:</strong> Membership administration, coach passenger safety, and Under-18 safeguarding.<br/>
+        • <strong>Storage & Retention:</strong> Encrypted cloud sync via Supabase and local device storage. Financial audit logs are retained for branch accounting.<br/>
+        • <strong>Your Rights:</strong> You may export your data at any time or request erasure via the Branch Secretary.
+      </div>
+
+      <button type="button" class="btn btn-outline btn-sm" style="width:100%; color:#f87171; border-color:#ef4444;" onclick="window.requestAccountDeletion()">
+        🗑️ Request Account Erasure
+      </button>
+    </div>
+
+    <!-- 7. App Diagnostics & Cache Reset -->
+    <div class="card" style="background:#0f172a; border:1px solid #334155;">
+      <div class="flex-between" style="margin-bottom:6px;">
+        <span class="text-xs text-muted">PWA Build: <strong style="color:#fff;">v5.2 (Premier & Europa Live)</strong></span>
+        <span id="sw-cache-status" class="badge-gold">Service Worker Active</span>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" style="width:100%;" onclick="window.forceRefreshAppCache()">
+        🔄 Check for Updates & Refresh App Cache
+      </button>
+    </div>
+
+    <button class="btn btn-gold" onclick="closeSettingsDrawer()">✓ Done</button>
+  </div>
 </div>
 
 <!-- Supabase Client Library -->

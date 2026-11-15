@@ -228,7 +228,8 @@ header {
   display: none !important;
 }
 
-#admin-drawer {
+#admin-drawer,
+#settings-drawer {
   position: fixed;
   top: 0;
   left: 0;
@@ -242,7 +243,8 @@ header {
   box-sizing: border-box;
 }
 
-#admin-drawer.hidden {
+#admin-drawer.hidden,
+#settings-drawer.hidden {
   display: none !important;
 }
 
@@ -492,3 +494,214 @@ header {
   background: var(--safc-gold, #facc15);
   color: #0f172a;
 }
+
+/* ========================================================
+   UI SCALE ENGINE & WCAG 2.2 ACCESSIBILITY MODES
+   ======================================================== */
+
+   .size-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+  
+  .size-option-btn {
+    background: #0f172a;
+    border: 1.5px solid #334155;
+    color: var(--text-muted);
+    border-radius: 8px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 54px;
+  }
+  
+  .size-option-btn.active {
+    background: rgba(212, 175, 55, 0.16);
+    border-color: var(--safc-gold);
+    color: #ffffff;
+  }
+  
+  .settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #1e293b;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  
+  .settings-toggle-row:last-child {
+    border-bottom: none;
+  }
+  
+  .settings-toggle-row input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    accent-color: var(--safc-gold);
+  }
+  
+  /* --- MEDIUM SCALE (DEFAULT: THUMB-FRIENDLY 44PX+ TARGETS) --- */
+  [data-ui-size="medium"] .brand-title { font-size: 17px; }
+  [data-ui-size="medium"] .brand-sub { font-size: 11.5px; }
+  [data-ui-size="medium"] .crest-badge { width: 42px; height: 42px; font-size: 13px; }
+  
+  [data-ui-size="medium"] .btn {
+    min-height: 46px;
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+  
+  [data-ui-size="medium"] .btn-sm {
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  [data-ui-size="medium"] .form-label {
+    font-size: 12px !important;
+    margin-bottom: 5px;
+  }
+  
+  [data-ui-size="medium"] .form-input,
+  [data-ui-size="medium"] .form-select {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px !important;
+  }
+  
+  [data-ui-size="medium"] .bottom-nav { padding: 10px 0; }
+  [data-ui-size="medium"] .nav-item { font-size: 11px; gap: 3px; }
+  [data-ui-size="medium"] .nav-icon { font-size: 20px; }
+  
+  [data-ui-size="medium"] .card { padding: 16px; margin-bottom: 14px; }
+  [data-ui-size="medium"] .card-title { font-size: 15px; }
+  [data-ui-size="medium"] .text-xs { font-size: 13px !important; }
+  [data-ui-size="medium"] .badge-gold,
+  [data-ui-size="medium"] .badge-red { font-size: 11px !important; padding: 3px 7px !important; }
+  
+  [data-ui-size="medium"] [style*="font-size:9px"],
+  [data-ui-size="medium"] [style*="font-size: 9px"] { font-size: 11.5px !important; }
+  [data-ui-size="medium"] [style*="font-size:10px"],
+  [data-ui-size="medium"] [style*="font-size: 10px"] { font-size: 12.5px !important; }
+  [data-ui-size="medium"] [style*="font-size:11px"],
+  [data-ui-size="medium"] [style*="font-size: 11px"] { font-size: 13.5px !important; }
+  [data-ui-size="medium"] [style*="font-size:12px"],
+  [data-ui-size="medium"] [style*="font-size: 12px"] { font-size: 14.5px !important; }
+  [data-ui-size="medium"] [style*="font-size:13px"],
+  [data-ui-size="medium"] [style*="font-size: 13px"] { font-size: 15px !important; }
+  [data-ui-size="medium"] [style*="font-size:15px"],
+  [data-ui-size="medium"] [style*="font-size: 15px"] { font-size: 17px !important; }
+  [data-ui-size="medium"] [style*="font-size:16px"],
+  [data-ui-size="medium"] [style*="font-size: 16px"] { font-size: 18.5px !important; }
+  
+  [data-ui-size="medium"] #football-grid button {
+    min-height: 58px !important;
+    padding: 8px 4px !important;
+  }
+  
+  /* --- LARGE SCALE (COMFORT / OUTDOOR TERRACE MODE) --- */
+  [data-ui-size="large"] .brand-title { font-size: 19px; }
+  [data-ui-size="large"] .brand-sub { font-size: 12.5px; }
+  [data-ui-size="large"] .crest-badge { width: 46px; height: 46px; font-size: 14px; }
+  
+  [data-ui-size="large"] .btn {
+    min-height: 52px;
+    padding: 14px 16px;
+    font-size: 17px;
+  }
+  
+  [data-ui-size="large"] .btn-sm {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 14.5px;
+  }
+  
+  [data-ui-size="large"] .form-label {
+    font-size: 13.5px !important;
+    margin-bottom: 6px;
+  }
+  
+  [data-ui-size="large"] .form-input,
+  [data-ui-size="large"] .form-select {
+    min-height: 50px;
+    padding: 12px 14px;
+    font-size: 16px !important;
+  }
+  
+  [data-ui-size="large"] .bottom-nav { padding: 11px 0; }
+  [data-ui-size="large"] .nav-item { font-size: 12px; gap: 4px; }
+  [data-ui-size="large"] .nav-icon { font-size: 22px; }
+  
+  [data-ui-size="large"] .card { padding: 18px; margin-bottom: 16px; }
+  [data-ui-size="large"] .card-title { font-size: 17px; }
+  [data-ui-size="large"] .text-xs { font-size: 14.5px !important; }
+  [data-ui-size="large"] .badge-gold,
+  [data-ui-size="large"] .badge-red { font-size: 12.5px !important; padding: 4px 8px !important; }
+  
+  [data-ui-size="large"] [style*="font-size:9px"],
+  [data-ui-size="large"] [style*="font-size: 9px"] { font-size: 13px !important; }
+  [data-ui-size="large"] [style*="font-size:10px"],
+  [data-ui-size="large"] [style*="font-size: 10px"] { font-size: 14px !important; }
+  [data-ui-size="large"] [style*="font-size:11px"],
+  [data-ui-size="large"] [style*="font-size: 11px"] { font-size: 15px !important; }
+  [data-ui-size="large"] [style*="font-size:12px"],
+  [data-ui-size="large"] [style*="font-size: 12px"] { font-size: 16px !important; }
+  [data-ui-size="large"] [style*="font-size:13px"],
+  [data-ui-size="large"] [style*="font-size: 13px"] { font-size: 17px !important; }
+  [data-ui-size="large"] [style*="font-size:15px"],
+  [data-ui-size="large"] [style*="font-size: 15px"] { font-size: 19px !important; }
+  [data-ui-size="large"] [style*="font-size:16px"],
+  [data-ui-size="large"] [style*="font-size: 16px"] { font-size: 21px !important; }
+  
+  [data-ui-size="large"] #football-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+  [data-ui-size="large"] #football-grid button {
+    min-height: 66px !important;
+    padding: 10px 6px !important;
+  }
+  
+  [data-ui-size="large"] [style*="grid-template-columns:1fr 1fr"],
+  [data-ui-size="large"] [style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* --- WCAG 2.2: REDUCE MOTION MODE --- */
+  [data-reduce-motion="true"] *,
+  [data-reduce-motion="true"] *::before,
+  [data-reduce-motion="true"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  /* --- WCAG 2.2: COLOUR-BLIND SAFE PATTERNS & BORDERS --- */
+  [data-colorblind-safe="true"] .badge-gold {
+    border: 2px solid #ffffff !important;
+    text-decoration: underline;
+  }
+  [data-colorblind-safe="true"] .badge-red {
+    border: 2px dashed #ffffff !important;
+  }
+  [data-colorblind-safe="true"] #football-grid button[disabled] {
+    border: 2px dashed #94a3b8 !important;
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0.04) 6px,
+      transparent 6px,
+      transparent 12px
+    ) !important;
+  }

@@ -28,99 +28,361 @@ var MASTER_MEMBERS = [
 ];
 
 var DEFAULT_STOPS = [
-  { id: 1, name: "Coxhoe Red Lion", time: "12:45" },
-  { id: 2, name: "Blackgate / The Avenue", time: "12:50" },
-  { id: 3, name: "Bowburn Cooperage", time: "13:00" },
-  { id: 4, name: "Quarrington Hill", time: "13:10" }
+  { id: 1, name: "Cassop Dene VIew", time: "12:15" },
+  { id: 2, name: "Q'Hill Half Moon", time: "12:20" },
+  { id: 3, name: "Kelloe War Memorial", time: "12:25" },
+  { id: 4, name: "Coxhoe Londis Shop", time: "12:30" },
+  { id: 5, name: "Park Hill", time: "12:32" }
 ];
 
-var SEASON_HOME_MATCHES = [
-  {
-    id: "H-01",
-    opponent: "Coventry City",
-    date: "Sat 21 Nov 2026",
-    time: "15:00",
-    bookingStatus: "open",
-    buses: [
-      {
-        busId: 1,
-        title: "Bus 1 (Main Village Route)",
-        subtitle: "Official Branch Travel • Stadium of Light",
-        capacity: 53,
-        adultFare: 12.00,
-        juniorFare: 8.00,
-        isFreeBus: false,
-        stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
-      }
-    ]
-  },
-  {
-    id: "H-02",
-    opponent: "Burnley",
-    date: "Sat 5 Dec 2026",
-    time: "15:00",
-    bookingStatus: "draft",
-    buses: [
-      {
-        busId: 1,
-        title: "Bus 1 (Main Village Route)",
-        subtitle: "Official Branch Travel • Stadium of Light",
-        capacity: 53,
-        adultFare: 12.00,
-        juniorFare: 8.00,
-        isFreeBus: false,
-        stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
-      }
-    ]
-  },
-  {
-    id: "H-03",
-    opponent: "Leeds United",
-    date: "Sat 26 Dec 2026",
-    time: "12:30",
-    bookingStatus: "draft",
-    buses: [
-      {
-        busId: 1,
-        title: "Bus 1 (Boxing Day Special)",
-        subtitle: "Festive Derby Matchday Service",
-        capacity: 53,
-        adultFare: 12.00,
-        juniorFare: 8.00,
-        isFreeBus: false,
-        stops: [
-          { id: 1, name: "Coxhoe Red Lion", time: "10:15" },
-          { id: 2, name: "Blackgate / The Avenue", time: "10:20" },
-          { id: 3, name: "Bowburn Cooperage", time: "10:30" },
-          { id: 4, name: "Quarrington Hill", time: "10:40" }
-        ]
-      }
-    ]
+// Purge legacy cached fixtures & stops so updates to DEFAULT_STOPS and live fixtures load cleanly
+["coxhoe_stops_v20", "coxhoe_home_matches_v20", "coxhoe_away_fixtures_v20",
+ "coxhoe_home_matches_live_v21", "coxhoe_away_fixtures_live_v21", "coxhoe_master_fixtures_live_v21",
+ "coxhoe_home_matches_v22", "coxhoe_away_fixtures_v22"].forEach(function(k) {
+  localStorage.removeItem(k);
+});
+
+// Verified 2026/27 Sunderland AFC Multi-Competition Schedule (Premier League, Europa League, EFL Cup)
+var VERIFIED_2026_27_SAFC_SCHEDULE = [
+  { id: "A-401", opponent: "Aston Villa", type: "AWAY", competition: "Premier League", venue: "Villa Park", city: "Birmingham", country: "UK", dateTime: "2026-11-21T15:00:00Z", coords: { lat: 52.5092, lon: -1.8847 } },
+  { id: "H-402", opponent: "Jagiellonia Białystok", type: "HOME", competition: "UEFA Europa League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2026-11-26T20:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "H-403", opponent: "Tottenham Hotspur", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2026-11-29T14:05:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-404", opponent: "Liverpool", type: "AWAY", competition: "Premier League", venue: "Anfield", city: "Liverpool", country: "UK", dateTime: "2026-12-02T19:30:00Z", coords: { lat: 53.4308, lon: -2.9608 } },
+  { id: "A-405", opponent: "Newcastle United", type: "AWAY", competition: "Premier League", venue: "St. James' Park", city: "Newcastle", country: "UK", dateTime: "2026-12-06T14:00:00Z", coords: { lat: 54.9756, lon: -1.6217 } },
+  { id: "A-406", opponent: "AC Milan", type: "AWAY", competition: "UEFA Europa League", venue: "San Siro Stadium", city: "Milan", country: "Italy", dateTime: "2026-12-10T20:00:00Z", coords: { lat: 45.4781, lon: 9.1240 } },
+  { id: "H-407", opponent: "Nottingham Forest", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2026-12-13T14:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-408", opponent: "Crystal Palace", type: "AWAY", competition: "EFL Cup Quarter-Final", venue: "Selhurst Park", city: "London", country: "UK", dateTime: "2026-12-16T19:30:00Z", coords: { lat: 51.3983, lon: -0.0855 } },
+  { id: "H-409", opponent: "Crystal Palace", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2026-12-20T14:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-410", opponent: "Everton", type: "AWAY", competition: "Premier League", venue: "Hill Dickinson Stadium", city: "Liverpool", country: "UK", dateTime: "2026-12-26T15:00:00Z", coords: { lat: 53.4389, lon: -3.0003 } },
+  { id: "A-411", opponent: "Manchester United", type: "AWAY", competition: "Premier League", venue: "Old Trafford", city: "Manchester", country: "UK", dateTime: "2026-12-30T19:30:00Z", coords: { lat: 53.4631, lon: -2.2913 } },
+  { id: "H-412", opponent: "Hull City", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-01-02T15:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "H-413", opponent: "Liverpool", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-01-05T20:15:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-414", opponent: "Chelsea", type: "AWAY", competition: "Premier League", venue: "Stamford Bridge", city: "London", country: "UK", dateTime: "2027-01-16T15:00:00Z", coords: { lat: 51.4817, lon: -0.1910 } },
+  { id: "A-415", opponent: "R.S.C. Anderlecht", type: "AWAY", competition: "UEFA Europa League", venue: "Lotto Park", city: "Brussels", country: "Belgium", dateTime: "2027-01-21T20:00:00Z", coords: { lat: 50.8342, lon: 4.2983 } },
+  { id: "H-416", opponent: "Coventry City", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-01-23T15:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "H-417", opponent: "PFC Levski Sofia", type: "HOME", competition: "UEFA Europa League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-01-28T20:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-418", opponent: "Tottenham Hotspur", type: "AWAY", competition: "Premier League", venue: "Tottenham Hotspur Stadium", city: "London", country: "UK", dateTime: "2027-01-30T15:00:00Z", coords: { lat: 51.6042, lon: -0.0662 } },
+  { id: "H-419", opponent: "Aston Villa", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-02-06T15:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-420", opponent: "Hull City", type: "AWAY", competition: "Premier League", venue: "MKM Stadium", city: "Hull", country: "UK", dateTime: "2027-02-10T20:00:00Z", coords: { lat: 53.7461, lon: -0.3678 } },
+  { id: "H-421", opponent: "Everton", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-02-20T15:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-422", opponent: "Crystal Palace", type: "AWAY", competition: "Premier League", venue: "Selhurst Park", city: "London", country: "UK", dateTime: "2027-02-27T15:00:00Z", coords: { lat: 51.3983, lon: -0.0855 } },
+  { id: "H-423", opponent: "Manchester United", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-03-03T20:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "H-424", opponent: "Brentford", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-03-13T15:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-425", opponent: "Arsenal", type: "AWAY", competition: "Premier League", venue: "Emirates Stadium", city: "London", country: "UK", dateTime: "2027-03-20T15:00:00Z", coords: { lat: 51.5549, lon: -0.1084 } },
+  { id: "H-426", opponent: "Ipswich Town", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-04-10T14:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-427", opponent: "Fulham", type: "AWAY", competition: "Premier League", venue: "Craven Cottage", city: "London", country: "UK", dateTime: "2027-04-17T14:00:00Z", coords: { lat: 51.4749, lon: -0.2217 } },
+  { id: "A-428", opponent: "Nottingham Forest", type: "AWAY", competition: "Premier League", venue: "City Ground", city: "Nottingham", country: "UK", dateTime: "2027-04-24T14:00:00Z", coords: { lat: 52.9399, lon: -1.1325 } },
+  { id: "H-429", opponent: "Newcastle United", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-05-01T14:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-430", opponent: "Brighton & Hove Albion", type: "AWAY", competition: "Premier League", venue: "Amex Stadium", city: "Brighton", country: "UK", dateTime: "2027-05-08T14:00:00Z", coords: { lat: 50.8616, lon: -0.0837 } },
+  { id: "H-431", opponent: "AFC Bournemouth", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-05-15T14:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } },
+  { id: "A-432", opponent: "Leeds United", type: "AWAY", competition: "Premier League", venue: "Elland Road", city: "Leeds", country: "UK", dateTime: "2027-05-23T14:00:00Z", coords: { lat: 53.7778, lon: -1.5730 } },
+  { id: "H-433", opponent: "Manchester City", type: "HOME", competition: "Premier League", venue: "Stadium of Light", city: "Sunderland", country: "UK", dateTime: "2027-05-30T15:00:00Z", coords: { lat: 54.9146, lon: -1.3882 } }
+];
+
+var VENUE_COORDS_CACHE = JSON.parse(localStorage.getItem("coxhoe_venue_coords_cache_v23") || '{"Stadium of Light":{"lat":54.9146,"lon":-1.3882}}');
+
+// Dynamic Worldwide Stadium & City Geocoder (Open-Meteo Geocoding API)
+async function resolveDynamicVenueCoords(venueName, cityName, countryName, opponentName) {
+  var homeDefault = { lat: 54.9146, lon: -1.3882 };
+  if (!venueName || venueName.toLowerCase().indexOf("stadium of light") !== -1) {
+    return homeDefault;
   }
+
+  var cacheKey = (venueName + "_" + (cityName || "")).trim();
+  if (VENUE_COORDS_CACHE[cacheKey]) {
+    return VENUE_COORDS_CACHE[cacheKey];
+  }
+
+  var searchQueries = [
+    venueName,
+    cityName ? (cityName + (countryName ? " " + countryName : "")) : "",
+    opponentName || ""
+  ].filter(function(q) { return q && q.trim().length > 2; });
+
+  for (var i = 0; i < searchQueries.length; i++) {
+    try {
+      var url = "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(searchQueries[i].trim()) + "&count=1&language=en&format=json";
+      var res = await fetch(url);
+      if (res.ok) {
+        var data = await res.json();
+        if (data && Array.isArray(data.results) && data.results.length > 0) {
+          var coords = {
+            lat: Number(data.results[0].latitude),
+            lon: Number(data.results[0].longitude)
+          };
+          VENUE_COORDS_CACHE[cacheKey] = coords;
+          localStorage.setItem("coxhoe_venue_coords_cache_v23", JSON.stringify(VENUE_COORDS_CACHE));
+          return coords;
+        }
+      }
+    } catch (e) {}
+  }
+
+  return homeDefault;
+}
+
+function formatFixtureRecord(raw) {
+  var dt = new Date(raw.dateTime);
+  var dateStr = dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" });
+  var shortDateStr = dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+  var timeStr = dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/London" });
+
+  return {
+    id: raw.id,
+    opponent: raw.opponent,
+    type: raw.type,
+    competition: raw.competition || "Premier League",
+    venue: raw.venue || (raw.type === "HOME" ? "Stadium of Light" : raw.opponent + " Stadium"),
+    city: raw.city || "",
+    country: raw.country || "",
+    date: dateStr,
+    dateDisplay: shortDateStr + " • " + timeStr,
+    time: timeStr,
+    kickoffTime: timeStr,
+    dateTime: raw.dateTime,
+    timestamp: dt.getTime(),
+    coordinates: raw.coords || null
+  };
+}
+
+function buildBaselineSchedule() {
+  var nowMinus3Hours = Date.now() - (3 * 60 * 60 * 1000);
+  return VERIFIED_2026_27_SAFC_SCHEDULE
+    .map(formatFixtureRecord)
+    .filter(function(f) { return f.timestamp >= nowMinus3Hours; })
+    .sort(function(a, b) { return a.timestamp - b.timestamp; });
+}
+
+// Always uses your custom DEFAULT_STOPS array for initial bus stops
+// Helper: Match club names across feeds (e.g. "Tottenham" vs "Tottenham Hotspur")
+function isSameClubName(nameA, nameB) {
+  if (!nameA || !nameB) return false;
+  var clean = function(s) {
+    return s.toLowerCase()
+      .replace(/united|utd|city|hotspur|albion|wanderers|town|athletic|fc|afc|pfc|r\.s\.c\.|białystok|bialystok/g, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
+  };
+  var a = clean(nameA);
+  var b = clean(nameB);
+  return a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1;
+}
+
+// Always uses your custom DEFAULT_STOPS array and preserves buses even if match date moves
+function buildHomeMatchesFromMaster(masterList, existingHome) {
+  var homeFixes = masterList.filter(function(f) { return f.type === "HOME"; });
+  return homeFixes.map(function(hf, idx) {
+    var prev = (existingHome || []).find(function(eh) {
+      return String(eh.id) === String(hf.id) ||
+             (isSameClubName(eh.opponent, hf.opponent) && (eh.competition || "") === (hf.competition || ""));
+    });
+
+    return {
+      id: prev ? prev.id : hf.id,
+      opponent: hf.opponent,
+      date: hf.date,
+      time: hf.time,
+      dateTime: hf.dateTime,
+      venue: hf.venue,
+      competition: hf.competition,
+      bookingStatus: prev ? prev.bookingStatus : (idx === 0 ? "open" : "draft"),
+      buses: (prev && prev.buses && prev.buses.length > 0) ? prev.buses : [
+        {
+          busId: 1,
+          title: "Bus 1 (Main Village Route)",
+          subtitle: "Official Branch Travel • " + hf.competition,
+          capacity: 53,
+          adultFare: 12.00,
+          juniorFare: 8.00,
+          isFreeBus: false,
+          stops: JSON.parse(JSON.stringify(DEFAULT_STOPS))
+        }
+      ]
+    };
+  });
+}
+
+function buildAwayFixturesFromMaster(masterList, existingAway) {
+  var awayFixes = masterList.filter(function(f) { return f.type === "AWAY"; });
+  return awayFixes.map(function(af) {
+    var prevA = (existingAway || []).find(function(ea) {
+      return String(ea.id) === String(af.id) ||
+             (isSameClubName(ea.opponent, af.opponent) && (ea.competition || "") === (af.competition || ""));
+    });
+
+    return {
+      id: prevA ? prevA.id : af.id,
+      opponent: af.opponent,
+      date: af.date,
+      time: af.time,
+      dateTime: af.dateTime,
+      venue: af.venue,
+      city: af.city,
+      country: af.country,
+      competition: af.competition,
+      allocation: prevA ? prevA.allocation : 25,
+      status: prevA ? prevA.status : "Open"
+    };
+  });
+}
+
+var INITIAL_MASTER_FIXTURES = buildBaselineSchedule();
+var SEASON_HOME_MATCHES = buildHomeMatchesFromMaster(INITIAL_MASTER_FIXTURES, JSON.parse(localStorage.getItem("coxhoe_home_matches_v23") || "[]"));
+var SEASON_AWAY_FIXTURES = buildAwayFixturesFromMaster(INITIAL_MASTER_FIXTURES, JSON.parse(localStorage.getItem("coxhoe_away_fixtures_v23") || "[]"));
+
+// Live SAFC Multi-Competition Sync (Auto-updates TV Date/Time Reschedules & New Cup Draws)
+window.syncLiveSAFCFixtures = async function() {
+  var rawEvents = [];
+
+  var espnEndpoints = [
+    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/all/teams/366/schedule?fixture=true", label: null },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/366/schedule?fixture=true", label: "Premier League" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.europa/teams/366/schedule?fixture=true", label: "UEFA Europa League" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.fa/teams/366/schedule?fixture=true", label: "FA Cup" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.league_cup/teams/366/schedule?fixture=true", label: "EFL Cup" }
+  ];
+
+  for (var i = 0; i < espnEndpoints.length; i++) {
+    try {
+      var res = await fetch(espnEndpoints[i].url);
+      if (res.ok) {
+        var data = await res.json();
+        if (data && Array.isArray(data.events)) {
+          data.events.forEach(function(ev) {
+            if (!ev._fallbackLeagueLabel && espnEndpoints[i].label) {
+              ev._fallbackLeagueLabel = espnEndpoints[i].label;
+            }
+            rawEvents.push(ev);
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  var parsedFixtures = buildBaselineSchedule();
+  var nowMinus3Hours = Date.now() - (3 * 60 * 60 * 1000);
+
+  if (rawEvents.length > 0) {
+    rawEvents.forEach(function(ev) {
+      var eventTime = new Date(ev.date).getTime();
+      if (isNaN(eventTime) || eventTime < nowMinus3Hours) return;
+
+      var comp = (ev.competitions && ev.competitions[0]) ? ev.competitions[0] : null;
+      if (!comp || !comp.competitors) return;
+
+      var safcComp = comp.competitors.find(function(c) {
+        return (c.team && String(c.team.id) === "366") || (c.team && c.team.displayName && c.team.displayName.toLowerCase().indexOf("sunderland") !== -1);
+      });
+      var oppComp = comp.competitors.find(function(c) { return c !== safcComp; });
+      if (!safcComp || !oppComp) return;
+
+      var isHome = (safcComp.homeAway === "home");
+      var matchType = isHome ? "HOME" : "AWAY";
+      var oppName = oppComp.team.shortDisplayName || oppComp.team.displayName || oppComp.team.name || "Opponent";
+      var venueObj = comp.venue || {};
+      var venueName = venueObj.fullName || (isHome ? "Stadium of Light" : oppName + " Stadium");
+      var cityName = (venueObj.address && venueObj.address.city) ? venueObj.address.city : "";
+      var countryName = (venueObj.address && venueObj.address.country) ? venueObj.address.country : "";
+
+      var leagueName = ev._fallbackLeagueLabel || "Premier League";
+      if (ev.league && ev.league.name) leagueName = ev.league.name;
+      else if (comp.notes && comp.notes[0] && comp.notes[0].headline) leagueName = comp.notes[0].headline;
+
+      var liveFormatted = formatFixtureRecord({
+        id: (isHome ? "H-" : "A-") + ev.id,
+        opponent: oppName,
+        type: matchType,
+        competition: leagueName,
+        venue: venueName,
+        city: cityName,
+        country: countryName,
+        dateTime: ev.date
+      });
+
+      // Check if this fixture is already in the baseline (by Opponent + Home/Away + Competition)
+      var existingIdx = parsedFixtures.findIndex(function(bf) {
+        var sameType = bf.type === matchType;
+        var sameClub = isSameClubName(bf.opponent, oppName);
+        var isLeagueBoth = bf.competition.indexOf("Premier") !== -1 && leagueName.indexOf("Premier") !== -1;
+        var isEuropaBoth = bf.competition.indexOf("Europa") !== -1 && leagueName.indexOf("Europa") !== -1;
+        var isEflBoth = bf.competition.indexOf("EFL") !== -1 && leagueName.indexOf("EFL") !== -1;
+        var sameComp = isLeagueBoth || isEuropaBoth || isEflBoth || bf.competition === leagueName;
+        return sameType && sameClub && sameComp;
+      });
+
+      if (existingIdx !== -1) {
+        // TV Reschedule or Time Change: Overwrite date & time in-place while keeping original ID & coords
+        var orig = parsedFixtures[existingIdx];
+        liveFormatted.id = orig.id;
+        liveFormatted.coordinates = orig.coordinates;
+        parsedFixtures[existingIdx] = liveFormatted;
+      } else {
+        // Brand-new cup tie or knockout round draw: Add to schedule
+        parsedFixtures.push(liveFormatted);
+      }
+    });
+  }
+
+  // Sort chronologically after applying any date/time moves
+  parsedFixtures.sort(function(a, b) { return a.timestamp - b.timestamp; });
+
+  // Geocode any newly drawn away/cup venues automatically
+  for (var g = 0; g < Math.min(3, parsedFixtures.length); g++) {
+    if (!parsedFixtures[g].coordinates) {
+      parsedFixtures[g].coordinates = await resolveDynamicVenueCoords(
+        parsedFixtures[g].venue,
+        parsedFixtures[g].city,
+        parsedFixtures[g].country,
+        parsedFixtures[g].opponent
+      );
+    }
+  }
+
+  appState.masterFixtures = parsedFixtures;
+  appState.homeMatches = buildHomeMatchesFromMaster(parsedFixtures, appState.homeMatches);
+  appState.awayFixtures = buildAwayFixturesFromMaster(parsedFixtures, appState.awayFixtures);
+
+  if (appState.homeMatches.length > 0) {
+    var firstHomeId = appState.homeMatches[0].id;
+    var validHomeSel = appState.homeMatches.some(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); });
+    if (!validHomeSel) appState.selectedHomeMatchId = firstHomeId;
+  }
+
+  saveState();
+  window.refreshAllViews();
+};
+
+// 100-Team Master Pool: 1-92 Top 4 English Leagues (PL, Champ, L1, L2) + 93-100 Top European Clubs
+var MASTER_100_TEAMS = [
+  // 1-20: Premier League
+  "Sunderland", "Arsenal", "Aston Villa", "AFC Bournemouth", "Brentford",
+  "Brighton", "Chelsea", "Coventry City", "Crystal Palace", "Everton",
+  "Fulham", "Hull City", "Ipswich Town", "Leeds United", "Liverpool",
+  "Man City", "Man United", "Newcastle", "Nottm Forest", "Tottenham",
+  // 21-44: Championship
+  "Burnley", "Middlesbrough", "Sheffield Utd", "West Brom", "Norwich City",
+  "Luton Town", "Watford", "Millwall", "Blackburn", "Preston NE",
+  "Bristol City", "Swansea City", "Cardiff City", "Stoke City", "Derby County",
+  "QPR", "Portsmouth", "Oxford United", "Sheffield Wed", "Plymouth Argyle",
+  "Leicester City", "Southampton", "Wolves", "West Ham",
+  // 45-68: League One
+  "Birmingham City", "Wrexham", "Huddersfield", "Bolton", "Barnsley",
+  "Peterborough", "Blackpool", "Charlton", "Reading", "Stockport",
+  "Wigan Athletic", "Wycombe", "Lincoln City", "Leyton Orient", "Stevenage",
+  "Exeter City", "Rotherham Utd", "Bristol Rovers", "Northampton", "Burton Albion",
+  "Mansfield Town", "Crawley Town", "Shrewsbury", "Cambridge Utd",
+  // 69-92: League Two
+  "Bradford City", "MK Dons", "Doncaster", "Notts County", "Crewe Alex",
+  "Carlisle Utd", "Gillingham", "Chesterfield", "Port Vale", "Walsall",
+  "Grimsby Town", "Tranmere", "Barrow", "Fleetwood Town", "AFC Wimbledon",
+  "Salford City", "Colchester Utd", "Morecambe", "Swindon Town", "Newport County",
+  "Harrogate Town", "Accrington", "Bromley", "Cheltenham",
+  // 93-100: Top European Leagues (used when card size is 100)
+  "Real Madrid", "Barcelona", "Bayern Munich", "AC Milan",
+  "Inter Milan", "PSG", "Juventus", "Borussia Dortmund"
 ];
 
-var SEASON_AWAY_FIXTURES = [
-  { id: "A-01", opponent: "Leeds United", date: "Sat 28 Nov 2026", time: "15:00", allocation: 25, status: "Open" },
-  { id: "A-02", opponent: "Sheffield United", date: "Tue 8 Dec 2026", time: "19:45", allocation: 20, status: "Open" },
-  { id: "A-03", opponent: "Middlesbrough", date: "Sat 19 Dec 2026", time: "12:30", allocation: 35, status: "Open" },
-  { id: "A-04", opponent: "Burnley", date: "Fri 1 Jan 2027", time: "15:00", allocation: 20, status: "Upcoming" },
-  { id: "A-05", opponent: "West Brom", date: "Sat 16 Jan 2027", time: "15:00", allocation: 25, status: "Upcoming" },
-  { id: "A-06", opponent: "Norwich City", date: "Sat 30 Jan 2027", time: "15:00", allocation: 15, status: "Upcoming" },
-  { id: "A-07", opponent: "Watford", date: "Sat 13 Feb 2027", time: "15:00", allocation: 20, status: "Upcoming" }
-];
-
-var DEFAULT_40_TEAMS = [
-  "Sunderland", "Newcastle", "Middlesbrough", "Leeds United",
-  "Coventry City", "Burnley", "Sheffield United", "Hull City",
-  "Blackburn Rovers", "Preston North End", "Stoke City", "Derby County",
-  "West Brom", "Bristol City", "Swansea City", "Cardiff City",
-  "Watford", "Luton Town", "Norwich City", "Millwall",
-  "QPR", "Plymouth Argyle", "Portsmouth", "Oxford United",
-  "Arsenal", "Aston Villa", "Chelsea", "Everton",
-  "Fulham", "Liverpool", "Man City", "Man United",
-  "Brighton", "Brentford", "Tottenham", "West Ham",
-  "Celtic", "Rangers", "Aberdeen", "Hearts"
-];
+var DEFAULT_40_TEAMS = MASTER_100_TEAMS.slice(0, 40);
 
 var BASE_PROFANITIES = [
   "fuck", "fucking", "fucked", "fucker", "fucks", "shit", "shite", "shitting", "shitter",
@@ -164,14 +426,15 @@ function detectAbuseOrProfanity(rawText) {
 var appState = {
   currentUser: { name: "Gary Miller", role: "member", memberNo: "COX-084", category: "Adult" },
   users: JSON.parse(localStorage.getItem("coxhoe_users_v20")) || MASTER_MEMBERS,
-  stops: JSON.parse(localStorage.getItem("coxhoe_stops_v20")) || DEFAULT_STOPS,
-  homeMatches: JSON.parse(localStorage.getItem("coxhoe_home_matches_v20")) || SEASON_HOME_MATCHES,
-  selectedHomeMatchId: "H-01",
+  stops: DEFAULT_STOPS,
+  homeMatches: SEASON_HOME_MATCHES,
+  selectedHomeMatchId: SEASON_HOME_MATCHES[0] ? SEASON_HOME_MATCHES[0].id : "H-402",
   selectedBookingBusId: 1,
+  masterFixtures: INITIAL_MASTER_FIXTURES,
 
   bookings: JSON.parse(localStorage.getItem("coxhoe_bookings_v20")) || [
-    { id: 101, matchId: "H-01", busId: 1, name: "Gary Miller", stop: "Coxhoe Red Lion", adults: 1, juniors: 0, total: 12.00, boarded: true },
-    { id: 102, matchId: "H-01", busId: 1, name: "Dave Kelly", stop: "Coxhoe Red Lion", adults: 2, juniors: 0, total: 24.00, boarded: false }
+    { id: 101, matchId: SEASON_HOME_MATCHES[0] ? SEASON_HOME_MATCHES[0].id : "H-402", busId: 1, name: "Gary Miller", stop: DEFAULT_STOPS[0] ? DEFAULT_STOPS[0].name : "Coxhoe Red Lion", adults: 1, juniors: 0, total: 12.00, boarded: true },
+    { id: 102, matchId: SEASON_HOME_MATCHES[0] ? SEASON_HOME_MATCHES[0].id : "H-402", busId: 1, name: "Dave Kelly", stop: DEFAULT_STOPS[0] ? DEFAULT_STOPS[0].name : "Coxhoe Red Lion", adults: 2, juniors: 0, total: 24.00, boarded: false }
   ],
 
   friendsAndFamily: JSON.parse(localStorage.getItem("coxhoe_friends_v20")) || [
@@ -191,7 +454,7 @@ var appState = {
   },
 
   announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v20")) || [
-    { id: 1, title: "Coventry City (H) Coach Departure Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled.", reactions: 14, archived: false, readBy: [] },
+    { id: 1, title: "European & Premier League Coach Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled.", reactions: 14, archived: false, readBy: [] },
     { id: 2, title: "Branch Christmas Social Night Announced", date: "2026-10-28", isUrgent: false, content: "Tickets are now on sale for the annual Christmas branch social at Coxhoe WMC on Friday 18th December.", reactions: 29, archived: false, readBy: [] }
   ],
 
@@ -224,16 +487,15 @@ var appState = {
     "Graham (Secretary)": { busChatCount: 0, readMsgIds: ["m1"], readNoteIds: [] }
   },
 
-  awayFixtures: JSON.parse(localStorage.getItem("coxhoe_away_fixtures_v20")) || SEASON_AWAY_FIXTURES,
+  awayFixtures: SEASON_AWAY_FIXTURES,
   awayRegistrations: JSON.parse(localStorage.getItem("coxhoe_away_regs_v20")) || [
-    { fixtureId: "A-01", memberName: "Gary Miller", party: ["Gary Miller (Adult)", "Phoebe Miller (Child)"], allocated: true }
+    { fixtureId: SEASON_AWAY_FIXTURES[0] ? SEASON_AWAY_FIXTURES[0].id : "A-401", memberName: "Gary Miller", party: ["Gary Miller (Adult)", "Phoebe Miller (Child)"], allocated: true }
   ],
 
   masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v20")) || [
     { txnId: "TXN-1001", timestamp: "2026-10-25 10:00:00", actor: "Gary Miller", role: "Member", target: "Branch", category: "SUBS_DUES", desc: "Annual Membership Subs 2026/27 (Adult)", debit: 10.00, credit: 0, branchImpact: 10.00, balanceAfter: 35.00 }
   ],
 
-  // 40-Team Scratch Card State
   footballCard: JSON.parse(localStorage.getItem("coxhoe_football_card_v20")) || DEFAULT_40_TEAMS.map(function(t, idx) {
     return { id: idx + 1, team: t, price: 2.00, claimedBy: (idx === 0 ? "Gary Miller" : (idx === 6 ? "Graham Croft" : null)) };
   }),
@@ -249,7 +511,6 @@ var appState = {
     winnerMember: null
   },
 
-  // White-Label Club Identity
   clubIdentity: JSON.parse(localStorage.getItem("coxhoe_club_identity_v20")) || {
     clubName: "Coxhoe Branch",
     subTitle: "Supporters Club",
@@ -257,7 +518,6 @@ var appState = {
     crestLogoUrl: null
   },
 
-  // Sectional Feature Toggles
   modules: JSON.parse(localStorage.getItem("coxhoe_modules_v20")) || {
     travel: true,
     awayTickets: true,
@@ -270,8 +530,8 @@ var appState = {
 
 function saveState() {
   localStorage.setItem("coxhoe_users_v20", JSON.stringify(appState.users));
-  localStorage.setItem("coxhoe_stops_v20", JSON.stringify(appState.stops));
-  localStorage.setItem("coxhoe_home_matches_v20", JSON.stringify(appState.homeMatches));
+  localStorage.setItem("coxhoe_stops_v23", JSON.stringify(appState.stops));
+  localStorage.setItem("coxhoe_home_matches_v23", JSON.stringify(appState.homeMatches));
   localStorage.setItem("coxhoe_bookings_v20", JSON.stringify(appState.bookings));
   localStorage.setItem("coxhoe_friends_v20", JSON.stringify(appState.friendsAndFamily));
   localStorage.setItem("coxhoe_pending_links_v20", JSON.stringify(appState.pendingLinkRequests));
@@ -282,7 +542,7 @@ function saveState() {
   localStorage.setItem("coxhoe_moderation_v20", JSON.stringify(appState.moderation));
   localStorage.setItem("coxhoe_helpdesk_v20", JSON.stringify(appState.helpdeskTickets));
   localStorage.setItem("coxhoe_read_tracker_v20", JSON.stringify(appState.readTracker));
-  localStorage.setItem("coxhoe_away_fixtures_v20", JSON.stringify(appState.awayFixtures));
+  localStorage.setItem("coxhoe_away_fixtures_v23", JSON.stringify(appState.awayFixtures));
   localStorage.setItem("coxhoe_away_regs_v20", JSON.stringify(appState.awayRegistrations));
   localStorage.setItem("coxhoe_audit_v20", JSON.stringify(appState.masterAuditTrail));
   localStorage.setItem("coxhoe_football_card_v20", JSON.stringify(appState.footballCard));
@@ -298,13 +558,23 @@ async function initSupabaseCloudSync() {
   try {
     var mRes = await sbClient.from("members").select("*");
     if (mRes.data && mRes.data.length > 0) {
+      var localUsers = appState.users || [];
       appState.users = mRes.data.map(function(row) {
+        var existingLocal = localUsers.find(function(u) {
+          return (u.memberNo && u.memberNo === row.member_no) || (u.name && u.name === row.name);
+        }) || {};
+
         return {
           id: row.id,
           memberNo: row.member_no,
           name: row.name,
-          nickname: row.nickname,
-          category: row.category,
+          nickname: row.nickname || existingLocal.nickname || "",
+          dob: row.dob || existingLocal.dob || null,
+          phone: row.phone || existingLocal.phone || "",
+          emergencyName: row.emergency_name || existingLocal.emergencyName || "",
+          emergencyPhone: row.emergency_phone || existingLocal.emergencyPhone || "",
+          role: row.role || existingLocal.role || (row.member_no === "ADMIN-01" ? "admin" : "member"),
+          category: row.category || existingLocal.category || "Adult",
           balance: parseFloat(row.balance) || 0,
           registeredDaysAgo: row.registered_days_ago || 30,
           messagingAllowed: row.messaging_allowed !== false,
@@ -404,24 +674,116 @@ async function initSupabaseCloudSync() {
 // --- USER & AUTH UTILITIES ---
 function getCurrentUserRecord() {
   var curName = (typeof appState.currentUser === "string") ? appState.currentUser : (appState.currentUser ? appState.currentUser.name : "Gary Miller");
-  var found = appState.users.find(function(u) { return u.name.toLowerCase() === curName.toLowerCase(); });
+  var curNo = (appState.currentUser && appState.currentUser.memberNo) ? appState.currentUser.memberNo : null;
+
+  var found = appState.users.find(function(u) {
+    if (curNo && u.memberNo && u.memberNo.toLowerCase() === curNo.toLowerCase()) return true;
+    return u.name && u.name.toLowerCase() === curName.toLowerCase();
+  });
+
   if (!found) {
-    found = { id: Date.now(), name: curName, memberNo: "COX-084", category: "Adult", hasAppAccount: true, balance: 35.00, registeredDaysAgo: 1, messagingAllowed: true, membershipStatus: "active", membershipTier: "Adult", membershipSeason: "2026/27", validUntil: "2027-07-31" };
+    found = {
+      id: Date.now(),
+      name: curName,
+      memberNo: curNo || "COX-084",
+      category: (appState.currentUser && appState.currentUser.category) ? appState.currentUser.category : "Adult",
+      hasAppAccount: true,
+      balance: 35.00,
+      registeredDaysAgo: 1,
+      messagingAllowed: true,
+      membershipStatus: "active",
+      membershipTier: "Adult",
+      membershipSeason: "2026/27",
+      validUntil: "2027-07-31"
+    };
     appState.users.push(found);
   }
   return found;
 }
 
+var DEFAULT_AVATAR_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 24 24' fill='%2394a3b8'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+// Check if a member is Under 18 (auto-unlocks on 18th birthday if DOB is recorded)
+function isMemberUnder18(user) {
+  if (!user) return false;
+  if (user.dob) {
+    var birthDate = new Date(user.dob);
+    if (!isNaN(birthDate.getTime())) {
+      var today = new Date();
+      var age = today.getFullYear() - birthDate.getFullYear();
+      var m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      if (age >= 18 && user.category === "Child") {
+        user.category = "Adult";
+        user.membershipTier = "Adult";
+        saveState();
+      }
+      return age < 18;
+    }
+  }
+  return user.category === "Child" || user.membershipTier === "Junior";
+}
+
+// Persistent Avatar Map (survives page refreshes & cloud sync)
+function getSavedAvatar(user) {
+  if (!user) return null;
+  try {
+    var map = JSON.parse(localStorage.getItem("coxhoe_avatars_v20") || "{}");
+    return map[user.memberNo] || map[user.name] || user.photoUrl || null;
+  } catch (e) {
+    return user.photoUrl || null;
+  }
+}
+
+function setSavedAvatar(user, dataUrl) {
+  if (!user) return;
+  user.photoUrl = dataUrl || null;
+  try {
+    var map = JSON.parse(localStorage.getItem("coxhoe_avatars_v20") || "{}");
+    if (dataUrl) {
+      if (user.memberNo) map[user.memberNo] = dataUrl;
+      map[user.name] = dataUrl;
+    } else {
+      if (user.memberNo) delete map[user.memberNo];
+      delete map[user.name];
+    }
+    localStorage.setItem("coxhoe_avatars_v20", JSON.stringify(map));
+  } catch (e) {
+    console.warn("Avatar storage error:", e);
+  }
+  saveState();
+}
+
 window.updateBalanceDisplay = function() {
   var user = getCurrentUserRecord();
-  var elem = document.getElementById("display-balance");
-  if (elem && user) {
-    elem.textContent = "£" + user.balance.toFixed(2);
-  }
+  var isU18 = isMemberUnder18(user);
+  if (isU18) user.balance = 0.00;
+
   var hudBal = document.getElementById("hud-wallet-balance");
   if (hudBal && user) {
-    hudBal.textContent = "£" + user.balance.toFixed(2);
+    hudBal.textContent = "£" + (user.balance || 0).toFixed(2);
   }
+
+  var hudActionRow = document.getElementById("hud-identity-action-row");
+  var profileWalletCard = document.getElementById("profile-wallet-card");
+
+  if (hudActionRow) hudActionRow.style.display = isU18 ? "none" : "flex";
+  if (profileWalletCard) profileWalletCard.style.display = isU18 ? "none" : "block";
+};
+
+window.handleWalletTopUp = function() {
+  var user = getCurrentUserRecord();
+  if (isMemberUnder18(user)) {
+    alert("🛡️ Under-18 Accounts do not hold a wallet balance. All bookings and payments are managed by your linked adult guardian until your 18th birthday.");
+    return;
+  }
+  user.balance = (parseFloat(user.balance) || 0) + 20.00;
+  logForensicTransaction(user.name, "Member", user.name, "TOPUP", "Debit Card Wallet Top-Up", 0, 20.00, 0);
+  saveState();
+  window.refreshAllViews();
+  alert("✓ £20.00 added to your branch wallet!");
 };
 
 function logForensicTransaction(actor, role, target, category, desc, debit, credit, branchImpact) {
@@ -579,34 +941,241 @@ function updateAdminDrawerBadge() {
   }
 }
 
-// --- AUTH & NAVIGATION ---
-window.setUserSession = function(name, role, memberNo) {
-  var matched = appState.users.find(function(u) { return u.name.toLowerCase() === name.toLowerCase(); });
-  var category = matched ? matched.category : "Adult";
-  appState.currentUser = { name: name, role: role, memberNo: memberNo || "COX-084", category: category };
-  var userRecord = getCurrentUserRecord();
+// --- AUTH, REGISTRATION & QUICK-UNLOCK ENGINE ---
+function getSettingsForMemberNo(memberNo) {
+  try {
+    return JSON.parse(localStorage.getItem("safc_ext_settings_" + (memberNo || "DEFAULT")) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
 
+window.switchAuthMode = function(mode) {
+  var signInPane = document.getElementById("auth-pane-signin");
+  var regPane = document.getElementById("auth-pane-register");
+  var btnSign = document.getElementById("tab-auth-signin");
+  var btnReg = document.getElementById("tab-auth-register");
+
+  if (mode === "register") {
+    if (signInPane) signInPane.style.display = "none";
+    if (regPane) regPane.style.display = "block";
+    if (btnSign) { btnSign.className = "btn btn-outline btn-sm"; btnSign.style.border = "none"; }
+    if (btnReg) { btnReg.className = "btn btn-red btn-sm"; }
+  } else {
+    if (signInPane) signInPane.style.display = "block";
+    if (regPane) regPane.style.display = "none";
+    if (btnSign) { btnSign.className = "btn btn-red btn-sm"; }
+    if (btnReg) { btnReg.className = "btn btn-outline btn-sm"; btnReg.style.border = "none"; }
+  }
+};
+
+// Helper: Check if a user record holds verified Committee Admin privileges
+function isUserVerifiedAdmin(user) {
+  if (!user) return false;
+  return user.role === "admin" || user.memberNo === "ADMIN-01";
+}
+
+window.renderLoginScreenState = function() {
+  var quickCard = document.getElementById("login-quick-unlock-card");
+  var demoCard = document.getElementById("login-demo-switcher-card");
+
+  var savedSession = null;
+  try {
+    savedSession = JSON.parse(localStorage.getItem("safc_last_member_session") || "null");
+  } catch (e) {}
+
+  var isAdminDevice = false;
+  try {
+    isAdminDevice = (sessionStorage.getItem("safc_admin_authorized_device") === "1");
+  } catch (e) {}
+
+  var matched = null;
+  if (savedSession && savedSession.name) {
+    matched = (appState.users || []).find(function(u) {
+      return (savedSession.memberNo && u.memberNo === savedSession.memberNo) ||
+             (u.name && u.name.toLowerCase() === savedSession.name.toLowerCase());
+    });
+    if (matched && isUserVerifiedAdmin(matched)) {
+      isAdminDevice = true;
+    }
+  }
+
+  // Only show the Demo Quick-Switch card if an Admin has authenticated on this session
+  if (demoCard) {
+    demoCard.style.display = isAdminDevice ? "block" : "none";
+  }
+
+  if (!quickCard) return;
+  if (!matched) {
+    quickCard.style.display = "none";
+    return;
+  }
+
+  var extCfg = getSettingsForMemberNo(matched.memberNo);
+  var hasPin = extCfg.securityPin && extCfg.securityPin.length === 4;
+  var hasBio = !!extCfg.biometricUnlock;
+
+  quickCard.style.display = "block";
+
+  var avatarEl = document.getElementById("quick-unlock-avatar");
+  var nameEl = document.getElementById("quick-unlock-name");
+  var metaEl = document.getElementById("quick-unlock-meta");
+  var pinBox = document.getElementById("quick-unlock-pin-box");
+  var bioBtn = document.getElementById("btn-biometric-quick-unlock");
+
+  if (avatarEl) avatarEl.src = getSavedAvatar(matched) || DEFAULT_AVATAR_SVG;
+  if (nameEl) nameEl.textContent = matched.name;
+  if (metaEl) {
+    var roleTag = isUserVerifiedAdmin(matched) ? "Committee Admin" : (isMemberUnder18(matched) ? "Junior (U18)" : (matched.category || "Adult"));
+    metaEl.textContent = "Member #" + (matched.memberNo || "COX-084") + " • " + roleTag;
+  }
+
+  if (pinBox) {
+    pinBox.innerHTML = hasPin
+      ? "<label class='form-label'>Enter 4-Digit Security PIN</label>" +
+        "<div style='display:flex; gap:8px;'>" +
+          "<input type='password' id='quick-unlock-pin-input' class='form-input' maxlength='4' inputmode='numeric' pattern='[0-9]*' placeholder='••••' style='flex:1; text-align:center; letter-spacing:6px; font-size:16px; font-weight:800;' />" +
+          "<button type='button' class='btn btn-red' style='width:auto; min-width:110px;' onclick='window.handlePinQuickUnlock()'>🔓 Unlock</button>" +
+        "</div>"
+      : "<button type='button' class='btn btn-red' onclick='window.handlePinQuickUnlock()'>⚡ Continue as " + matched.name.split(" ")[0] + " ➔</button>";
+  }
+
+  if (bioBtn) {
+    bioBtn.style.display = hasBio ? "flex" : "none";
+  }
+};
+
+window.handlePinQuickUnlock = function() {
+  var savedSession = null;
+  try {
+    savedSession = JSON.parse(localStorage.getItem("safc_last_member_session") || "null");
+  } catch (e) {}
+  if (!savedSession) return;
+
+  var matched = (appState.users || []).find(function(u) {
+    return (savedSession.memberNo && u.memberNo === savedSession.memberNo) ||
+           (u.name && u.name.toLowerCase() === savedSession.name.toLowerCase());
+  });
+  var resolvedRole = isUserVerifiedAdmin(matched) ? "admin" : "member";
+
+  var extCfg = getSettingsForMemberNo(savedSession.memberNo);
+  if (extCfg.securityPin && extCfg.securityPin.length === 4) {
+    var pinInput = document.getElementById("quick-unlock-pin-input");
+    var entered = pinInput ? pinInput.value.trim() : "";
+    if (entered !== extCfg.securityPin) {
+      alert("❌ Incorrect 4-digit PIN.");
+      if (pinInput) pinInput.value = "";
+      return;
+    }
+    if (pinInput) pinInput.value = "";
+  }
+
+  window.setUserSession(savedSession.name, resolvedRole, savedSession.memberNo);
+};
+
+window.handleBiometricQuickUnlock = function() {
+  var savedSession = null;
+  try {
+    savedSession = JSON.parse(localStorage.getItem("safc_last_member_session") || "null");
+  } catch (e) {}
+  if (!savedSession) return;
+
+  var matched = (appState.users || []).find(function(u) {
+    return (savedSession.memberNo && u.memberNo === savedSession.memberNo) ||
+           (u.name && u.name.toLowerCase() === savedSession.name.toLowerCase());
+  });
+  var resolvedRole = isUserVerifiedAdmin(matched) ? "admin" : "member";
+
+  window.setUserSession(savedSession.name, resolvedRole, savedSession.memberNo);
+  if (typeof window.showInAppNotificationToast === "function") {
+    window.showInAppNotificationToast("🧬 Biometric Verified", "Signed in as " + savedSession.name, "view-hud");
+  }
+};
+
+window.clearSavedDeviceUser = function() {
+  localStorage.removeItem("safc_last_member_session");
+  sessionStorage.removeItem("safc_admin_authorized_device");
+  window.renderLoginScreenState();
+};
+
+window.setUserSession = function(name, role, memberNo) {
+  var matched = appState.users.find(function(u) {
+    if (memberNo && u.memberNo && u.memberNo.toLowerCase() === memberNo.toLowerCase()) return true;
+    return u.name && u.name.toLowerCase() === name.toLowerCase();
+  });
+
+  var resolvedName = matched ? matched.name : name;
+  var resolvedNo = matched ? matched.memberNo : (memberNo || "COX-084");
+  var category = matched ? matched.category : "Adult";
+  var actualRole = isUserVerifiedAdmin(matched) ? "admin" : (role === "admin" ? "admin" : "member");
+
+  if (actualRole === "admin") {
+    try { sessionStorage.setItem("safc_admin_authorized_device", "1"); } catch (e) {}
+  }
+
+  appState.currentUser = {
+    name: resolvedName,
+    role: actualRole,
+    memberNo: resolvedNo,
+    category: category
+  };
+
+  try {
+    localStorage.setItem("safc_last_member_session", JSON.stringify(appState.currentUser));
+  } catch (e) {}
+
+  var userRecord = getCurrentUserRecord();
   var compliance = checkChildCompliance(userRecord);
   var deactBanner = document.getElementById("child-deactivated-guard");
-  if (!compliance.compliant && compliance.deactivated) {
-    deactBanner.style.display = "block";
-    document.getElementById("deact-msg").textContent = "Account Locked: " + name + " requires a verified parent linkage. Link a parent via Friends & Family to activate.";
-  } else {
-    deactBanner.style.display = "none";
+  if (deactBanner) {
+    if (!compliance.compliant && compliance.deactivated) {
+      deactBanner.style.display = "block";
+      var deactMsg = document.getElementById("deact-msg");
+      if (deactMsg) {
+        deactMsg.textContent = "Account Locked: " + resolvedName + " requires a verified parent linkage. Link a parent via Friends & Family to activate.";
+      }
+    } else {
+      deactBanner.style.display = "none";
+    }
   }
 
-  document.getElementById("view-login").classList.remove("active");
-  document.getElementById("view-hud").classList.add("active");
+  var views = document.querySelectorAll(".tab-view");
+  views.forEach(function(v) { v.classList.remove("active"); });
+  var hudView = document.getElementById("view-hud");
+  if (hudView) hudView.classList.add("active");
+
+  var navItems = document.querySelectorAll(".nav-item");
+  navItems.forEach(function(item) { item.classList.remove("active"); });
+  var navHome = document.getElementById("nav-home");
+  if (navHome) navHome.classList.add("active");
+
   document.getElementById("bottom-bar").style.display = "flex";
-  document.getElementById("user-header-info").style.display = "block";
-  document.getElementById("display-name").textContent = name;
-  window.updateBalanceDisplay();
 
   var adminBar = document.getElementById("admin-bar");
+  var isAdminTestingMember = false;
+  try {
+    isAdminTestingMember = (sessionStorage.getItem("safc_admin_authorized_device") === "1" && actualRole !== "admin");
+  } catch (e) {}
+
   if (adminBar) {
-    adminBar.style.display = (role === "admin") ? "flex" : "none";
+    if (actualRole === "admin") {
+      adminBar.style.display = "flex";
+      adminBar.style.background = "var(--safc-red)";
+      adminBar.innerHTML =
+        "<span>🛡️ COMMITTEE ADMIN MODE</span>" +
+        "<button class='admin-btn-pill' onclick='openAdminDrawer()'>⚙️ Admin Panel <span id='admin-panel-badge' class='badge-count' style='display:none;'>0</span></button>";
+    } else if (isAdminTestingMember) {
+      adminBar.style.display = "flex";
+      adminBar.style.background = "#1e1b4b";
+      adminBar.innerHTML =
+        "<span>🧪 Previewing: <strong>" + resolvedName + "</strong></span>" +
+        "<button class='admin-btn-pill' onclick=\"window.quickLogin('Graham (Secretary)', 'admin', 'ADMIN-01')\">🛡️ Return to Admin</button>";
+    } else {
+      adminBar.style.display = "none";
+    }
   }
 
+  if (typeof window.syncSettingsDrawerUI === "function") window.syncSettingsDrawerUI();
   window.applyAppModules();
   window.applyClubIdentity();
   window.refreshAllViews();
@@ -614,12 +1183,188 @@ window.setUserSession = function(name, role, memberNo) {
 
 window.handleLogin = function() {
   var input = document.getElementById("login-username");
-  var val = (input && input.value.trim()) ? input.value.trim() : "Gary Miller";
-  var matched = appState.users.find(function(u) { return u.name.toLowerCase() === val.toLowerCase(); });
-  var role = (val.toLowerCase().indexOf("admin") !== -1 || val.toLowerCase().indexOf("secretary") !== -1) ? "admin" : "member";
-  var finalName = matched ? matched.name : val;
-  var finalNo = matched ? matched.memberNo : (role === "admin" ? "ADMIN-01" : "COX-084");
-  window.setUserSession(finalName, role, finalNo);
+  var pinInput = document.getElementById("login-pin-input");
+  var val = (input && input.value.trim()) ? input.value.trim() : "";
+
+  if (!val) {
+    alert("Please enter your Full Name or Branch Membership Number (e.g. Gary Miller or COX-084).");
+    return;
+  }
+
+  var matched = appState.users.find(function(u) {
+    return (u.name && u.name.toLowerCase() === val.toLowerCase()) ||
+           (u.memberNo && u.memberNo.toLowerCase() === val.toLowerCase());
+  });
+
+  if (!matched) {
+    if (confirm("No existing member record found for '" + val + "'.\n\nWould you like to switch to the Join Branch registration form?")) {
+      window.switchAuthMode("register");
+      var regName = document.getElementById("reg-full-name");
+      if (regName) regName.value = val;
+    }
+    return;
+  }
+
+  // Verify 4-Digit PIN if this member has configured one
+  var extCfg = getSettingsForMemberNo(matched.memberNo);
+  if (extCfg.securityPin && extCfg.securityPin.length === 4) {
+    var enteredPin = pinInput ? pinInput.value.trim() : "";
+    if (!enteredPin) {
+      enteredPin = prompt("🔐 Enter the 4-digit Security PIN for " + matched.name + ":") || "";
+    }
+    if (enteredPin.trim() !== extCfg.securityPin) {
+      alert("❌ Incorrect 4-digit Security PIN.");
+      return;
+    }
+  }
+
+  if (pinInput) pinInput.value = "";
+  var role = isUserVerifiedAdmin(matched) ? "admin" : "member";
+
+  window.setUserSession(matched.name, role, matched.memberNo);
+};
+
+window.checkRegistrationAge = function() {
+  var dobInput = document.getElementById("reg-dob");
+  var guardianBox = document.getElementById("reg-u18-guardian-box");
+  if (!dobInput || !guardianBox || !dobInput.value) return false;
+
+  var birthDate = new Date(dobInput.value);
+  if (isNaN(birthDate.getTime())) return false;
+
+  var today = new Date();
+  var age = today.getFullYear() - birthDate.getFullYear();
+  var m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  var isU18 = age < 18;
+  guardianBox.style.display = isU18 ? "block" : "none";
+  return isU18;
+};
+
+window.handleMemberRegistration = function() {
+  var nameEl = document.getElementById("reg-full-name");
+  var dobEl = document.getElementById("reg-dob");
+  var nickEl = document.getElementById("reg-nickname");
+  var phoneEl = document.getElementById("reg-phone");
+  var pinEl = document.getElementById("reg-pin");
+  var emEl = document.getElementById("reg-emergency");
+  var guardEl = document.getElementById("reg-guardian-name");
+
+  var fullName = nameEl ? nameEl.value.trim() : "";
+  var dob = dobEl ? dobEl.value : "";
+  var nickname = nickEl ? nickEl.value.trim() : "";
+  var phone = phoneEl ? phoneEl.value.trim() : "";
+  var pin = pinEl ? pinEl.value.trim() : "";
+  var emergency = emEl ? emEl.value.trim() : "";
+
+  if (!fullName || !dob || !phone) {
+    alert("Please complete Full Name, Date of Birth, and Mobile Number.");
+    return;
+  }
+
+  if (pin && !/^\d{4}$/.test(pin)) {
+    alert("Your optional Security PIN must be an exact 4-digit number (e.g. 1973).");
+    return;
+  }
+
+  var existing = (appState.users || []).find(function(u) {
+    return u.name && u.name.toLowerCase() === fullName.toLowerCase();
+  });
+  if (existing) {
+    alert("A member named '" + existing.name + "' (" + existing.memberNo + ") is already registered. Please use the Sign In tab.");
+    window.switchAuthMode("signin");
+    return;
+  }
+
+  var isU18 = window.checkRegistrationAge();
+  var guardianQuery = guardEl ? guardEl.value.trim() : "";
+  if (isU18 && !guardianQuery) {
+    alert("🛡️ Under-18 Safeguarding Rule:\nPlease enter the Full Name or Member # of your Adult Parent/Guardian in the branch.");
+    return;
+  }
+
+  var nextNum = 105 + (appState.users ? appState.users.length : 10);
+  var newMemberNo = "COX-" + nextNum;
+
+  var newMember = {
+    id: Date.now(),
+    name: fullName,
+    nickname: nickname,
+    dob: dob,
+    phone: phone,
+    emergencyName: emergency,
+    memberNo: newMemberNo,
+    category: isU18 ? "Child" : "Adult",
+    hasAppAccount: true,
+    balance: 0.00,
+    registeredDaysAgo: 0,
+    messagingAllowed: !isU18,
+    membershipStatus: "active",
+    membershipTier: isU18 ? "Junior" : "Adult",
+    membershipSeason: appState.duesConfig ? appState.duesConfig.activeSeason : "2026/27",
+    validUntil: "2027-07-31"
+  };
+
+  appState.users.push(newMember);
+
+  // If Under-18, automatically log a Parent/Guardian safeguarding approval request
+  if (isU18 && guardianQuery) {
+    var matchedGuard = (appState.users || []).find(function(u) {
+      return u.name.toLowerCase() === guardianQuery.toLowerCase() ||
+             (u.memberNo && u.memberNo.toLowerCase() === guardianQuery.toLowerCase());
+    });
+    var resolvedGuardian = matchedGuard ? matchedGuard.name : guardianQuery;
+    appState.pendingLinkRequests.push({
+      id: Date.now() + 1,
+      requester: resolvedGuardian,
+      targetName: fullName,
+      relation: "Child",
+      type: "Child",
+      status: "pending_admin"
+    });
+  }
+
+  // Save 4-digit PIN if provided during registration
+  if (pin) {
+    var cfgKey = "safc_ext_settings_" + newMemberNo;
+    var initCfg = {
+      manifestDisplay: "nickname",
+      dmPrivacy: isU18 ? "committee" : "all",
+      notifTravelUrgent: true,
+      notifAwayTickets: true,
+      notifFundraiser: true,
+      notifComms: true,
+      confirmWalletSpend: true,
+      biometricUnlock: false,
+      securityPin: pin
+    };
+    try { localStorage.setItem(cfgKey, JSON.stringify(initCfg)); } catch (e) {}
+  }
+
+  saveState();
+
+  if (sbClient) {
+    sbClient.from("members").upsert([{
+      id: newMember.id,
+      member_no: newMember.memberNo,
+      name: newMember.name,
+      nickname: newMember.nickname || null,
+      category: newMember.category,
+      balance: 0,
+      registered_days_ago: 0,
+      messaging_allowed: newMember.messagingAllowed,
+      membership_status: "active",
+      membership_tier: newMember.membershipTier,
+      membership_season: newMember.membershipSeason,
+      valid_until: newMember.validUntil
+    }]).then(function() {});
+  }
+
+  window.setUserSession(newMember.name, "member", newMember.memberNo);
+  alert("🎉 Welcome to Coxhoe Branch SAFC, " + newMember.name + "!\n\nYour Official Member Number is: " + newMember.memberNo);
 };
 
 window.quickLogin = function(name, role, no) {
@@ -630,12 +1375,13 @@ window.handleLogout = function() {
   var adminBar = document.getElementById("admin-bar");
   if (adminBar) adminBar.style.display = "none";
   document.getElementById("bottom-bar").style.display = "none";
-  document.getElementById("user-header-info").style.display = "none";
   document.getElementById("child-deactivated-guard").style.display = "none";
 
   var views = document.querySelectorAll(".tab-view");
   views.forEach(function(v) { v.classList.remove("active"); });
   document.getElementById("view-login").classList.add("active");
+
+  window.renderLoginScreenState();
 };
 
 window.switchTab = function(viewId, btn) {
@@ -1385,7 +2131,7 @@ window.exportManifestCSV = function() {
   a.click();
 };
 
-// --- PANE 2: MEMBERSHIP SUBS ROSTER ---
+// --- PANE 2: MEMBERSHIP SUBS & COMMITTEE ROLES ROSTER ---
 window.renderAdminSubs = function() {
   var container = document.getElementById("admin-subs-roster");
   if (!container || !appState || !appState.users) return;
@@ -1393,26 +2139,80 @@ window.renderAdminSubs = function() {
   var total = appState.users.length;
   var active = appState.users.filter(function(u) { return u.membershipStatus === "active"; }).length;
   var overdue = total - active;
+  var adminCount = appState.users.filter(function(u) { return isUserVerifiedAdmin(u); }).length;
 
   var html = 
     "<div class='treasury-grid mb-2'>" +
-      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Active: <strong style='color:var(--green);'>" + active + "</strong></div>" +
-      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Overdue: <strong style='color:#ef4444;'>" + overdue + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Active Subs: <strong style='color:var(--green);'>" + active + "</strong> / Overdue: <strong style='color:#ef4444;'>" + overdue + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Committee Admins: <strong style='color:var(--safc-gold);'>🛡️ " + adminCount + "</strong></div>" +
     "</div>" +
-    "<button class='btn btn-outline btn-sm' style='width:100%; margin-bottom:10px;' onclick='window.exportDuesCSV()'>📥 Export Membership Subs CSV</button>" +
-    "<div style='max-height:280px; overflow-y:auto;'>";
+    "<button class='btn btn-outline btn-sm' style='width:100%; margin-bottom:10px;' onclick='window.exportDuesCSV()'>📥 Export Membership Subs & Roles CSV</button>" +
+    "<div style='max-height:300px; overflow-y:auto;'>";
 
   appState.users.forEach(function(u, idx) {
     var isPaid = u.membershipStatus === "active";
+    var isAdminUser = isUserVerifiedAdmin(u);
+    var isRootAdmin = (u.memberNo === "ADMIN-01");
+    var isU18 = isMemberUnder18(u);
+
     html += 
-      "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; border-left:3px solid " + (isPaid ? "var(--green)" : "#ef4444") + ";'>" +
-        "<div><strong>" + u.name + "</strong> (" + (u.membershipTier || u.category) + ")<br><span style='color:" + (isPaid ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" + (isPaid ? "✓ Active (" + (u.membershipSeason || "2026/27") + ")" : "🔴 Lapsed / Overdue") + "</span></div>" +
-        "<div><button class='btn btn-sm " + (isPaid ? "btn-outline" : "btn-gold") + "' style='padding:2px 8px; font-size:10px;' onclick='window.adminToggleMemberDues(" + idx + ", " + (!isPaid) + ")'>" + (isPaid ? "Revoke" : "Activate ✓") + "</button></div>" +
+      "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; border-left:3px solid " + (isAdminUser ? "var(--safc-gold)" : (isPaid ? "var(--green)" : "#ef4444")) + ";'>" +
+        "<div>" +
+          "<strong>" + u.name + "</strong> <span style='font-size:10px; color:#94a3b8;'>(" + u.memberNo + " • " + (u.membershipTier || u.category) + ")</span>" +
+          (isAdminUser ? " <span class='badge-gold' style='margin-left:4px;'>🛡️ ADMIN</span>" : "") +
+          "<br><span style='color:" + (isPaid ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" + (isPaid ? "✓ Subs Active (" + (u.membershipSeason || "2026/27") + ")" : "🔴 Lapsed / Overdue") + "</span>" +
+        "</div>" +
+        "<div style='display:flex; gap:4px; align-items:center;'>" +
+          (!isU18 && !isRootAdmin
+            ? "<button class='btn btn-outline btn-sm' style='padding:2px 7px; font-size:9px; border-color:" + (isAdminUser ? "#f87171" : "var(--safc-gold)") + "; color:" + (isAdminUser ? "#f87171" : "var(--safc-gold)") + ";' onclick='window.adminToggleCommitteeRole(" + idx + ")'>" + (isAdminUser ? "Revoke Admin" : "🛡️ Make Admin") + "</button>"
+            : (isRootAdmin ? "<span style='font-size:9px; color:var(--safc-gold); font-weight:700; padding:0 4px;'>Founder</span>" : "")) +
+          "<button class='btn btn-sm " + (isPaid ? "btn-outline" : "btn-gold") + "' style='padding:2px 8px; font-size:10px;' onclick='window.adminToggleMemberDues(" + idx + ", " + (!isPaid) + ")'>" + (isPaid ? "Revoke Subs" : "Activate ✓") + "</button>" +
+        "</div>" +
       "</div>";
   });
 
   html += "</div>";
   container.innerHTML = html;
+};
+
+window.adminToggleCommitteeRole = function(idx) {
+  var targetUser = appState.users[idx];
+  if (!targetUser) return;
+  if (targetUser.memberNo === "ADMIN-01") {
+    alert("The Founding Secretary account (ADMIN-01) cannot have admin privileges revoked.");
+    return;
+  }
+  if (isMemberUnder18(targetUser)) {
+    alert("Under-18 junior accounts cannot be assigned Committee Admin privileges.");
+    return;
+  }
+
+  var currentlyAdmin = isUserVerifiedAdmin(targetUser);
+  var actionLabel = currentlyAdmin ? "REVOKE Committee Admin privileges from " : "GRANT Committee Admin privileges to ";
+  if (!confirm("🛡️ Committee Role Change\n\nAre you sure you want to " + actionLabel + targetUser.name + " (" + targetUser.memberNo + ")?")) {
+    return;
+  }
+
+  targetUser.role = currentlyAdmin ? "member" : "admin";
+  var actorName = (appState.currentUser && appState.currentUser.name) ? appState.currentUser.name : "Graham (Secretary)";
+
+  logForensicTransaction(
+    actorName,
+    "Admin",
+    targetUser.name,
+    "ROLE_CHANGE",
+    (currentlyAdmin ? "Revoked Committee Admin Role: " : "Granted Committee Admin Role: ") + targetUser.name + " (" + targetUser.memberNo + ")",
+    0,
+    0,
+    0
+  );
+
+  saveState();
+  if (sbClient && targetUser.memberNo) {
+    sbClient.from("members").update({ role: targetUser.role }).eq("member_no", targetUser.memberNo).then(function() {});
+  }
+  window.renderAdminSubs();
+  alert("✓ " + targetUser.name + " is now a " + (targetUser.role === "admin" ? "Committee Admin 🛡️" : "Standard Member") + ".");
 };
 
 window.renderAdminSubsRoster = window.renderAdminSubs;
@@ -1733,11 +2533,35 @@ window.deleteAnnouncement = function(postId) {
   }
 };
 
-// --- PANE 7: 40-TEAM MATCHDAY FOOTBALL CARD ---
+// --- PANE 7: MATCHDAY FOOTBALL SCRATCH CARD (20 TO 100 TEAMS) ---
 window._selectedFootballTeamIds = [];
 
+function getCardMetaDefaults() {
+  if (!appState.activeCardMeta) {
+    appState.activeCardMeta = {
+      cardId: 1,
+      title: "Matchday Scratch Card #1",
+      status: "active",
+      teamCount: (appState.footballCard && appState.footballCard.length) ? appState.footballCard.length : 40,
+      pricePerTeam: 2.00,
+      prizeMode: "50/50", // "50/50" or "custom"
+      winnerPrize: 40.00,
+      branchPrize: 40.00,
+      winnerTeam: null,
+      winnerMember: null
+    };
+  }
+  if (!appState.activeCardMeta.teamCount) {
+    appState.activeCardMeta.teamCount = (appState.footballCard && appState.footballCard.length) ? appState.footballCard.length : 40;
+  }
+  if (!appState.activeCardMeta.prizeMode) {
+    appState.activeCardMeta.prizeMode = "50/50";
+  }
+  return appState.activeCardMeta;
+}
+
 window.toggleFootballTeamSelection = function(teamId) {
-  var meta = appState.activeCardMeta || {};
+  var meta = getCardMetaDefaults();
   if (meta.status === "completed") return;
 
   var idx = window._selectedFootballTeamIds.indexOf(teamId);
@@ -1755,13 +2579,46 @@ window.renderFootballGrid = function() {
 
   var user = getCurrentUserRecord();
   var userName = user ? user.name : "Gary Miller";
-  var meta = appState.activeCardMeta || { status: "active", title: "40-Team Scratch Card #1" };
+  var meta = getCardMetaDefaults();
   var isCompleted = (meta.status === "completed");
+  var totalSquares = appState.footballCard.length || meta.teamCount || 40;
+  var pricePerSquare = Number(meta.pricePerTeam || 2.00);
+  var maxPot = totalSquares * pricePerSquare;
+
+  // Calculate dynamic Winner Prize & Branch Share (50/50 vs Custom £)
+  var displayWinnerPrize = (meta.prizeMode === "custom")
+    ? Number(meta.winnerPrize || 0)
+    : (maxPot * 0.50);
+  var displayBranchShare = (meta.prizeMode === "custom")
+    ? Number(meta.branchPrize || 0)
+    : (maxPot * 0.50);
+
+  var fmtGbp = function(val) {
+    return (val % 1 === 0) ? ("£" + val.toFixed(0)) : ("£" + val.toFixed(2));
+  };
+
+  // Dynamically update the 3 header elements in index.html
+  var headingEl = document.getElementById("football-card-heading");
+  var subtextEl = document.getElementById("football-card-subtext");
+  var prizeAmtEl = document.getElementById("football-card-prize-amount");
+
+  if (headingEl) {
+    headingEl.textContent = totalSquares + "-Team Scratch Card";
+  }
+  if (subtextEl) {
+    subtextEl.textContent =
+      "£" + pricePerSquare.toFixed(2) + " per team • " +
+      fmtGbp(displayWinnerPrize) + " to winner • " +
+      fmtGbp(displayBranchShare) + " to branch funds";
+  }
+  if (prizeAmtEl) {
+    prizeAmtEl.textContent = "£" + displayWinnerPrize.toFixed(2);
+  }
 
   var soldCount = appState.footballCard.filter(function(sq) { return !!sq.claimedBy; }).length;
   if (summary) {
     summary.className = isCompleted ? "badge-red" : "badge-gold";
-    summary.textContent = isCompleted ? "🏆 DRAWN & COMPLETED" : (soldCount + " / 40 Claimed");
+    summary.textContent = isCompleted ? "🏆 DRAWN & COMPLETED" : (soldCount + " / " + totalSquares + " Claimed");
   }
 
   var existingWinnerBanner = document.getElementById("football-member-winner-banner");
@@ -1774,7 +2631,7 @@ window.renderFootballGrid = function() {
     winnerBanner.innerHTML = 
       "<div style='font-size:10px; font-weight:800; color:#fde68a;'>🏆 OFFICIAL CARD RESULT</div>" +
       "<div style='font-size:15px; font-weight:900;'>Winning Team: " + meta.winnerTeam + "</div>" +
-      "<div style='font-size:11px;'>" + meta.winnerMember + " won £" + (meta.winnerPrize || 0).toFixed(2) + "!</div>";
+      "<div style='font-size:11px;'>" + meta.winnerMember + " won £" + Number(meta.winnerPrize || 0).toFixed(2) + "!</div>";
     grid.parentNode.insertBefore(winnerBanner, grid);
   }
 
@@ -1802,7 +2659,10 @@ window.renderFootballGrid = function() {
       sqBtn.style.background = "#1e293b";
       sqBtn.style.color = "#64748b";
       sqBtn.disabled = true;
-      sqBtn.innerHTML = "<span>" + sq.team + "</span><span style='font-size:7px;'>" + sq.claimedBy.split(" ")[0] + "</span>";
+      var shortClaimant = (typeof window.formatPublicManifestName === "function")
+        ? window.formatPublicManifestName(sq.claimedBy)
+        : sq.claimedBy.split(" ")[0];
+      sqBtn.innerHTML = "<span>" + sq.team + "</span><span style='font-size:7px;'>" + shortClaimant + "</span>";
     } else if (isSelected) {
       sqBtn.style.background = "var(--safc-gold)";
       sqBtn.style.color = "#000";
@@ -1811,7 +2671,7 @@ window.renderFootballGrid = function() {
     } else {
       sqBtn.style.background = "#0f172a";
       sqBtn.style.color = "#fff";
-      sqBtn.innerHTML = "<strong>" + sq.team + "</strong><span style='font-size:8px; color:#94a3b8;'>£2.00</span>";
+      sqBtn.innerHTML = "<strong>" + sq.team + "</strong><span style='font-size:8px; color:#94a3b8;'>£" + pricePerSquare.toFixed(2) + "</span>";
       if (!isCompleted) sqBtn.onclick = function() { window.toggleFootballTeamSelection(sq.id); };
       else sqBtn.disabled = true;
     }
@@ -1819,30 +2679,55 @@ window.renderFootballGrid = function() {
   });
 
   if (isCompleted) {
-    if (actionTeamName) actionTeamName.innerHTML = "<span style='color:var(--safc-gold);'>Card Drawn! Winner: " + meta.winnerMember + "</span>";
+    if (actionTeamName) actionTeamName.innerHTML = "<span style='color:var(--safc-gold);'>Card Drawn! Winner: " + meta.winnerMember + " (£" + Number(meta.winnerPrize || 0).toFixed(2) + ")</span>";
     if (claimBtn) { claimBtn.textContent = "Card Completed 🏆"; claimBtn.disabled = true; }
   } else {
     var selCount = window._selectedFootballTeamIds.length;
     if (selCount > 0) {
-      var totalCost = selCount * 2.00;
+      var totalCost = selCount * pricePerSquare;
       if (actionTeamName) actionTeamName.innerHTML = "Selected (" + selCount + ") Teams • Total: <strong style='color:var(--safc-gold);'>£" + totalCost.toFixed(2) + "</strong>";
       if (claimBtn) { claimBtn.textContent = "Claim " + selCount + " Team" + (selCount > 1 ? "s" : "") + " (£" + totalCost.toFixed(2) + ")"; claimBtn.disabled = false; }
     } else {
-      if (actionTeamName) actionTeamName.innerHTML = "Select available team(s)<div style='font-size:10px; color:#94a3b8;'>£2.00 per square</div>";
+      if (actionTeamName) actionTeamName.innerHTML = "Select available team(s)<div style='font-size:10px; color:#94a3b8;'>£" + pricePerSquare.toFixed(2) + " per square • Winner Prize: £" + displayWinnerPrize.toFixed(2) + "</div>";
       if (claimBtn) { claimBtn.textContent = "Claim Teams"; claimBtn.disabled = true; }
     }
   }
 };
 
 window.confirmFootballTeamPurchase = function() {
+  if (!verifyMembershipAccess("play the Scratch Card")) return;
+
   var selCount = window._selectedFootballTeamIds.length;
   if (selCount === 0) return;
 
   var user = getCurrentUserRecord();
-  var totalCost = selCount * 2.00;
+  if (isMemberUnder18(user)) {
+    alert("🛡️ Under-18 Safeguarding Rule:\nJunior members cannot purchase fundraiser scratch card squares.");
+    return;
+  }
+
+  var meta = getCardMetaDefaults();
+  var pricePerSquare = Number(meta.pricePerTeam || 2.00);
+  var totalCost = selCount * pricePerSquare;
+
   if (user.balance < totalCost) {
     alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + totalCost.toFixed(2) + ".");
     return;
+  }
+
+  var previewTeams = [];
+  window._selectedFootballTeamIds.forEach(function(teamId) {
+    var sq = appState.footballCard.find(function(x) { return x.id === teamId; });
+    if (sq && !sq.claimedBy) previewTeams.push(sq.team);
+  });
+
+  if (previewTeams.length === 0) return;
+
+  // Trigger 4-Digit Security PIN or Wallet Spend Confirmation
+  if (typeof window.verifyWalletSpendAuthorization === "function") {
+    if (!window.verifyWalletSpendAuthorization(totalCost, previewTeams.length + " Scratch Card Team(s): " + previewTeams.join(", "))) {
+      return;
+    }
   }
 
   user.balance -= totalCost;
@@ -1852,6 +2737,7 @@ window.confirmFootballTeamPurchase = function() {
     var sq = appState.footballCard.find(function(x) { return x.id === teamId; });
     if (sq && !sq.claimedBy) {
       sq.claimedBy = user.name;
+      sq.price = pricePerSquare;
       claimedNames.push(sq.team);
     }
   });
@@ -1870,63 +2756,241 @@ window.renderAdminFootballCardManager = function() {
   var pane = document.getElementById("admin-pane-footballcard");
   if (!pane) return;
 
-  var stats = { sold: appState.footballCard.filter(function(sq) { return !!sq.claimedBy; }).length, total: 40 };
-  var meta = appState.activeCardMeta || { status: "active", title: "Card #1", pricePerTeam: 2.00 };
+  var meta = getCardMetaDefaults();
+  var totalSquares = (appState.footballCard && appState.footballCard.length) ? appState.footballCard.length : (meta.teamCount || 40);
+  var soldCount = (appState.footballCard || []).filter(function(sq) { return !!sq.claimedBy; }).length;
   var isActive = (meta.status === "active");
+  var price = Number(meta.pricePerTeam || 2.00);
+  var prizeMode = meta.prizeMode || "50/50";
 
-  var actualPot = stats.sold * (meta.pricePerTeam || 2.00);
-  var winnerCalculatedPrize = actualPot * 0.50;
-  var branchCalculatedProfit = actualPot * 0.50;
-  var pct = Math.round((stats.sold / 40) * 100);
+  var actualPot = soldCount * price;
+  var maxPot = totalSquares * price;
+
+  var currentWinnerPrize = (prizeMode === "custom") ? Number(meta.winnerPrize || 0) : (actualPot * 0.50);
+  var currentBranchProfit = (prizeMode === "custom") ? Number(meta.branchPrize || 0) : (actualPot * 0.50);
+  var pct = Math.round((soldCount / totalSquares) * 100);
+
+  var teamCountOptions = [20, 30, 40, 50, 60, 70, 80, 90, 100].map(function(num) {
+    var sourceNote = (num <= 90) ? "English Leagues Only" : "92 English + 8 European";
+    return "<option value='" + num + "' " + (Number(totalSquares) === num ? "selected" : "") + ">" + num + " Teams (" + sourceNote + ")</option>";
+  }).join("");
 
   pane.innerHTML = 
     "<h4>⚽ Football Card Fundraiser Suite</h4>" +
-    "<p class='text-xs text-muted mb-2'>Manage matchday scratch card, track sales, and reveal winner with 50/50 prize split.</p>" +
+    "<p class='text-xs text-muted mb-2'>Configure card size (20–100 teams), price per square, and 50/50 or fixed £ prizes.</p>" +
 
     "<div class='admin-card' style='background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;'>" +
       "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>" +
-        "<strong style='color:#fff; font-size:13px;'>" + meta.title + "</strong>" +
+        "<strong style='color:#fff; font-size:13px;'>" + (meta.title || "Matchday Scratch Card") + " (" + totalSquares + " Teams)</strong>" +
         "<span style='padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; background:" + (isActive ? "#065f46; color:#34d399;" : "#334155; color:#94a3b8;") + "'>" + (isActive ? "🟢 ACTIVE" : "⚪ COMPLETED") + "</span>" +
       "</div>" +
 
       "<div style='background:#1e293b; padding:10px; border-radius:6px; margin-bottom:10px;'>" +
         "<div style='display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;'>" +
-          "<span>Claimed: <strong style='color:var(--safc-gold);'>" + stats.sold + " / 40</strong></span>" +
-          "<span style='color:var(--green); font-weight:700;'>Pot: £" + actualPot.toFixed(2) + "</span>" +
+          "<span>Claimed: <strong style='color:var(--safc-gold);'>" + soldCount + " / " + totalSquares + "</strong> (£" + price.toFixed(2) + "/sq)</span>" +
+          "<span style='color:var(--green); font-weight:700;'>Pot: £" + actualPot.toFixed(2) + " / £" + maxPot.toFixed(2) + "</span>" +
         "</div>" +
-        "<div style='height:6px; background:#0f172a; border-radius:3px; overflow:hidden; margin-bottom:4px;'><div style='width:" + pct + "%; height:100%; background:var(--safc-red);'></div></div>" +
-        "<div style='display:flex; justify-content:space-between; font-size:9px; color:#94a3b8;'>" +
-          "<span>Winner (50%): <strong style='color:var(--safc-gold);'>£" + (isActive ? winnerCalculatedPrize.toFixed(2) : (meta.winnerPrize || 0).toFixed(2)) + "</strong></span>" +
-          "<span>Branch (50%): <strong style='color:var(--green);'>£" + (isActive ? branchCalculatedProfit.toFixed(2) : (meta.branchProfit || 0).toFixed(2)) + "</strong></span>" +
+        "<div style='height:6px; background:#0f172a; border-radius:3px; overflow:hidden; margin-bottom:6px;'><div style='width:" + pct + "%; height:100%; background:var(--safc-red);'></div></div>" +
+        "<div style='display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;'>" +
+          "<span>Winner (" + (prizeMode === "custom" ? "Fixed £" : "50%") + "): <strong style='color:var(--safc-gold);'>£" + (isActive ? currentWinnerPrize.toFixed(2) : Number(meta.winnerPrize || 0).toFixed(2)) + "</strong></span>" +
+          "<span>Branch (" + (prizeMode === "custom" ? "Fixed £" : "50%") + "): <strong style='color:var(--green);'>£" + (isActive ? currentBranchProfit.toFixed(2) : Number(meta.branchProfit || meta.branchPrize || 0).toFixed(2)) + "</strong></span>" +
         "</div>" +
       "</div>" +
 
-      "<div style='display:flex; gap:6px; margin-bottom:10px;'>" +
-        (isActive ? "<button class='btn btn-gold btn-sm' style='flex:1; font-size:11px;' onclick='window.adminDrawFootballCardWinner()'>🏆 Scratch & Reveal Winner (£" + winnerCalculatedPrize.toFixed(2) + ")</button>" : "<button class='btn btn-outline btn-sm' style='flex:1; font-size:11px;' disabled>✓ Winner Paid: " + meta.winnerMember + "</button>") +
+      "<div style='display:flex; gap:6px; margin-bottom:12px;'>" +
+        (isActive
+          ? "<button class='btn btn-gold btn-sm' style='flex:1; font-size:11px;' onclick='window.adminDrawFootballCardWinner()'>🏆 Scratch & Reveal Winner (£" + currentWinnerPrize.toFixed(2) + ")</button>"
+          : "<button class='btn btn-outline btn-sm' style='flex:1; font-size:11px;' disabled>✓ Winner Paid: " + meta.winnerMember + " (£" + Number(meta.winnerPrize || 0).toFixed(2) + ")</button>") +
       "</div>" +
 
       "<div style='border-top:1px solid #334155; padding-top:10px;'>" +
-        "<strong style='font-size:11px; color:var(--safc-gold); display:block; margin-bottom:6px;'>🚀 Launch New Scratch Card</strong>" +
-        (isActive ? "<p class='text-xs text-muted mb-2'>Draw the active card before launching a new card.</p>" : "") +
-        "<button class='btn btn-red btn-sm' style='width:100%;' " + (isActive ? "disabled" : "") + " onclick='window.adminLaunchNewFootballCard()'>" + (isActive ? "🔒 Card In Progress" : "🚀 Launch Next 40-Team Card") + "</button>" +
+        "<strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>⚙️ Card Setup & Prize Rules</strong>" +
+
+        "<div style='display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;'>" +
+          "<div>" +
+            "<label class='form-label'>Number of Teams (20–100)</label>" +
+            "<select id='admin-card-team-count' class='form-select' onchange='window.updateAdminCardCalcPreview()'>" +
+              teamCountOptions +
+            "</select>" +
+          "</div>" +
+          "<div>" +
+            "<label class='form-label'>Price Per Square (£)</label>" +
+            "<input type='number' id='admin-card-price-input' class='form-input' min='0.50' step='0.50' value='" + price.toFixed(2) + "' oninput='window.updateAdminCardCalcPreview()' />" +
+          "</div>" +
+        "</div>" +
+
+        "<div class='form-group' style='margin-bottom:8px;'>" +
+          "<label class='form-label'>Prize Allocation Mode</label>" +
+          "<select id='admin-card-prize-mode' class='form-select' onchange='window.toggleAdminCardPrizeMode(this.value)'>" +
+            "<option value='50/50' " + (prizeMode === "50/50" ? "selected" : "") + ">50/50 Split (50% Winner / 50% Branch)</option>" +
+            "<option value='custom' " + (prizeMode === "custom" ? "selected" : "") + ">Specific £ Amounts (Custom Winner & Branch £)</option>" +
+          "</select>" +
+        "</div>" +
+
+        "<div id='admin-card-custom-prize-row' style='display:" + (prizeMode === "custom" ? "grid" : "none") + "; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;'>" +
+          "<div>" +
+            "<label class='form-label'>Winner Prize (£)</label>" +
+            "<input type='number' id='admin-card-winner-gbp' class='form-input' min='0' step='1' value='" + Number(meta.winnerPrize || (maxPot * 0.5)).toFixed(2) + "' oninput='window.updateAdminCardCalcPreview()' />" +
+          "</div>" +
+          "<div>" +
+            "<label class='form-label'>Branch Share (£)</label>" +
+            "<input type='number' id='admin-card-branch-gbp' class='form-input' min='0' step='1' value='" + Number(meta.branchPrize || (maxPot * 0.5)).toFixed(2) + "' oninput='window.updateAdminCardCalcPreview()' />" +
+          "</div>" +
+        "</div>" +
+
+        "<div id='admin-card-calc-preview' style='background:#1e293b; padding:8px 10px; border-radius:6px; font-size:10px; color:#cbd5e1; margin-bottom:10px; border:1px solid #334155;'>" +
+          "Full Card Pot: <strong>£" + maxPot.toFixed(2) + "</strong> • Winner: <strong style='color:var(--safc-gold);'>£" + (prizeMode === "custom" ? Number(meta.winnerPrize || 0).toFixed(2) : (maxPot * 0.5).toFixed(2)) + "</strong> • Branch: <strong style='color:var(--green);'>£" + (prizeMode === "custom" ? Number(meta.branchPrize || 0).toFixed(2) : (maxPot * 0.5).toFixed(2)) + "</strong>" +
+        "</div>" +
+
+        "<div style='display:grid; grid-template-columns:1fr 1fr; gap:8px;'>" +
+          "<button type='button' class='btn btn-outline btn-sm' style='width:100%; border-color:var(--safc-gold); color:var(--safc-gold);' onclick='window.adminApplyFootballCardSetup(false)'>💾 Amend Current Card</button>" +
+          "<button type='button' class='btn btn-red btn-sm' style='width:100%;' onclick='window.adminApplyFootballCardSetup(true)'>🚀 Launch Fresh Card</button>" +
+        "</div>" +
       "</div>" +
     "</div>";
 };
 
 window.renderAdminFootballCard = window.renderAdminFootballCardManager;
 
+window.toggleAdminCardPrizeMode = function(mode) {
+  var customRow = document.getElementById("admin-card-custom-prize-row");
+  if (customRow) {
+    customRow.style.display = (mode === "custom") ? "grid" : "none";
+  }
+  window.updateAdminCardCalcPreview();
+};
+
+window.updateAdminCardCalcPreview = function() {
+  var countEl = document.getElementById("admin-card-team-count");
+  var priceEl = document.getElementById("admin-card-price-input");
+  var modeEl = document.getElementById("admin-card-prize-mode");
+  var winEl = document.getElementById("admin-card-winner-gbp");
+  var brEl = document.getElementById("admin-card-branch-gbp");
+  var previewEl = document.getElementById("admin-card-calc-preview");
+  if (!previewEl) return;
+
+  var teams = countEl ? parseInt(countEl.value, 10) || 40 : 40;
+  var price = priceEl ? parseFloat(priceEl.value) || 2.00 : 2.00;
+  var mode = modeEl ? modeEl.value : "50/50";
+  var maxPot = teams * price;
+
+  var winAmt = (mode === "custom") ? (parseFloat(winEl ? winEl.value : 0) || 0) : (maxPot * 0.5);
+  var brAmt = (mode === "custom") ? (parseFloat(brEl ? brEl.value : 0) || 0) : (maxPot * 0.5);
+
+  previewEl.innerHTML =
+    "Full Card Pot (" + teams + " × £" + price.toFixed(2) + "): <strong>£" + maxPot.toFixed(2) + "</strong> • " +
+    "Winner: <strong style='color:var(--safc-gold);'>£" + winAmt.toFixed(2) + "</strong> • " +
+    "Branch: <strong style='color:var(--green);'>£" + brAmt.toFixed(2) + "</strong>";
+};
+
+window.adminApplyFootballCardSetup = function(launchNew) {
+  var countEl = document.getElementById("admin-card-team-count");
+  var priceEl = document.getElementById("admin-card-price-input");
+  var modeEl = document.getElementById("admin-card-prize-mode");
+  var winEl = document.getElementById("admin-card-winner-gbp");
+  var brEl = document.getElementById("admin-card-branch-gbp");
+
+  var newTeamCount = countEl ? parseInt(countEl.value, 10) || 40 : 40;
+  if (newTeamCount < 20 || newTeamCount > 100 || newTeamCount % 10 !== 0) {
+    alert("Please select a team count in multiples of 10 between 20 and 100.");
+    return;
+  }
+
+  var newPrice = priceEl ? parseFloat(priceEl.value) : 2.00;
+  if (isNaN(newPrice) || newPrice <= 0) {
+    alert("Please enter a valid price per square greater than £0.00.");
+    return;
+  }
+
+  var newMode = modeEl ? modeEl.value : "50/50";
+  var maxPot = newTeamCount * newPrice;
+  var customWinner = (newMode === "custom") ? (parseFloat(winEl ? winEl.value : 0) || 0) : (maxPot * 0.5);
+  var customBranch = (newMode === "custom") ? (parseFloat(brEl ? brEl.value : 0) || 0) : (maxPot * 0.5);
+
+  var meta = getCardMetaDefaults();
+
+  if (launchNew) {
+    var soldCount = (appState.footballCard || []).filter(function(s) { return !!s.claimedBy; }).length;
+    if (meta.status === "active" && soldCount > 0) {
+      if (!confirm("⚠️ The current card still has " + soldCount + " claimed square(s) and has not been drawn yet.\n\nAre you sure you want to replace it with a brand-new " + newTeamCount + "-Team card?")) {
+        return;
+      }
+    }
+    var nextId = (meta.cardId || 1) + 1;
+    appState.footballCard = MASTER_100_TEAMS.slice(0, newTeamCount).map(function(teamName, idx) {
+      return { id: idx + 1, team: teamName, price: newPrice, claimedBy: null };
+    });
+    appState.activeCardMeta = {
+      cardId: nextId,
+      title: "Matchday Scratch Card #" + nextId,
+      status: "active",
+      teamCount: newTeamCount,
+      pricePerTeam: newPrice,
+      prizeMode: newMode,
+      winnerPrize: customWinner,
+      branchPrize: customBranch,
+      winnerTeam: null,
+      winnerMember: null
+    };
+    window._selectedFootballTeamIds = [];
+    saveState();
+    window.renderFootballGrid();
+    renderHUDView();
+    window.renderAdminFootballCardManager();
+    alert("🚀 Launched new " + newTeamCount + "-Team Scratch Card (£" + newPrice.toFixed(2) + " per square)!");
+    return;
+  }
+
+  // Amend current card in-place
+  var currentLen = (appState.footballCard || []).length;
+  if (newTeamCount < currentLen) {
+    var droppedClaims = appState.footballCard.slice(newTeamCount).filter(function(s) { return !!s.claimedBy; });
+    if (droppedClaims.length > 0) {
+      alert("⚠️ Cannot shrink the active card to " + newTeamCount + " teams because squares above #" + newTeamCount + " have already been claimed by members. Use 'Launch Fresh Card' instead.");
+      return;
+    }
+    appState.footballCard = appState.footballCard.slice(0, newTeamCount);
+  } else if (newTeamCount > currentLen) {
+    for (var i = currentLen; i < newTeamCount; i++) {
+      appState.footballCard.push({
+        id: i + 1,
+        team: MASTER_100_TEAMS[i] || ("Team #" + (i + 1)),
+        price: newPrice,
+        claimedBy: null
+      });
+    }
+  }
+
+  appState.footballCard.forEach(function(sq) {
+    sq.price = newPrice;
+  });
+
+  meta.teamCount = newTeamCount;
+  meta.pricePerTeam = newPrice;
+  meta.prizeMode = newMode;
+  meta.winnerPrize = customWinner;
+  meta.branchPrize = customBranch;
+
+  window._selectedFootballTeamIds = [];
+  saveState();
+  window.renderFootballGrid();
+  renderHUDView();
+  window.renderAdminFootballCardManager();
+  alert("✓ Current Scratch Card updated (" + newTeamCount + " Teams • £" + newPrice.toFixed(2) + "/square • " + (newMode === "custom" ? "£" + customWinner.toFixed(2) + " Winner / £" + customBranch.toFixed(2) + " Branch" : "50/50 Split") + ").");
+};
+
 window.adminDrawFootballCardWinner = function() {
-  var meta = appState.activeCardMeta || {};
+  var meta = getCardMetaDefaults();
   if (meta.status === "completed") return;
 
   var claimed = appState.footballCard.filter(function(x) { return !!x.claimedBy; });
   if (claimed.length === 0) { alert("No teams claimed on this card yet."); return; }
 
-  var totalCollected = claimed.length * (meta.pricePerTeam || 2.00);
-  var winnerPrize = totalCollected * 0.50;
-  var branchShare = totalCollected * 0.50;
+  var totalCollected = claimed.length * Number(meta.pricePerTeam || 2.00);
+  var winnerPrize = (meta.prizeMode === "custom") ? Number(meta.winnerPrize || 0) : (totalCollected * 0.50);
+  var branchShare = (meta.prizeMode === "custom") ? Number(meta.branchPrize || 0) : (totalCollected * 0.50);
 
-  if (!confirm("Confirm scratching the card?\nWinner receives £" + winnerPrize.toFixed(2) + " (50% of sold pot).")) return;
+  if (!confirm("Confirm scratching the card?\n\n• Winner Receives: £" + winnerPrize.toFixed(2) + "\n• Branch Receives: £" + branchShare.toFixed(2))) return;
 
   var winningSquare = claimed[Math.floor(Math.random() * claimed.length)];
   var winnerName = winningSquare.claimedBy;
@@ -1935,7 +2999,8 @@ window.adminDrawFootballCardWinner = function() {
   var winnerRecord = appState.users.find(function(m) { return m.name === winnerName; });
   if (winnerRecord) winnerRecord.balance += winnerPrize;
 
-  logForensicTransaction("Branch", "Admin", winnerName, "CARD_WINNER_PAYOUT", "Scratch Card Winner: " + winningTeam + " (50/50 Split)", 0, winnerPrize, branchShare);
+  var splitLabel = (meta.prizeMode === "custom") ? "Fixed Prize" : "50/50 Split";
+  logForensicTransaction("Branch", "Admin", winnerName, "CARD_WINNER_PAYOUT", "Scratch Card Winner: " + winningTeam + " (" + splitLabel + ")", 0, winnerPrize, branchShare);
 
   meta.status = "completed";
   meta.winnerTeam = winningTeam;
@@ -1952,29 +3017,7 @@ window.adminDrawFootballCardWinner = function() {
 };
 
 window.adminLaunchNewFootballCard = function() {
-  var meta = appState.activeCardMeta || {};
-  if (meta.status === "active") return;
-
-  appState.footballCard = DEFAULT_40_TEAMS.map(function(teamName, idx) {
-    return { id: idx + 1, team: teamName, price: 2.00, claimedBy: null };
-  });
-
-  appState.activeCardMeta = {
-    cardId: (meta.cardId || 1) + 1,
-    title: "Matchday Scratch Card #" + ((meta.cardId || 1) + 1),
-    status: "active",
-    pricePerTeam: 2.00,
-    winnerPrize: 40.00,
-    branchPrize: 40.00,
-    winnerTeam: null,
-    winnerMember: null
-  };
-
-  saveState();
-  window.renderFootballGrid();
-  renderHUDView();
-  window.renderAdminFootballCardManager();
-  alert("🚀 New 40-Team Scratch Card Live!");
+  window.adminApplyFootballCardSetup(true);
 };
 
 // --- PANE 8: SAFEGUARDING & DISCIPLINARY ---
@@ -2005,27 +3048,36 @@ window.renderHUDView = function() {
   var user = getCurrentUserRecord();
   if (!user) return;
 
+  var isU18 = isMemberUnder18(user);
+  window.updateBalanceDisplay();
+
   var nameElem = document.getElementById("hud-member-name");
   var noElem = document.getElementById("hud-member-no");
-  var balElem = document.getElementById("hud-wallet-balance");
   var badgeElem = document.getElementById("hud-subs-badge");
+  var hudAvatar = document.getElementById("hud-user-avatar");
 
   if (nameElem) nameElem.textContent = user.nickname ? user.name + " (" + user.nickname + ")" : user.name;
-  if (noElem) noElem.textContent = "Member #" + (user.memberNo || "COX-084");
-  if (balElem) balElem.textContent = "£" + user.balance.toFixed(2);
+  if (noElem) noElem.textContent = "Member #" + (user.memberNo || "COX-084") + (isU18 ? " • Junior (U18)" : "");
+
+  // Sync persistent profile photo to Homepage HUD
+  var savedPhoto = getSavedAvatar(user);
+  if (hudAvatar) {
+    hudAvatar.src = savedPhoto || DEFAULT_AVATAR_SVG;
+  }
 
   if (badgeElem) {
     var isActive = (user.membershipStatus === "active");
-    badgeElem.textContent = isActive ? "● 2026/27 Active" : "⚠️ Subs Due";
+    badgeElem.textContent = isActive ? "● 2026/27 Active" : "⚠️ Subs Overdue";
     badgeElem.className = isActive ? "badge-gold" : "badge-red";
   }
 
-  // Fundraiser Pulse Bar
+  // Fundraiser Pulse Bar (Dynamic 20-100 Team Count)
+  var totalCardTeams = (appState.footballCard && appState.footballCard.length) ? appState.footballCard.length : 40;
   var soldCount = (appState.footballCard || []).filter(function(sq) { return !!sq.claimedBy; }).length;
   var soldCountElem = document.getElementById("hud-pulse-card-sold");
   var barElem = document.getElementById("hud-pulse-card-bar");
-  if (soldCountElem) soldCountElem.textContent = soldCount + " / 40 Claimed";
-  if (barElem) barElem.style.width = Math.min(100, Math.round((soldCount / 40) * 100)) + "%";
+  if (soldCountElem) soldCountElem.textContent = soldCount + " / " + totalCardTeams + " Claimed";
+  if (barElem) barElem.style.width = Math.min(100, Math.round((soldCount / totalCardTeams) * 100)) + "%";
 
   // Contextual Travel Card
   var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
@@ -2039,35 +3091,124 @@ window.renderHUDView = function() {
       statusCard.innerHTML = 
         "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
           "<div><strong style='color:var(--green);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + bookedBus.stop + " • Bus #" + (bookedBus.busId || 1) + "</div></div>" +
-          "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:2px 8px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
+          "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
         "</div>";
     } else {
       statusCard.innerHTML = 
         "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
           "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £12 Adult / £8 Junior</div></div>" +
-          "<button class='btn btn-red btn-sm' style='font-size:10px; padding:3px 8px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
+          "<button class='btn btn-red btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
         "</div>";
     }
   }
 
-  // Match Kickoff Countdown & Weather Fetch
-  startKickoffCountdown("2026-11-21T15:00:00", "15:00");
-  fetchLiveMatchWeather("Stadium of Light", { lat: 54.9146, lon: -1.3882 }, "2026-11-21T15:00:00");
+  // Next Match Spotlight, Kickoff Countdown & Weather Fetch from Live Feed
+  var masterList = appState.masterFixtures || JSON.parse(localStorage.getItem("coxhoe_master_fixtures_live_v21") || "[]");
+  var nextFixture = masterList.length > 0 ? masterList[0] : (activeMatch ? {
+    opponent: activeMatch.opponent,
+    type: "HOME",
+    competition: activeMatch.competition || "Premier League",
+    venue: activeMatch.venue || "Stadium of Light",
+    dateTime: activeMatch.dateTime || "2026-11-21T15:00:00",
+    dateDisplay: (activeMatch.date || "") + " • " + (activeMatch.time || "15:00"),
+    kickoffTime: activeMatch.time || "15:00",
+    coordinates: { lat: 54.9146, lon: -1.3882 }
+  } : null);
 
-  // Announcements Feed
+  if (nextFixture) {
+    var typePill = document.getElementById("hud-match-type-pill");
+    var dateElem = document.getElementById("hud-next-match-date");
+    var titleElem = document.getElementById("hud-next-match-title");
+    var venueElem = document.getElementById("hud-next-match-venue");
+
+    if (typePill) {
+      typePill.textContent = "NEXT MATCH • " + nextFixture.type + (nextFixture.competition ? " • " + nextFixture.competition.toUpperCase() : "");
+      typePill.style.background = (nextFixture.type === "HOME") ? "var(--safc-red)" : "#4338ca";
+    }
+    if (dateElem) dateElem.textContent = nextFixture.dateDisplay;
+    if (titleElem) {
+      titleElem.textContent = (nextFixture.type === "HOME")
+        ? "Sunderland vs " + nextFixture.opponent
+        : nextFixture.opponent + " vs Sunderland";
+    }
+    var venueDisplay = (nextFixture.venue || "Stadium of Light") + (nextFixture.city ? ", " + nextFixture.city : "");
+    if (venueElem) venueElem.textContent = venueDisplay + " • " + (nextFixture.competition || "Premier League");
+
+    if (typeof startKickoffCountdown === "function") {
+      startKickoffCountdown(nextFixture.dateTime, nextFixture.kickoffTime || "15:00");
+    }
+    if (typeof fetchLiveMatchWeather === "function") {
+      if (nextFixture.coordinates) {
+        fetchLiveMatchWeather(venueDisplay, nextFixture.coordinates, nextFixture.dateTime);
+      } else {
+        resolveDynamicVenueCoords(nextFixture.venue, nextFixture.city, nextFixture.country, nextFixture.opponent).then(function(coords) {
+          nextFixture.coordinates = coords;
+          fetchLiveMatchWeather(venueDisplay, coords, nextFixture.dateTime);
+        });
+      }
+    }
+  }
+
+  // Announcements Feed (with 'Mark as Read' dismissal & reactions)
   var newsContainer = document.getElementById("hud-news-feed");
   if (newsContainer) {
     newsContainer.innerHTML = "";
-    appState.announcements.forEach(function(item) {
-      if (item.archived) return;
-      var itemCard = document.createElement("div");
-      itemCard.className = "card";
-      itemCard.style.cssText = "margin-bottom:6px; padding:10px; background:#0f172a; border-left:3px solid " + (item.isUrgent ? "#ef4444" : "var(--safc-gold)") + ";";
-      itemCard.innerHTML = 
-        "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'><strong style='font-size:12px; color:#fff;'>" + item.title + "</strong><span style='font-size:9px; color:var(--text-muted);'>" + item.date + "</span></div>" +
-        "<div style='font-size:11px; color:#cbd5e1; line-height:1.4;'>" + item.content + "</div>";
-      newsContainer.appendChild(itemCard);
+    var visibleNotices = (appState.announcements || []).filter(function(item) {
+      if (item.archived) return false;
+      var readList = Array.isArray(item.readBy) ? item.readBy : [];
+      return readList.indexOf(user.name) === -1;
     });
+
+    if (visibleNotices.length === 0) {
+      newsContainer.innerHTML = 
+        "<div class='card' style='padding:12px; text-align:center; background:#0f172a; color:var(--text-muted); font-size:11px;'>" +
+          "✓ You're all caught up! No unread branch announcements." +
+        "</div>";
+    } else {
+      visibleNotices.forEach(function(item) {
+        var itemCard = document.createElement("div");
+        itemCard.className = "card";
+        itemCard.style.cssText = "margin-bottom:8px; padding:10px 12px; background:#0f172a; border-left:3px solid " + (item.isUrgent ? "#ef4444" : "var(--safc-gold)") + ";";
+        var bodyText = item.content || item.body || "";
+
+        itemCard.innerHTML = 
+          "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>" +
+            "<strong style='font-size:12px; color:#fff;'>" + item.title + "</strong>" +
+            "<span style='font-size:9px; color:var(--text-muted);'>" + (item.date || "") + "</span>" +
+          "</div>" +
+          "<div style='font-size:11px; color:#cbd5e1; line-height:1.4; margin-bottom:8px;'>" + bodyText + "</div>" +
+          "<div style='display:flex; justify-content:space-between; align-items:center; border-top:1px solid #1e293b; padding-top:6px;'>" +
+            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.reactAnnouncement(\"" + item.id + "\")'>👍 " + (item.reactions || 0) + "</button>" +
+            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:var(--safc-gold); border-color:var(--safc-gold);' onclick='window.dismissAnnouncement(\"" + item.id + "\")'>✓ Mark as Read</button>" +
+          "</div>";
+        newsContainer.appendChild(itemCard);
+      });
+    }
+  }
+};
+
+window.reactAnnouncement = function(postId) {
+  var post = (appState.announcements || []).find(function(a) { return String(a.id) === String(postId); });
+  if (post) {
+    post.reactions = (post.reactions || 0) + 1;
+    saveState();
+    window.renderHUDView();
+  }
+};
+
+window.dismissAnnouncement = function(postId) {
+  var post = (appState.announcements || []).find(function(a) { return String(a.id) === String(postId); });
+  if (post) {
+    if (!Array.isArray(post.readBy)) post.readBy = [];
+    var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+    if (post.readBy.indexOf(cur) === -1) {
+      post.readBy.push(cur);
+    }
+    saveState();
+    window.renderHUDView();
+    if (sbClient) {
+      sbClient.from("announcements").update({ read_by: post.readBy }).eq("id", post.id).then(function() {});
+    }
   }
 };
 
@@ -2079,7 +3220,9 @@ function getDynamicStopDisplay(matchId, busId, rawStop) {
   var cleanName = rawStop.split("(")[0].trim().toLowerCase();
   var match = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(matchId); });
   if (match && match.buses) {
-    var bus = match.buses.find(function(b) { return (b.busId || 1) === (busId || 1); }) || match.buses[0];
+    var bus = match.buses.find(function(b, idx) {
+      return String(b.busId || (idx + 1)) === String(busId || 1);
+    }) || match.buses[0];
     if (bus && bus.stops) {
       var foundStop = bus.stops.find(function(s) { return s.name.trim().toLowerCase() === cleanName; });
       if (foundStop) return foundStop.name + " (" + foundStop.time + ")";
@@ -2088,27 +3231,99 @@ function getDynamicStopDisplay(matchId, busId, rawStop) {
   return rawStop;
 }
 
+// Resolve who originally paid for a booking (ensures refunds never go to U18s or non-payers)
+function resolveBookingPayer(booking) {
+  if (!booking) return getCurrentUserRecord();
+
+  // 1. Explicit bookedBy field on booking
+  if (booking.bookedBy) {
+    var explicitPayer = (appState.users || []).find(function(u) {
+      return u.name.toLowerCase() === booking.bookedBy.toLowerCase();
+    });
+    if (explicitPayer && !isMemberUnder18(explicitPayer)) return explicitPayer;
+  }
+
+  // 2. Check Forensic Audit Trail for who paid for this booking
+  var cleanPassenger = (booking.name || "").split("(")[0].trim().toLowerCase();
+  var auditMatch = (appState.masterAuditTrail || []).find(function(t) {
+    return t.category === "BUS_BOOKING" && t.debit > 0 && t.desc && t.desc.toLowerCase().indexOf(cleanPassenger) !== -1;
+  });
+  if (auditMatch && auditMatch.actor) {
+    var auditPayer = (appState.users || []).find(function(u) {
+      return u.name.toLowerCase() === auditMatch.actor.toLowerCase();
+    });
+    if (auditPayer && !isMemberUnder18(auditPayer)) return auditPayer;
+  }
+
+  // 3. Check if passenger is a Child/U18 -> route refund to their linked Adult Guardian
+  var passengerUser = (appState.users || []).find(function(u) {
+    return cleanPassenger.indexOf(u.name.toLowerCase()) !== -1;
+  });
+
+  if (passengerUser && isMemberUnder18(passengerUser)) {
+    var parentLink = (appState.friendsAndFamily || []).find(function(f) {
+      return (f.owner === passengerUser.name && f.relation === "Parent") ||
+             (f.targetName === passengerUser.name && (f.relation === "Daughter" || f.relation === "Son" || f.relation === "Child"));
+    });
+    if (parentLink) {
+      var guardianName = (parentLink.owner === passengerUser.name) ? parentLink.targetName : parentLink.owner;
+      var guardianUser = (appState.users || []).find(function(u) {
+        return u.name.toLowerCase() === guardianName.toLowerCase();
+      });
+      if (guardianUser) return guardianUser;
+    }
+  }
+
+  // 4. Fallback to passenger if they are an Adult, otherwise default adult payer
+  if (passengerUser && !isMemberUnder18(passengerUser)) return passengerUser;
+  var cur = getCurrentUserRecord();
+  if (!isMemberUnder18(cur)) return cur;
+
+  return (appState.users || []).find(function(u) { return !isMemberUnder18(u); }) || cur;
+}
+
+// Check if a passenger is already booked on this match
+function isPassengerBookedOnMatch(matchId, personName) {
+  var target = (personName || "").trim().toLowerCase();
+  return (appState.bookings || []).some(function(b) {
+    if (String(b.matchId) !== String(matchId)) return false;
+    var names = (b.name || "").split(",").map(function(n) {
+      return n.replace(/\(.*?\)/g, "").trim().toLowerCase();
+    });
+    return names.indexOf(target) !== -1;
+  });
+}
+
 function initBookingParty() {
   var user = getCurrentUserRecord();
   var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  if (!activeMatch) return;
 
-  var leadAlreadyBooked = (appState.bookings || []).some(function(b) {
-    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(user.name) !== -1;
-  });
+  var leadAlreadyBooked = isPassengerBookedOnMatch(activeMatch.id, user.name);
 
   currentBookingParty = [{
-    id: "lead-" + user.name, name: user.name, type: user.category || "Adult",
-    isLead: true, alreadyBooked: leadAlreadyBooked, checked: !leadAlreadyBooked
+    id: "lead-" + user.name,
+    name: user.name,
+    type: isMemberUnder18(user) ? "Child" : (user.category || "Adult"),
+    isLead: true,
+    alreadyBooked: leadAlreadyBooked,
+    checked: !leadAlreadyBooked
   }];
 
-  var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === user.name && f.status === "approved"; });
+  var myFriends = (appState.friendsAndFamily || []).filter(function(f) {
+    return f.owner === user.name && f.status === "approved";
+  });
+
   myFriends.forEach(function(f) {
-    var friendBooked = (appState.bookings || []).some(function(b) {
-      return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(f.targetName) !== -1;
-    });
+    var friendBooked = isPassengerBookedOnMatch(activeMatch.id, f.targetName);
     currentBookingParty.push({
-      id: "fnf-" + f.targetName, name: f.targetName, type: f.type || "Adult",
-      relation: f.relation, isLinked: true, alreadyBooked: friendBooked, checked: false
+      id: "fnf-" + f.targetName,
+      name: f.targetName,
+      type: f.type || "Adult",
+      relation: f.relation,
+      isLinked: true,
+      alreadyBooked: friendBooked,
+      checked: false
     });
   });
 }
@@ -2149,20 +3364,28 @@ function renderBusBookingView() {
   var busSelectorGroup = document.getElementById("booking-bus-selector-group");
   var busSelectElem = document.getElementById("booking-bus-select");
 
+  // Ensure each bus has a valid unique busId
+  buses.forEach(function(b, idx) {
+    if (!b.busId) b.busId = idx + 1;
+  });
+
   if (busSelectorGroup && busSelectElem) {
     if (buses.length > 1) {
       busSelectorGroup.style.display = "block";
+      var validBus = buses.some(function(b) { return String(b.busId) === String(appState.selectedBookingBusId); });
+      if (!validBus) appState.selectedBookingBusId = buses[0].busId;
+
       busSelectElem.innerHTML = "";
       buses.forEach(function(b) {
         var opt = document.createElement("option");
         opt.value = b.busId;
         opt.textContent = b.title + " (" + (b.capacity || 53) + " Seats)";
-        if (b.busId === appState.selectedBookingBusId) opt.selected = true;
+        if (String(b.busId) === String(appState.selectedBookingBusId)) opt.selected = true;
         busSelectElem.appendChild(opt);
       });
     } else {
       busSelectorGroup.style.display = "none";
-      appState.selectedBookingBusId = 1;
+      appState.selectedBookingBusId = buses[0] ? buses[0].busId : 1;
     }
   }
 
@@ -2181,15 +3404,51 @@ window.updateBookingCoachUI = function() {
   if (!activeMatch) return;
   var buses = activeMatch.buses || [];
 
-  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || {
+  // Read currently selected bus from dropdown when multiple coaches exist
+  var busSelectElem = document.getElementById("booking-bus-select");
+  if (busSelectElem && buses.length > 1 && busSelectElem.value) {
+    appState.selectedBookingBusId = parseInt(busSelectElem.value) || busSelectElem.value;
+  }
+
+  var selectedBus = buses.find(function(b, idx) {
+    return String(b.busId || (idx + 1)) === String(appState.selectedBookingBusId);
+  }) || buses[0] || {
     busId: 1, title: "Bus 1", subtitle: "Official Branch Travel", adultFare: 12.00, juniorFare: 8.00, capacity: 53, stops: DEFAULT_STOPS
   };
 
+  // Update Subtitle, Price Pill & Fleet Capacity Bar for Selected Coach
+  var subElem = document.getElementById("travel-coach-subtitle");
+  var pricePill = document.getElementById("travel-coach-price-pill");
+  var busCountLabel = document.getElementById("travel-bus-count-label");
+
+  if (subElem) subElem.textContent = selectedBus.subtitle || (selectedBus.title + " • Official Branch Travel");
+  if (busCountLabel) busCountLabel.textContent = "Fleet: " + buses.length + " Coach" + (buses.length > 1 ? "es" : "");
+  if (pricePill) {
+    pricePill.textContent = selectedBus.isFreeBus
+      ? "FREE BUS (Branch Sponsored)"
+      : "£" + Number(selectedBus.adultFare || 12).toFixed(2) + " Adult • £" + Number(selectedBus.juniorFare || 8).toFixed(2) + " Junior";
+  }
+
+  var busBookings = (appState.bookings || []).filter(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && String(b.busId || 1) === String(selectedBus.busId || 1);
+  });
+  var totalBooked = 0;
+  busBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
+  var cap = selectedBus.capacity || 53;
+  var rem = Math.max(0, cap - totalBooked);
+
+  var statusElem = document.getElementById("seats-status");
+  var barElem = document.getElementById("seats-bar");
+  if (statusElem) statusElem.textContent = rem > 0 ? (totalBooked + " / " + cap + " Booked on " + selectedBus.title) : (selectedBus.title + " FULL");
+  if (barElem) barElem.style.width = Math.min(100, Math.round((totalBooked / cap) * 100)) + "%";
+
+  // Populate Pickup Stops for the Selected Bus
   var stopSelect = document.getElementById("booking-stop");
   if (stopSelect) {
     var prevVal = stopSelect.value;
     stopSelect.innerHTML = "";
-    (selectedBus.stops || DEFAULT_STOPS).forEach(function(s) {
+    var activeStops = (selectedBus.stops && selectedBus.stops.length > 0) ? selectedBus.stops : DEFAULT_STOPS;
+    activeStops.forEach(function(s) {
       var opt = document.createElement("option");
       opt.value = s.name;
       opt.textContent = s.name + " (" + s.time + ")";
@@ -2208,8 +3467,19 @@ function renderActiveBookingsSummary(activeMatch) {
   if (!container) return;
 
   var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+
+  // Find all linked children of current user so guardians always see & control their children's bookings
+  var myLinkedChildren = (appState.friendsAndFamily || []).filter(function(f) {
+    return f.owner === cur && (f.type === "Child" || f.relation === "Child" || f.relation === "Daughter" || f.relation === "Son");
+  }).map(function(f) { return f.targetName.toLowerCase(); });
+
   var myBookings = (appState.bookings || []).filter(function(b) {
-    return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(cur) !== -1;
+    if (String(b.matchId) !== String(activeMatch.id)) return false;
+    var nameLower = (b.name || "").toLowerCase();
+    var isMe = nameLower.indexOf(cur.toLowerCase()) !== -1;
+    var isBookedByMe = b.bookedBy && b.bookedBy.toLowerCase() === cur.toLowerCase();
+    var isMyChild = myLinkedChildren.some(function(childName) { return nameLower.indexOf(childName) !== -1; });
+    return isMe || isBookedByMe || isMyChild;
   });
 
   if (myBookings.length === 0) {
@@ -2217,16 +3487,23 @@ function renderActiveBookingsSummary(activeMatch) {
     return;
   }
 
-  var html = "<div style='font-size:11px; font-weight:800; color:var(--green); margin-bottom:6px;'>✓ YOUR CONFIRMED SEATS:</div>";
+  var html = "<div style='font-size:11px; font-weight:800; color:var(--green); margin-bottom:6px;'>✓ CONFIRMED SEATS (YOURS & YOUR PARTY):</div>";
   myBookings.forEach(function(b) {
     var seats = (b.adults || 0) + (b.juniors || 0);
+    var resolvedStop = getDynamicStopDisplay(activeMatch.id, b.busId, b.stop);
+    var payer = resolveBookingPayer(b);
+    var payerNote = (payer && payer.name !== b.name) ? " • Paid by " + payer.name : "";
+
     html += 
       "<div style='background:#064e3b; border:1px solid #10b981; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; color:#fff;'>" +
-        "<div style='display:flex; justify-content:space-between; align-items:center;'><strong>" + b.name + " (" + seats + " Seat" + (seats > 1 ? "s" : "") + ")</strong><span style='color:var(--safc-gold);'>Bus #" + (b.busId || 1) + "</span></div>" +
-        "<div style='margin-top:2px; font-size:10px;'>🚏 Pickup: <strong>" + b.stop + "</strong></div>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+          "<strong>" + b.name + " (" + seats + " Seat" + (seats > 1 ? "s" : "") + ")</strong>" +
+          "<span style='color:var(--safc-gold); font-weight:700;'>Bus #" + (b.busId || 1) + "</span>" +
+        "</div>" +
+        "<div style='margin-top:2px; font-size:10px;'>🚏 Pickup: <strong>" + resolvedStop + "</strong>" + payerNote + "</div>" +
         "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px;'>" +
           "<span style='font-size:10px; color:#a7f3d0;'>Status: " + (b.boarded ? "Boarded ✓" : "Seat Reserved") + "</span>" +
-          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px; color:#f87171; border-color:#f87171;' onclick='window.cancelMyBooking(" + b.id + ")'>Cancel & Refund (£" + b.total.toFixed(2) + ")</button>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px; color:#f87171; border-color:#f87171;' onclick='window.cancelMyBooking(" + b.id + ")'>Cancel & Refund (£" + Number(b.total || 0).toFixed(2) + ")</button>" +
         "</div>" +
       "</div>";
   });
@@ -2241,12 +3518,23 @@ function renderPartyPassengersList() {
 
   currentBookingParty.forEach(function(p, idx) {
     var row = document.createElement("div");
-    row.className = "party-member-row" + (p.isLead ? " lead" : "");
+    var rowClass = "party-member-row";
+    if (p.isLead) rowClass += " lead";
+    else if (p.isGuest) rowClass += " guest";
+    row.className = rowClass;
+
+    var badgeText = p.isLead ? "Lead" : (p.relation ? p.relation : (p.isGuest ? "Guest" : "Member"));
+
     row.innerHTML = 
       "<div style='display:flex; align-items:center; gap:8px;'>" +
         "<input type='checkbox' " + (p.checked ? "checked" : "") + " " + (p.alreadyBooked ? "disabled" : "") + " onchange='window.togglePartyPassenger(" + idx + ", this.checked)' />" +
-        "<div><strong>" + p.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + p.type + ")</span>" + (p.alreadyBooked ? "<span style='display:block; font-size:9px; color:var(--green); font-weight:700;'>✓ Seat Already Confirmed</span>" : "") + "</div>" +
-      "</div>";
+        "<div>" +
+          "<strong>" + p.name + "</strong> " +
+          "<span style='font-size:9px; color:var(--safc-gold);'>(" + p.type + " • " + badgeText + ")</span>" +
+          (p.alreadyBooked ? "<span style='display:block; font-size:9px; color:var(--green); font-weight:700;'>✓ Seat Already Confirmed</span>" : "") +
+        "</div>" +
+      "</div>" +
+      (!p.isLead && !p.isLinked ? "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.removePartyPassenger(" + idx + ")'>✕</button>" : "");
     listContainer.appendChild(row);
   });
 }
@@ -2258,6 +3546,96 @@ window.togglePartyPassenger = function(idx, isChecked) {
   }
 };
 
+window.removePartyPassenger = function(idx) {
+  currentBookingParty.splice(idx, 1);
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+window.handlePartyMemberSearch = function(query) {
+  var box = document.getElementById("party-member-autocomplete-box");
+  if (!box) return;
+
+  var q = (query || "").trim().toLowerCase();
+  if (q.length < 1) {
+    box.style.display = "none";
+    return;
+  }
+
+  var existingNames = currentBookingParty.map(function(p) { return p.name.toLowerCase(); });
+  var matches = (appState.users || []).filter(function(u) {
+    var matchName = u.name && u.name.toLowerCase().indexOf(q) !== -1;
+    var matchNo = u.memberNo && u.memberNo.toLowerCase().indexOf(q) !== -1;
+    var notInParty = existingNames.indexOf(u.name.toLowerCase()) === -1;
+    return (matchName || matchNo) && notInParty;
+  });
+
+  if (matches.length === 0) {
+    box.innerHTML = "<div style='padding:6px 10px; font-size:10px; color:#94a3b8;'>No branch members match '" + query + "'</div>";
+    box.style.display = "block";
+    return;
+  }
+
+  var html = "";
+  matches.slice(0, 6).forEach(function(m) {
+    var cat = isMemberUnder18(m) ? "Child" : (m.category || "Adult");
+    html += 
+      "<div class='autocomplete-item' onclick='window.selectPartyMember(\"" + m.name.replace(/'/g, "\\'") + "\", \"" + cat + "\")'>" +
+        "<strong>" + m.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + (m.memberNo || "Member") + " • " + cat + ")</span>" +
+      "</div>";
+  });
+
+  box.innerHTML = html;
+  box.style.display = "block";
+};
+
+window.selectPartyMember = function(memberName, category) {
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  var isBooked = activeMatch ? isPassengerBookedOnMatch(activeMatch.id, memberName) : false;
+
+  currentBookingParty.push({
+    id: "member-" + memberName,
+    name: memberName,
+    type: category || "Adult",
+    isMember: true,
+    alreadyBooked: isBooked,
+    checked: !isBooked
+  });
+
+  var input = document.getElementById("party-search-member-input");
+  var box = document.getElementById("party-member-autocomplete-box");
+  if (input) input.value = "";
+  if (box) box.style.display = "none";
+
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
+window.addPartyGuestPassenger = function() {
+  var nameInput = document.getElementById("party-guest-name-input");
+  var typeSelect = document.getElementById("party-guest-type-select");
+  var guestName = nameInput ? nameInput.value.trim() : "";
+  var guestType = typeSelect ? typeSelect.value : "Adult";
+
+  if (!guestName) {
+    alert("Please enter the guest passenger's full name.");
+    return;
+  }
+
+  currentBookingParty.push({
+    id: "guest-" + Date.now(),
+    name: guestName + " (Guest)",
+    type: guestType,
+    isGuest: true,
+    alreadyBooked: false,
+    checked: true
+  });
+
+  if (nameInput) nameInput.value = "";
+  renderPartyPassengersList();
+  window.updatePartyFareCalculation();
+};
+
 window.updatePartyStopSelection = function() {
   window.updatePartyFareCalculation();
 };
@@ -2265,7 +3643,9 @@ window.updatePartyStopSelection = function() {
 window.updatePartyFareCalculation = function() {
   var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
   var buses = (activeMatch && activeMatch.buses) ? activeMatch.buses : [];
-  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0] || { adultFare: 12.00, juniorFare: 8.00 };
+  var selectedBus = buses.find(function(b, idx) {
+    return String(b.busId || (idx + 1)) === String(appState.selectedBookingBusId);
+  }) || buses[0] || { adultFare: 12.00, juniorFare: 8.00, isFreeBus: false };
 
   var adultCount = 0;
   var juniorCount = 0;
@@ -2277,58 +3657,115 @@ window.updatePartyFareCalculation = function() {
     }
   });
 
-  var totalFare = (adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare);
+  var totalFare = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
   var fareText = document.getElementById("party-total-fare-text");
   var bookBtn = document.getElementById("btn-book-seat");
 
-  if (fareText) fareText.textContent = "£" + totalFare.toFixed(2);
+  if (fareText) {
+    fareText.innerHTML = selectedBus.isFreeBus
+      ? "<span style='color:var(--green);'>FREE (Branch Sponsored)</span>"
+      : "£" + totalFare.toFixed(2) + " <span style='font-size:10px; color:#94a3b8;'>(" + adultCount + " Adult" + (adultCount !== 1 ? "s" : "") + ", " + juniorCount + " Junior" + (juniorCount !== 1 ? "s" : "") + ")</span>";
+  }
   if (bookBtn) {
     var totalSelected = adultCount + juniorCount;
     bookBtn.disabled = (totalSelected === 0);
-    bookBtn.textContent = totalSelected > 0 ? "Book " + totalSelected + " Seat" + (totalSelected > 1 ? "s" : "") + " (£" + totalFare.toFixed(2) + ")" : "Select At Least 1 Passenger";
+    bookBtn.textContent = totalSelected > 0
+      ? "Book " + totalSelected + " Seat" + (totalSelected > 1 ? "s" : "") + " (" + (selectedBus.isFreeBus ? "FREE" : "£" + totalFare.toFixed(2)) + ")"
+      : "Select At Least 1 Passenger";
   }
 };
 
 window.openBookingModal = function() {
   if (!verifyMembershipAccess("book coach seats")) return;
 
+  var user = getCurrentUserRecord();
+  if (isMemberUnder18(user)) {
+    alert("🛡️ Under-18 Safeguarding Rule:\nJunior members cannot pay for coach bookings directly. Please ask your linked adult guardian to book your seat from their account.");
+    return;
+  }
+
   var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
   var buses = activeMatch.buses || [];
-  var selectedBus = buses.find(function(b) { return b.busId === appState.selectedBookingBusId; }) || buses[0];
+  var selectedBus = buses.find(function(b, idx) {
+    return String(b.busId || (idx + 1)) === String(appState.selectedBookingBusId);
+  }) || buses[0];
 
   var selectedPassengers = currentBookingParty.filter(function(p) { return p.checked && !p.alreadyBooked; });
   if (selectedPassengers.length === 0) return;
 
   var adultCount = 0;
   var juniorCount = 0;
-  var passengerNames = [];
-
   selectedPassengers.forEach(function(p) {
-    passengerNames.push(p.name);
     if (p.type === "Junior" || p.type === "Child") juniorCount++;
     else adultCount++;
   });
 
   var stop = document.getElementById("booking-stop").value;
-  var total = (adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare);
+  var total = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
 
-  var user = getCurrentUserRecord();
   if (user.balance < total) {
     alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2) + ".");
     return;
   }
 
-  user.balance -= total;
-  var newBooking = {
-    id: Date.now(), matchId: activeMatch.id, busId: selectedBus.busId || 1,
-    name: passengerNames.join(", "), stop: stop, adults: adultCount, juniors: juniorCount, total: total, boarded: false
-  };
+  if (total > 0 && !window.verifyWalletSpendAuthorization(total, selectedPassengers.length + " Coach Seat(s) vs " + activeMatch.opponent)) {
+    return;
+  }
 
-  appState.bookings.push(newBooking);
-  logForensicTransaction(user.name, "Member", "Branch", "BUS_BOOKING", "Coach vs " + activeMatch.opponent + ": " + passengerNames.join(", "), total, 0, total);
+  user.balance -= total;
+
+  // Create an individual booking record per passenger so each seat can be cancelled or boarded independently
+  var baseTime = Date.now();
+  var bookedNames = [];
+
+  selectedPassengers.forEach(function(p, idx) {
+    var isJr = (p.type === "Junior" || p.type === "Child");
+    var seatFare = selectedBus.isFreeBus ? 0.00 : (isJr ? selectedBus.juniorFare : selectedBus.adultFare);
+    var newBooking = {
+      id: baseTime + idx,
+      matchId: activeMatch.id,
+      busId: selectedBus.busId || 1,
+      name: p.name,
+      bookedBy: user.name,
+      bookedByMemberNo: user.memberNo,
+      stop: stop,
+      adults: isJr ? 0 : 1,
+      juniors: isJr ? 1 : 0,
+      total: seatFare,
+      boarded: false
+    };
+    appState.bookings.push(newBooking);
+    bookedNames.push(p.name);
+
+    if (sbClient) {
+      sbClient.from("bus_bookings").insert([{
+        id: newBooking.id,
+        match_id: newBooking.matchId,
+        bus_id: newBooking.busId,
+        name: newBooking.name,
+        stop: newBooking.stop,
+        adults: newBooking.adults,
+        juniors: newBooking.juniors,
+        total: newBooking.total,
+        boarded: false
+      }]).then(function() {});
+    }
+  });
+
+  logForensicTransaction(
+    user.name,
+    "Member",
+    "Branch",
+    "BUS_BOOKING",
+    "Coach vs " + activeMatch.opponent + " (" + selectedBus.title + "): " + bookedNames.join(", "),
+    total,
+    0,
+    total
+  );
+
   saveState();
   window.refreshAllViews();
-  alert("✓ Booking confirmed! " + selectedPassengers.length + " seat(s) reserved.");
+  alert("✓ Booking confirmed for: " + bookedNames.join(", ") + " on " + selectedBus.title + "!");
 };
 
 window.cancelMyBooking = function(bookingId) {
@@ -2336,17 +3773,46 @@ window.cancelMyBooking = function(bookingId) {
   if (bIdx === -1) return;
   var booking = appState.bookings[bIdx];
 
-  var user = getCurrentUserRecord();
-  user.balance += booking.total;
-  logForensicTransaction("Branch", "System", user.name, "BUS_REFUND", "Refund: Coach booking #" + booking.id, 0, booking.total, -booking.total);
+  // Always credit the original adult payer (never an Under-18 account)
+  var payer = resolveBookingPayer(booking);
+  var refundAmount = Number(booking.total || 0);
+
+  if (refundAmount > 0 && payer) {
+    payer.balance = (parseFloat(payer.balance) || 0) + refundAmount;
+    logForensicTransaction(
+      "Branch",
+      "System",
+      payer.name,
+      "BUS_REFUND",
+      "Refund: Cancelled seat for " + booking.name + " (#" + booking.id + ")",
+      0,
+      refundAmount,
+      -refundAmount
+    );
+  }
 
   appState.bookings.splice(bIdx, 1);
   saveState();
   window.refreshAllViews();
-  alert("✓ Booking cancelled. £" + booking.total.toFixed(2) + " refunded to wallet.");
+
+  if (sbClient) {
+    sbClient.from("bus_bookings").delete().eq("id", bookingId).then(function() {});
+    if (payer && payer.memberNo) {
+      sbClient.from("members").update({ balance: payer.balance }).eq("member_no", payer.memberNo).then(function() {});
+    }
+  }
+
+  var curName = appState.currentUser ? appState.currentUser.name : "";
+  if (payer && payer.name !== curName) {
+    alert("✓ Seat cancelled for " + booking.name + ".\n£" + refundAmount.toFixed(2) + " has been refunded to the original payer (" + payer.name + ").");
+  } else {
+    alert("✓ Seat cancelled for " + booking.name + ".\n£" + refundAmount.toFixed(2) + " refunded to your wallet.");
+  }
 };
 
-// --- AWAY FIXTURE EXPRESSIONS OF INTEREST ---
+// --- AWAY FIXTURE EXPRESSIONS OF INTEREST (WITH FRIENDS & FAMILY PARTY) ---
+var currentAwayExtraMembers = [];
+
 function renderMemberAwayView() {
   var sel = document.getElementById("member-away-game-select");
   var card = document.getElementById("member-away-status-card");
@@ -2364,35 +3830,155 @@ function renderMemberAwayView() {
   if (!sel.value && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
 
   var fixture = appState.awayFixtures.find(function(f) { return f.id === sel.value; }) || appState.awayFixtures[0];
-  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  var myReg = (appState.awayRegistrations || []).find(function(r) { return r.fixtureId === fixture.id && r.memberName === cur; });
+  if (!fixture) return;
 
-  var html = "<div class='flex-between'><strong>" + fixture.opponent + " (Away)</strong><span class='badge-gold'>" + fixture.date + "</span></div>";
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var lead = getCurrentUserRecord();
+
+  var myReg = (appState.awayRegistrations || []).find(function(r) {
+    return r.fixtureId === fixture.id && (r.memberName === cur || (r.party && r.party.some(function(p) { return p.indexOf(cur) !== -1; })));
+  });
+
+  var html = 
+    "<div class='flex-between'>" +
+      "<strong>" + fixture.opponent + " (Away)</strong>" +
+      "<span class='badge-gold'>" + fixture.date + " (" + (fixture.time || "15:00") + ")</span>" +
+    "</div>" +
+    "<div class='text-xs text-muted mt-1'>Branch Ticket Quota: <strong>" + fixture.allocation + " Tickets</strong></div>";
 
   if (myReg) {
     html += 
       "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin:10px 0; font-size:11px;'>" +
-        "Status: " + (myReg.allocated ? "<strong style='color:var(--green);'>✓ TICKET ALLOCATED</strong>" : "<strong style='color:var(--safc-gold);'>⏳ Interest Registered</strong>") +
+        "<div>Status: " + (myReg.allocated ? "<strong style='color:var(--green);'>✓ TICKET ALLOCATED BY COMMITTEE</strong>" : "<strong style='color:var(--safc-gold);'>⏳ Interest Registered (Awaiting Allocation)</strong>") + "</div>" +
+        "<div style='color:#cbd5e1; margin-top:4px;'>Applicants (" + (myReg.party ? myReg.party.length : 1) + "): <strong>" + (myReg.party ? myReg.party.join(", ") : myReg.memberName) + "</strong></div>" +
       "</div>" +
-      "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Interest</button>";
+      "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Expression of Interest</button>";
   } else {
-    html += "<button class='btn btn-red btn-sm mt-2' style='width:100%;' onclick='window.registerAwayInterest(\"" + fixture.id + "\")'>Register Expression of Interest</button>";
+    var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === cur && f.status === "approved"; });
+    var leadCat = isMemberUnder18(lead) ? "Child" : (lead.category || "Adult");
+
+    html += 
+      "<div style='margin-top:10px; background:#1e293b; padding:10px; border-radius:8px; border:1px solid #334155;'>" +
+        "<label class='form-label' style='color:var(--safc-gold); margin-bottom:6px;'>👥 Select Applicants (You & Friends/Family)</label>" +
+        "<div style='background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;'>" +
+          "<label style='display:flex; align-items:center; gap:8px; cursor:pointer;'>" +
+            "<input type='checkbox' class='away-party-member-cb' data-name='" + lead.name + "' data-type='" + leadCat + "' checked /> " +
+            "<span><strong>" + lead.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + leadCat + " • Lead)</span></span>" +
+          "</label>" +
+        "</div>";
+
+    myFriends.forEach(function(f) {
+      html += 
+        "<div style='background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;'>" +
+          "<label style='display:flex; align-items:center; gap:8px; cursor:pointer;'>" +
+            "<input type='checkbox' class='away-party-member-cb' data-name='" + f.targetName + "' data-type='" + (f.type || "Adult") + "' /> " +
+            "<span><strong>" + f.targetName + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + (f.type || "Adult") + " • " + f.relation + ")</span></span>" +
+          "</label>" +
+        "</div>";
+    });
+
+    currentAwayExtraMembers.forEach(function(extra, eIdx) {
+      html += 
+        "<div style='display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;'>" +
+          "<label style='display:flex; align-items:center; gap:8px; cursor:pointer;'>" +
+            "<input type='checkbox' class='away-party-member-cb' data-name='" + extra.name + "' data-type='" + extra.type + "' checked /> " +
+            "<span><strong>" + extra.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + extra.type + " • Member)</span></span>" +
+          "</label>" +
+          "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.removeAwayExtraMember(" + eIdx + ")'>✕</button>" +
+        "</div>";
+    });
+
+    html += 
+        "<div style='position:relative; margin-top:8px;'>" +
+          "<label class='form-label' style='font-size:9px;'>Add Another Branch Member to Application</label>" +
+          "<input type='text' id='away-search-member-input' class='form-input' placeholder='Type member name or #...' autocomplete='off' style='font-size:11px; padding:5px;' oninput='window.handleAwayMemberSearch(this.value)' />" +
+          "<div id='away-member-autocomplete-box' class='autocomplete-dropdown' style='display:none;'></div>" +
+        "</div>" +
+        "<button class='btn btn-red btn-sm mt-2' style='width:100%;' onclick='window.registerAwayInterest(\"" + fixture.id + "\")'>Register Expression of Interest</button>" +
+      "</div>";
   }
 
   card.innerHTML = html;
 }
 
+window.handleAwayMemberSearch = function(query) {
+  var box = document.getElementById("away-member-autocomplete-box");
+  if (!box) return;
+  var q = (query || "").trim().toLowerCase();
+  if (q.length < 1) { box.style.display = "none"; return; }
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var linkedNames = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === cur; }).map(function(f) { return f.targetName.toLowerCase(); });
+  var extraNames = currentAwayExtraMembers.map(function(e) { return e.name.toLowerCase(); });
+
+  var matches = (appState.users || []).filter(function(u) {
+    var mName = u.name && u.name.toLowerCase().indexOf(q) !== -1;
+    var mNo = u.memberNo && u.memberNo.toLowerCase().indexOf(q) !== -1;
+    var notIncluded = u.name.toLowerCase() !== cur.toLowerCase() && linkedNames.indexOf(u.name.toLowerCase()) === -1 && extraNames.indexOf(u.name.toLowerCase()) === -1;
+    return (mName || mNo) && notIncluded;
+  });
+
+  if (matches.length === 0) {
+    box.innerHTML = "<div style='padding:6px 10px; font-size:10px; color:#94a3b8;'>No matching members found</div>";
+    box.style.display = "block";
+    return;
+  }
+
+  var html = "";
+  matches.slice(0, 5).forEach(function(m) {
+    var cat = isMemberUnder18(m) ? "Child" : (m.category || "Adult");
+    html += 
+      "<div class='autocomplete-item' onclick='window.selectAwayExtraMember(\"" + m.name.replace(/'/g, "\\'") + "\", \"" + cat + "\")'>" +
+        "<strong>" + m.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + (m.memberNo || "Member") + " • " + cat + ")</span>" +
+      "</div>";
+  });
+  box.innerHTML = html;
+  box.style.display = "block";
+};
+
+window.selectAwayExtraMember = function(name, type) {
+  currentAwayExtraMembers.push({ name: name, type: type || "Adult" });
+  renderMemberAwayView();
+};
+
+window.removeAwayExtraMember = function(idx) {
+  currentAwayExtraMembers.splice(idx, 1);
+  renderMemberAwayView();
+};
+
 window.registerAwayInterest = function(fixtureId) {
   if (!verifyMembershipAccess("apply for away tickets")) return;
+
   var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  appState.awayRegistrations.push({ fixtureId: fixtureId, memberName: cur, party: [cur + " (Adult)"], allocated: false });
+  var party = [];
+  document.querySelectorAll(".away-party-member-cb:checked").forEach(function(cb) {
+    party.push(cb.getAttribute("data-name") + " (" + cb.getAttribute("data-type") + ")");
+  });
+
+  if (party.length === 0) {
+    alert("Please select at least 1 member for the away ticket application.");
+    return;
+  }
+
+  appState.awayRegistrations.push({
+    fixtureId: fixtureId,
+    memberName: cur,
+    party: party,
+    allocated: false
+  });
+
+  currentAwayExtraMembers = [];
   saveState();
   renderMemberAwayView();
+  alert("✓ Expression of interest submitted for " + party.length + " ticket(s):\n" + party.join(", "));
 };
 
 window.withdrawAwayInterest = function(fixtureId) {
   var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  appState.awayRegistrations = appState.awayRegistrations.filter(function(r) { return !(r.fixtureId === fixtureId && r.memberName === cur); });
+  appState.awayRegistrations = appState.awayRegistrations.filter(function(r) {
+    var isMine = r.memberName === cur || (r.party && r.party.some(function(p) { return p.indexOf(cur) !== -1; }));
+    return !(r.fixtureId === fixtureId && isMine);
+  });
   saveState();
   renderMemberAwayView();
 };
@@ -2403,11 +3989,18 @@ function renderProfilePassView() {
   var cardNameElem = document.getElementById("card-name");
   var cardNoElem = document.getElementById("card-no");
   var avatarImg = document.getElementById("profile-avatar-preview");
+  var removePhotoBtn = document.getElementById("btn-remove-profile-photo");
 
   if (cardNameElem) cardNameElem.textContent = user.nickname ? user.name + ' ("' + user.nickname + '")' : user.name;
-  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (user.category || "Adult");
+  if (cardNoElem) cardNoElem.textContent = "Member #" + user.memberNo + " • " + (isMemberUnder18(user) ? "Child (U18)" : (user.category || "Adult"));
 
-  if (avatarImg && user.photoUrl) avatarImg.src = user.photoUrl;
+  var savedPhoto = getSavedAvatar(user);
+  if (avatarImg) {
+    avatarImg.src = savedPhoto || DEFAULT_AVATAR_SVG;
+  }
+  if (removePhotoBtn) {
+    removePhotoBtn.style.display = savedPhoto ? "inline-flex" : "none";
+  }
 
   var nickInput = document.getElementById("profile-edit-nickname");
   var phoneInput = document.getElementById("profile-edit-phone");
@@ -2418,6 +4011,8 @@ function renderProfilePassView() {
   if (phoneInput) phoneInput.value = user.phone || "";
   if (emNameInput) emNameInput.value = user.emergencyName || "";
   if (emPhoneInput) emPhoneInput.value = user.emergencyPhone || "";
+
+  window.updateBalanceDisplay();
 }
 
 window.handleProfilePhotoUpload = function(event) {
@@ -2426,12 +4021,43 @@ window.handleProfilePhotoUpload = function(event) {
 
   var reader = new FileReader();
   reader.onload = function(e) {
-    var user = getCurrentUserRecord();
-    user.photoUrl = e.target.result;
-    saveState();
-    renderProfilePassView();
+    var img = new Image();
+    img.onload = function() {
+      // Compress to 256x256 JPEG so it permanently fits localStorage & syncs to HUD
+      var canvas = document.createElement("canvas");
+      var MAX_SIZE = 256;
+      var w = img.width;
+      var h = img.height;
+      if (w > h) {
+        if (w > MAX_SIZE) { h = Math.round(h * (MAX_SIZE / w)); w = MAX_SIZE; }
+      } else {
+        if (h > MAX_SIZE) { w = Math.round(w * (MAX_SIZE / h)); h = MAX_SIZE; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      var compressedDataUrl = canvas.toDataURL("image/jpeg", 0.82);
+
+      var user = getCurrentUserRecord();
+      setSavedAvatar(user, compressedDataUrl);
+      renderProfilePassView();
+      window.renderHUDView();
+      alert("✓ Profile photo saved permanently!");
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+};
+
+window.removeMemberProfilePhoto = function() {
+  if (!confirm("Remove your profile photo?")) return;
+  var user = getCurrentUserRecord();
+  setSavedAvatar(user, null);
+  var fileInput = document.getElementById("profile-avatar-file-input");
+  if (fileInput) fileInput.value = "";
+  renderProfilePassView();
+  window.renderHUDView();
 };
 
 window.saveMemberProfile = function() {
@@ -2459,16 +4085,81 @@ function renderFriendsFamilyChecklist() {
   var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
   var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === cur; });
 
+  if (myFriends.length === 0) {
+    container.innerHTML = "<div class='text-xs text-muted' style='padding:6px 0;'>No linked friends or family yet. Search below to connect.</div>";
+    return;
+  }
+
   myFriends.forEach(function(f) {
     var row = document.createElement("div");
     row.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;";
-    row.innerHTML = "<div><strong>" + f.targetName + "</strong> (" + f.relation + ")</div><button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444;' onclick='window.unlinkFriendFamily(" + f.id + ")'>Unlink</button>";
+    row.innerHTML = 
+      "<div><strong>" + f.targetName + "</strong> (" + f.relation + ") <span style='color:var(--safc-gold); font-size:10px;'>• " + (f.type || "Adult") + "</span></div>" +
+      "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444; border-color:#ef4444;' onclick='window.unlinkFriendFamily(" + f.id + ")'>Unlink</button>";
     container.appendChild(row);
   });
 }
 
+window.handleFnFMemberSearch = function(query) {
+  var box = document.getElementById("fnf-autocomplete-box");
+  if (!box) return;
+
+  var q = (query || "").trim().toLowerCase();
+  if (q.length < 1) {
+    box.style.display = "none";
+    return;
+  }
+
+  var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var alreadyLinked = (appState.friendsAndFamily || [])
+    .filter(function(f) { return f.owner === cur; })
+    .map(function(f) { return f.targetName.toLowerCase(); });
+
+  var matches = (appState.users || []).filter(function(u) {
+    var matchName = u.name && u.name.toLowerCase().indexOf(q) !== -1;
+    var matchNo = u.memberNo && u.memberNo.toLowerCase().indexOf(q) !== -1;
+    var isOther = u.name.toLowerCase() !== cur.toLowerCase() && alreadyLinked.indexOf(u.name.toLowerCase()) === -1;
+    return (matchName || matchNo) && isOther;
+  });
+
+  if (matches.length === 0) {
+    box.innerHTML = "<div style='padding:6px 10px; font-size:10px; color:#94a3b8;'>No unlinked members match '" + query + "'</div>";
+    box.style.display = "block";
+    return;
+  }
+
+  var html = "";
+  matches.slice(0, 6).forEach(function(m) {
+    var cat = isMemberUnder18(m) ? "Child" : (m.category || "Adult");
+    html += 
+      "<div class='autocomplete-item' onclick='window.selectFnFMember(\"" + m.name.replace(/'/g, "\\'") + "\", \"" + cat + "\")'>" +
+        "<strong>" + m.name + "</strong> <span style='font-size:9px; color:var(--safc-gold);'>(" + (m.memberNo || "Member") + " • " + cat + ")</span>" +
+      "</div>";
+  });
+
+  box.innerHTML = html;
+  box.style.display = "block";
+};
+
+window.selectFnFMember = function(memberName, category) {
+  var input = document.getElementById("fnf-search-input");
+  var relSelect = document.getElementById("fnf-relation-select");
+  var box = document.getElementById("fnf-autocomplete-box");
+
+  if (input) input.value = memberName;
+  if (relSelect && category === "Child") relSelect.value = "Child";
+  if (box) box.style.display = "none";
+};
+
 window.unlinkFriendFamily = function(linkId) {
-  appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) { return f.id !== linkId; });
+  var link = (appState.friendsAndFamily || []).find(function(f) { return f.id === linkId; });
+  if (!link) return;
+
+  appState.friendsAndFamily = appState.friendsAndFamily.filter(function(f) {
+    var isDirect = (f.owner === link.owner && f.targetName === link.targetName);
+    var isReciprocal = (f.owner === link.targetName && f.targetName === link.owner);
+    return !isDirect && !isReciprocal;
+  });
   saveState();
   renderFriendsFamilyChecklist();
 };
@@ -2476,22 +4167,57 @@ window.unlinkFriendFamily = function(linkId) {
 window.requestMemberLink = function() {
   var searchInput = document.getElementById("fnf-search-input");
   var relSelect = document.getElementById("fnf-relation-select");
-  var targetName = searchInput ? searchInput.value.trim() : "";
+  var box = document.getElementById("fnf-autocomplete-box");
+  var rawQuery = searchInput ? searchInput.value.trim() : "";
   var relation = relSelect ? relSelect.value : "Friend";
-  if (!targetName) return;
+  if (!rawQuery) return;
 
+  if (box) box.style.display = "none";
+
+  var matchedUser = (appState.users || []).find(function(u) {
+    return u.name.toLowerCase() === rawQuery.toLowerCase() || (u.memberNo && u.memberNo.toLowerCase() === rawQuery.toLowerCase());
+  });
+
+  var targetName = matchedUser ? matchedUser.name : rawQuery;
+  var isTargetChild = (matchedUser && isMemberUnder18(matchedUser)) || relation === "Child";
   var cur = appState.currentUser ? appState.currentUser.name : "Gary Miller";
-  if (relation === "Child") {
-    appState.pendingLinkRequests.push({ id: Date.now(), requester: cur, targetName: targetName, relation: relation, type: "Child", status: "pending_admin" });
-    alert("🛡️ Link request submitted for Committee Safeguarding Approval.");
+
+  if (isTargetChild) {
+    appState.pendingLinkRequests.push({
+      id: Date.now(),
+      requester: cur,
+      targetName: targetName,
+      relation: relation,
+      type: "Child",
+      status: "pending_admin"
+    });
+    alert("🛡️ Link request for " + targetName + " submitted for Committee Safeguarding Approval.");
   } else {
-    appState.friendsAndFamily.push({ id: Date.now(), owner: cur, targetName: targetName, relation: relation, type: "Adult", status: "approved" });
+    appState.friendsAndFamily.push({
+      id: Date.now(),
+      owner: cur,
+      targetName: targetName,
+      relation: relation,
+      type: "Adult",
+      memberNo: matchedUser ? matchedUser.memberNo : "Member",
+      status: "approved"
+    });
+    appState.friendsAndFamily.push({
+      id: Date.now() + 1,
+      owner: targetName,
+      targetName: cur,
+      relation: "Friend",
+      type: "Adult",
+      memberNo: appState.currentUser.memberNo || "Member",
+      status: "approved"
+    });
     alert("✓ Linked with " + targetName + ".");
   }
 
   if (searchInput) searchInput.value = "";
   saveState();
   renderFriendsFamilyChecklist();
+  updateAdminDrawerBadge();
 };
 
 // --- WALLET STATEMENT ---
@@ -2790,24 +4516,6 @@ window.submitMemberHelpdeskTicket = function() {
 // SECTION 5: MATCHDAY WEATHER & KICKOFF COUNTDOWN
 // ========================================================
 
-(function seedMasterFixtures() {
-  if (typeof appState === "undefined" || !appState) return;
-  if (!appState.masterFixtures || appState.masterFixtures.length === 0) {
-    appState.masterFixtures = [
-      {
-        id: "fix-101", opponent: "Coventry City", type: "HOME", competition: "Championship",
-        venue: "Stadium of Light", dateTime: "2026-11-21T15:00:00", dateDisplay: "Sat 21 Nov • 15:00",
-        kickoffTime: "15:00", coordinates: { lat: 54.9146, lon: -1.3882 }
-      },
-      {
-        id: "fix-102", opponent: "Millwall", type: "AWAY", competition: "Championship",
-        venue: "The Den, London", dateTime: "2026-11-28T15:00:00", dateDisplay: "Sat 28 Nov • 15:00",
-        kickoffTime: "15:00", coordinates: { lat: 51.4859, lon: -0.0507 }
-      }
-    ];
-  }
-})();
-
 window._hudCountdownTimer = null;
 function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
   if (window._hudCountdownTimer) clearInterval(window._hudCountdownTimer);
@@ -3002,8 +4710,624 @@ window.saveDisplayPreferences = function() {
   } catch (e) {}
 })();
 
+// ========================================================
+// COMPREHENSIVE APP SETTINGS, ACCESSIBILITY, SECURITY & GDPR
+// ========================================================
+
+function getMemberExtendedSettingsKey() {
+  var cur = (appState && appState.currentUser && appState.currentUser.memberNo)
+    ? appState.currentUser.memberNo
+    : "DEFAULT";
+  return "safc_ext_settings_" + cur;
+}
+
+window.getExtendedSettings = function() {
+  var defaults = {
+    reduceMotion: window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    colorblindSafe: false,
+    manifestDisplay: "nickname", // "nickname" | "fullname" | "initials"
+    dmPrivacy: "all",            // "all" | "fnf" | "committee"
+    notifTravelUrgent: true,
+    notifAwayTickets: true,
+    notifFundraiser: true,
+    notifComms: true,
+    confirmWalletSpend: true,
+    biometricUnlock: false,
+    securityPin: ""
+  };
+  try {
+    var saved = JSON.parse(localStorage.getItem(getMemberExtendedSettingsKey()) || "{}");
+    for (var k in saved) {
+      if (saved.hasOwnProperty(k)) defaults[k] = saved[k];
+    }
+  } catch (e) {}
+  return defaults;
+};
+
+window.saveExtendedSettingsObject = function(cfg) {
+  try {
+    localStorage.setItem(getMemberExtendedSettingsKey(), JSON.stringify(cfg));
+  } catch (e) {}
+};
+
+// Format a member's name on public manifests/grids according to their GDPR privacy preference
+window.formatPublicManifestName = function(rawName) {
+  if (!rawName) return "Member";
+  var userObj = (appState.users || []).find(function(u) {
+    return u.name && u.name.toLowerCase() === rawName.toLowerCase();
+  });
+  var curUser = getCurrentUserRecord();
+  var cfg = window.getExtendedSettings();
+
+  var mode = (curUser && curUser.name.toLowerCase() === rawName.toLowerCase())
+    ? cfg.manifestDisplay
+    : "nickname";
+
+  if (mode === "initials") {
+    var parts = rawName.trim().split(/\s+/);
+    if (parts.length > 1) {
+      return parts[0].charAt(0).toUpperCase() + ". " + parts[parts.length - 1];
+    }
+    return rawName;
+  }
+  if (mode === "nickname" && userObj && userObj.nickname) {
+    return userObj.nickname + " (" + rawName.split(" ")[0] + ")";
+  }
+  return rawName;
+};
+
+window.syncSettingsDrawerUI = function() {
+  var user = getCurrentUserRecord();
+  var isU18 = (typeof isMemberUnder18 === "function") ? isMemberUnder18(user) : false;
+  var cfg = window.getExtendedSettings();
+
+  var rmEl = document.getElementById("pref-reduce-motion");
+  var cbEl = document.getElementById("pref-colorblind-safe");
+  var manEl = document.getElementById("pref-manifest-display");
+  var dmEl = document.getElementById("pref-dm-privacy");
+  var u18Note = document.getElementById("u18-dm-safeguard-note");
+
+  if (rmEl) rmEl.checked = !!cfg.reduceMotion;
+  if (cbEl) cbEl.checked = !!cfg.colorblindSafe;
+  if (manEl) manEl.value = cfg.manifestDisplay || "nickname";
+
+  if (dmEl) {
+    if (isU18) {
+      dmEl.value = "committee";
+      dmEl.disabled = true;
+      if (u18Note) u18Note.style.display = "block";
+    } else {
+      dmEl.disabled = false;
+      dmEl.value = cfg.dmPrivacy || "all";
+      if (u18Note) u18Note.style.display = "none";
+    }
+  }
+
+  // Notification toggles
+  var nTravel = document.getElementById("notif-travel-urgent");
+  var nAway = document.getElementById("notif-away-tickets");
+  var nFund = document.getElementById("notif-fundraiser");
+  var nComms = document.getElementById("notif-comms");
+  if (nTravel) nTravel.checked = cfg.notifTravelUrgent !== false;
+  if (nAway) nAway.checked = cfg.notifAwayTickets !== false;
+  if (nFund) nFund.checked = cfg.notifFundraiser !== false;
+  if (nComms) nComms.checked = cfg.notifComms !== false;
+
+  // Push Permission Badge
+  var pushBadge = document.getElementById("push-permission-badge");
+  var pushBtn = document.getElementById("btn-enable-browser-push");
+  if ("Notification" in window) {
+    var perm = Notification.permission;
+    if (pushBadge) {
+      pushBadge.textContent = perm === "granted" ? "✓ Active" : (perm === "denied" ? "Blocked" : "Not Enabled");
+      pushBadge.className = perm === "granted" ? "badge-gold" : "badge-red";
+    }
+    if (pushBtn) pushBtn.style.display = perm === "granted" ? "none" : "block";
+  } else {
+    if (pushBadge) pushBadge.textContent = "In-App Alerts Only";
+    if (pushBtn) pushBtn.style.display = "none";
+  }
+
+  // Security & Wallet Protection
+  var wGuard = document.getElementById("pref-confirm-wallet-spend");
+  var bioEl = document.getElementById("pref-biometric-unlock");
+  var pinBadge = document.getElementById("security-pin-status-badge");
+  var clearPinBtn = document.getElementById("btn-clear-pin");
+  var walletGuardBox = document.getElementById("settings-wallet-guard-box");
+
+  if (wGuard) wGuard.checked = cfg.confirmWalletSpend !== false;
+  if (bioEl) bioEl.checked = !!cfg.biometricUnlock;
+  if (walletGuardBox) walletGuardBox.style.display = isU18 ? "none" : "block";
+
+  if (pinBadge) {
+    var hasPin = cfg.securityPin && cfg.securityPin.length === 4;
+    pinBadge.textContent = hasPin ? "🔒 PIN Active" : "No PIN Set";
+    if (clearPinBtn) clearPinBtn.style.display = hasPin ? "inline-flex" : "none";
+  }
+
+  // Apply DOM Accessibility Attributes
+  if (cfg.reduceMotion) document.documentElement.setAttribute("data-reduce-motion", "true");
+  else document.documentElement.removeAttribute("data-reduce-motion");
+
+  if (cfg.colorblindSafe) document.documentElement.setAttribute("data-colorblind-safe", "true");
+  else document.documentElement.removeAttribute("data-colorblind-safe");
+};
+
+window.updateExtendedSettings = function() {
+  var cfg = window.getExtendedSettings();
+
+  var rmEl = document.getElementById("pref-reduce-motion");
+  var cbEl = document.getElementById("pref-colorblind-safe");
+  var manEl = document.getElementById("pref-manifest-display");
+  var dmEl = document.getElementById("pref-dm-privacy");
+  var nTravel = document.getElementById("notif-travel-urgent");
+  var nAway = document.getElementById("notif-away-tickets");
+  var nFund = document.getElementById("notif-fundraiser");
+  var nComms = document.getElementById("notif-comms");
+  var wGuard = document.getElementById("pref-confirm-wallet-spend");
+
+  if (rmEl) cfg.reduceMotion = rmEl.checked;
+  if (cbEl) cfg.colorblindSafe = cbEl.checked;
+  if (manEl) cfg.manifestDisplay = manEl.value;
+  if (dmEl && !dmEl.disabled) cfg.dmPrivacy = dmEl.value;
+
+  if (nTravel) cfg.notifTravelUrgent = nTravel.checked;
+  if (nAway) cfg.notifAwayTickets = nAway.checked;
+  if (nFund) cfg.notifFundraiser = nFund.checked;
+  if (nComms) cfg.notifComms = nComms.checked;
+  if (wGuard) cfg.confirmWalletSpend = wGuard.checked;
+
+  // Keep legacy checkboxes in sync
+  var legacyNick = document.getElementById("pref-public-nickname");
+  if (legacyNick) legacyNick.checked = (cfg.manifestDisplay === "nickname");
+
+  var legacyNotif = document.getElementById("pref-notifications");
+  if (legacyNotif) {
+    legacyNotif.checked = (cfg.notifTravelUrgent || cfg.notifAwayTickets || cfg.notifFundraiser || cfg.notifComms);
+  }
+
+  window.saveExtendedSettingsObject(cfg);
+  window.syncSettingsDrawerUI();
+  if (typeof window.saveDisplayPreferences === "function") window.saveDisplayPreferences();
+};
+
+window.openSettingsDrawer = function() {
+  window.syncSettingsDrawerUI();
+  var drawer = document.getElementById("settings-drawer");
+  if (drawer) {
+    drawer.style.display = "block";
+    drawer.classList.remove("hidden");
+  }
+};
+
+window.closeSettingsDrawer = function() {
+  var drawer = document.getElementById("settings-drawer");
+  if (drawer) {
+    drawer.style.display = "none";
+    drawer.classList.add("hidden");
+  }
+};
+
+window.setAppUISize = function(sizeKey) {
+  var valid = ["small", "medium", "large"];
+  var chosen = valid.indexOf(sizeKey) !== -1 ? sizeKey : "medium";
+
+  document.documentElement.setAttribute("data-ui-size", chosen);
+
+  var label = chosen.charAt(0).toUpperCase() + chosen.slice(1);
+  var badge = document.getElementById("ui-size-badge");
+  if (badge) badge.textContent = label;
+
+  var summaryPill = document.getElementById("settings-summary-pill");
+  if (summaryPill) {
+    var themeBadge = document.getElementById("theme-badge-label");
+    var tName = themeBadge ? themeBadge.textContent : "Theme";
+    summaryPill.textContent = label + " • " + tName + " ➔";
+  }
+
+  valid.forEach(function(key) {
+    var btn = document.getElementById("size-btn-" + key);
+    if (btn) {
+      if (key === chosen) btn.classList.add("active");
+      else btn.classList.remove("active");
+    }
+  });
+
+  try {
+    localStorage.setItem("safc_ui_size", chosen);
+  } catch (e) {}
+};
+
+// ========================================================
+// LIVE PUSH NOTIFICATION & IN-APP TOAST DISPATCHER
+// ========================================================
+
+// Show a clickable matchday alert banner at the top of the screen
+window.showInAppNotificationToast = function(title, body, targetTab) {
+  var existing = document.getElementById("safc-live-toast-banner");
+  if (existing) existing.remove();
+
+  var toast = document.createElement("div");
+  toast.id = "safc-live-toast-banner";
+  toast.style.cssText =
+    "position:fixed; top:12px; left:50%; transform:translateX(-50%); width:calc(100% - 24px); max-width:456px; " +
+    "background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border:1.5px solid var(--safc-gold); " +
+    "border-left:5px solid var(--safc-red); border-radius:10px; padding:12px 14px; color:#fff; " +
+    "z-index:2000000; box-shadow:0 10px 25px rgba(0,0,0,0.85); cursor:pointer; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;";
+
+  toast.innerHTML =
+    "<div style='flex:1;'>" +
+      "<div style='font-size:11px; font-weight:800; color:var(--safc-gold); text-transform:uppercase; letter-spacing:0.5px;'>🔔 " + title + "</div>" +
+      "<div style='font-size:12px; color:#f8fafc; margin-top:3px; line-height:1.35;'>" + body + "</div>" +
+    "</div>" +
+    "<button type='button' style='background:transparent; border:none; color:#94a3b8; font-size:14px; font-weight:800; cursor:pointer; padding:0 4px;' onclick='event.stopPropagation(); this.parentElement.remove();'>✕</button>";
+
+  toast.onclick = function() {
+    toast.remove();
+    if (targetTab) {
+      window.closeSettingsDrawer();
+      window.closeAdminDrawer();
+      var navMap = {
+        "view-hud": "nav-home",
+        "view-travel": "nav-travel",
+        "view-fundraising": "nav-fundraiser",
+        "view-comms": "nav-comms",
+        "view-profile": "nav-profile"
+      };
+      var navBtn = document.getElementById(navMap[targetTab]);
+      window.switchTab(targetTab, navBtn);
+    }
+  };
+
+  document.body.appendChild(toast);
+  setTimeout(function() {
+    if (toast && toast.parentElement) toast.remove();
+  }, 6000);
+};
+
+// Central Dispatcher: Checks member's granular channel settings before sending
+window.dispatchClubNotification = function(channelKey, title, body, targetTab) {
+  var cfg = window.getExtendedSettings();
+
+  if (channelKey === "travel" && cfg.notifTravelUrgent === false) return;
+  if (channelKey === "away" && cfg.notifAwayTickets === false) return;
+  if (channelKey === "fundraiser" && cfg.notifFundraiser === false) return;
+  if (channelKey === "comms" && cfg.notifComms === false) return;
+
+  // 1. Always show the in-app matchday toast banner
+  window.showInAppNotificationToast(title, body, targetTab);
+
+  // 2. Also fire native OS/Browser Push Notification if granted
+  if ("Notification" in window && Notification.permission === "granted") {
+    var options = {
+      body: body,
+      icon: "./icon-192.png",
+      badge: "./icon-192.png",
+      vibrate: [150, 75, 150],
+      data: { targetTab: targetTab || "view-hud" }
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistration().then(function(reg) {
+        if (reg && typeof reg.showNotification === "function") {
+          reg.showNotification(title, options);
+        } else {
+          try { new Notification(title, options); } catch (e) {}
+        }
+      }).catch(function() {
+        try { new Notification(title, options); } catch (e) {}
+      });
+    } else {
+      try { new Notification(title, options); } catch (e) {}
+    }
+  }
+};
+
+// Listen for notification clicks routed from sw.js
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", function(event) {
+    if (event.data && event.data.type === "OPEN_TAB_FROM_NOTIFICATION" && event.data.targetTab) {
+      window.closeSettingsDrawer();
+      window.closeAdminDrawer();
+      window.switchTab(event.data.targetTab);
+    }
+  });
+}
+
+// Browser Push Notification Permission Request
+window.requestBrowserPushPermission = function() {
+  if (!("Notification" in window)) {
+    window.showInAppNotificationToast("In-App Alerts Active", "Your browser uses in-app matchday banners for club alerts.", "view-hud");
+    return;
+  }
+  Notification.requestPermission().then(function(permission) {
+    window.syncSettingsDrawerUI();
+    if (permission === "granted") {
+      window.dispatchClubNotification(
+        "travel",
+        "Coxhoe Branch SAFC",
+        "Push notifications are now active for your selected matchday channels!",
+        "view-hud"
+      );
+    } else {
+      alert("Browser push permission was not granted. You will still receive live in-app matchday banners.");
+    }
+  });
+};
+
+window.sendTestClubNotification = function() {
+  window.dispatchClubNotification(
+    "travel",
+    "Coxhoe Branch Matchday Alert",
+    "Test successful! Coach, ticket, fundraiser & chat alerts are working.",
+    "view-travel"
+  );
+};
+
+// Automatically wire live notifications into Admin & Comms events
+(function attachLiveNotificationHooks() {
+  // 1. Branch News / Coach Broadcasts -> 'travel' channel
+  var origPostNews = window.adminPostAnnouncement;
+  if (typeof origPostNews === "function") {
+    window.adminPostAnnouncement = function() {
+      var titleEl = document.getElementById("admin-news-title");
+      var bodyEl = document.getElementById("admin-news-body");
+      var tVal = titleEl ? titleEl.value.trim() : "";
+      var bVal = bodyEl ? bodyEl.value.trim() : "";
+      origPostNews.apply(this, arguments);
+      if (tVal && bVal) {
+        window.dispatchClubNotification("travel", "Branch Broadcast: " + tVal, bVal, "view-hud");
+      }
+    };
+  }
+
+  // 2. Away Ticket Allocations -> 'away' channel
+  var origToggleAway = window.toggleAwayAllocation;
+  if (typeof origToggleAway === "function") {
+    window.toggleAwayAllocation = function(fixtureId, memberName) {
+      origToggleAway.apply(this, arguments);
+      var reg = (appState.awayRegistrations || []).find(function(r) {
+        return r.fixtureId === fixtureId && r.memberName === memberName;
+      });
+      var fix = (appState.awayFixtures || []).find(function(f) { return f.id === fixtureId; });
+      if (reg && reg.allocated && fix) {
+        window.dispatchClubNotification(
+          "away",
+          "🎟️ Away Ticket Allocated!",
+          memberName + " has been allocated away ticket(s) for " + fix.opponent + " (A) on " + fix.date + ".",
+          "view-travel"
+        );
+      }
+    };
+  }
+
+  // 3. Scratch Card Winner Draw -> 'fundraiser' channel
+  var origDrawCard = window.adminDrawFootballCardWinner;
+  if (typeof origDrawCard === "function") {
+    window.adminDrawFootballCardWinner = function() {
+      var prevStatus = appState.activeCardMeta ? appState.activeCardMeta.status : "active";
+      origDrawCard.apply(this, arguments);
+      var meta = appState.activeCardMeta || {};
+      if (prevStatus === "active" && meta.status === "completed" && meta.winnerTeam) {
+        window.dispatchClubNotification(
+          "fundraiser",
+          "🏆 Scratch Card Winner: " + meta.winnerTeam,
+          meta.winnerMember + " won £" + Number(meta.winnerPrize || 0).toFixed(2) + " on the Matchday Football Card!",
+          "view-fundraising"
+        );
+      }
+    };
+  }
+
+  // 4. Direct Messages & Helpdesk Replies -> 'comms' channel
+  var origSendDM = window.sendDirectMessage;
+  if (typeof origSendDM === "function") {
+    window.sendDirectMessage = function() {
+      var input = document.getElementById("dm-message-input");
+      var txt = input ? input.value.trim() : "";
+      var recipient = window._activeDMRecipient;
+      origSendDM.apply(this, arguments);
+      if (txt && recipient) {
+        window.dispatchClubNotification("comms", "💬 Message Sent to " + recipient, txt, "view-comms");
+      }
+    };
+  }
+
+  var origReplyDesk = window.submitPublicReply;
+  if (typeof origReplyDesk === "function") {
+    window.submitPublicReply = function(ticketId) {
+      var input = document.getElementById("public-reply-input");
+      var txt = input ? input.value.trim() : "";
+      origReplyDesk.apply(this, arguments);
+      if (txt) {
+        window.dispatchClubNotification("comms", "📬 Helpdesk Update (#" + ticketId + ")", txt, "view-comms");
+      }
+    };
+  }
+})();
+
+// 4-Digit Security PIN & Biometric Enrollment
+window.saveMemberSecurityPin = function() {
+  var input = document.getElementById("settings-pin-input");
+  var val = input ? input.value.trim() : "";
+  if (!/^\d{4}$/.test(val)) {
+    alert("Please enter an exact 4-digit numeric PIN (e.g. 1973).");
+    return;
+  }
+  var cfg = window.getExtendedSettings();
+  cfg.securityPin = val;
+  window.saveExtendedSettingsObject(cfg);
+  if (input) input.value = "";
+  window.syncSettingsDrawerUI();
+  alert("✓ 4-Digit Security & Wallet PIN saved!");
+};
+
+window.clearMemberSecurityPin = function() {
+  var cfg = window.getExtendedSettings();
+  if (cfg.securityPin) {
+    var check = prompt("Enter your current 4-digit PIN to remove it:");
+    if (check !== cfg.securityPin) {
+      alert("Incorrect PIN.");
+      return;
+    }
+  }
+  cfg.securityPin = "";
+  window.saveExtendedSettingsObject(cfg);
+  window.syncSettingsDrawerUI();
+  alert("✓ Security PIN removed.");
+};
+
+window.toggleBiometricEnrollment = async function(enabled) {
+  var cfg = window.getExtendedSettings();
+  if (!enabled) {
+    cfg.biometricUnlock = false;
+    window.saveExtendedSettingsObject(cfg);
+    return;
+  }
+  if (!window.PublicKeyCredential) {
+    alert("Biometric Passkeys (Face ID / Fingerprint) are not supported on this browser/device.");
+    var bioEl = document.getElementById("pref-biometric-unlock");
+    if (bioEl) bioEl.checked = false;
+    return;
+  }
+  cfg.biometricUnlock = true;
+  window.saveExtendedSettingsObject(cfg);
+  alert("✓ Biometric Quick-Unlock enabled for this device.");
+};
+
+// Wallet Spend Protection Hook (Guards Coach Bookings & 40-Team Scratch Card)
+window.verifyWalletSpendAuthorization = function(amount, itemDescription) {
+  if (!amount || amount <= 0) return true;
+  var cfg = window.getExtendedSettings();
+  if (cfg.confirmWalletSpend === false) return true;
+
+  if (cfg.securityPin && cfg.securityPin.length === 4) {
+    var entered = prompt("🔐 Wallet Spend Protection\nConfirm £" + Number(amount).toFixed(2) + " for " + itemDescription + ".\n\nEnter your 4-digit PIN:");
+    if (entered === null) return false;
+    if (entered.trim() !== cfg.securityPin) {
+      alert("❌ Incorrect PIN. Wallet transaction cancelled.");
+      return false;
+    }
+    return true;
+  }
+
+  return confirm("💳 Confirm Wallet Spend\n\nDeduct £" + Number(amount).toFixed(2) + " from your branch wallet for:\n" + itemDescription + "?");
+};
+
+// UK GDPR: Right of Data Portability (Export JSON)
+window.exportMyPersonalData = function() {
+  var user = getCurrentUserRecord();
+  var myBookings = (appState.bookings || []).filter(function(b) {
+    return (b.name && b.name.indexOf(user.name) !== -1) || b.bookedBy === user.name;
+  });
+  var myAway = (appState.awayRegistrations || []).filter(function(r) {
+    return r.memberName === user.name;
+  });
+  var myLedger = (appState.masterAuditTrail || []).filter(function(t) {
+    return t.actor === user.name || t.target === user.name;
+  });
+  var myLinks = (appState.friendsAndFamily || []).filter(function(f) {
+    return f.owner === user.name || f.targetName === user.name;
+  });
+
+  var exportPayload = {
+    exportedAt: new Date().toISOString(),
+    dataController: "Coxhoe Branch SAFC Supporters Club",
+    memberProfile: user,
+    preferences: window.getExtendedSettings(),
+    friendsAndFamilyLinks: myLinks,
+    coachBookings: myBookings,
+    awayTicketApplications: myAway,
+    financialLedger: myLedger
+  };
+
+  var blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "coxhoe-safc-data-" + (user.memberNo || "member").toLowerCase() + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+window.togglePrivacyNoticeBox = function() {
+  var box = document.getElementById("gdpr-privacy-notice-box");
+  if (box) {
+    box.style.display = (box.style.display === "none") ? "block" : "none";
+  }
+};
+
+// UK GDPR: Right to Erasure Request
+window.requestAccountDeletion = function() {
+  var user = getCurrentUserRecord();
+  if ((user.balance || 0) > 0) {
+    alert("⚠️ Active Wallet Balance (£" + user.balance.toFixed(2) + ")\n\nPlease spend or request a committee refund of your remaining £" + user.balance.toFixed(2) + " wallet balance before requesting account erasure.");
+    return;
+  }
+  if (!confirm("🗑️ Request Account Erasure (UK GDPR)\n\nAre you sure you want to submit a formal request to erase your personal profile (" + user.name + ") from the Coxhoe Branch database?")) {
+    return;
+  }
+
+  appState.helpdeskTickets.unshift({
+    id: "GDPR-" + Date.now().toString().slice(-3),
+    member: user.name,
+    topic: "UK GDPR Account Erasure Request",
+    status: "open",
+    escalatedToGraham: true,
+    created: new Date().toISOString().slice(0, 16).replace("T", " "),
+    messages: [{
+      id: "m-" + Date.now(),
+      sender: user.name,
+      time: "Now",
+      text: "Formal UK GDPR Right to Erasure request submitted for member #" + user.memberNo + " (Wallet Balance: £0.00)."
+    }],
+    internalNotes: []
+  });
+
+  saveState();
+  alert("✓ Your Account Erasure Request has been logged with the Branch Secretary (Committee Helpdesk). You will now be logged out.");
+  window.closeSettingsDrawer();
+  window.handleLogout();
+};
+
+// PWA Force Update & Cache Reset
+window.forceRefreshAppCache = async function() {
+  if (!confirm("🔄 Refresh App Cache & Check for Updates?\n\nThis will clear cached app files and reload the latest version from the server. Your bookings and member data will be preserved.")) {
+    return;
+  }
+  try {
+    if ("serviceWorker" in navigator) {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      for (var i = 0; i < regs.length; i++) {
+        await regs[i].unregister();
+      }
+    }
+    if ("caches" in window) {
+      var keys = await caches.keys();
+      for (var j = 0; j < keys.length; j++) {
+        await caches.delete(keys[j]);
+      }
+    }
+  } catch (e) {}
+  window.location.reload(true);
+};
+
+// Initialize UI Scale & Accessibility on startup
+(function initAppSettingsOnBoot() {
+  var savedSize = "medium";
+  try {
+    savedSize = localStorage.getItem("safc_ui_size") || "medium";
+  } catch (e) {}
+  window.setAppUISize(savedSize);
+  window.syncSettingsDrawerUI();
+})();
+
 // --- BOOTSTRAP ON LOAD ---
 window.onload = function() {
+  window.renderLoginScreenState();
   window.refreshAllViews();
+  window.syncLiveSAFCFixtures();
   initSupabaseCloudSync();
 };

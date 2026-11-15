@@ -1,5 +1,5 @@
 // Increment this version number whenever you push major layout changes
-const CACHE_VERSION = 'coxhoe-safc-v5';
+const CACHE_VERSION = 'coxhoe-safc-v7';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -30,15 +30,12 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch: Network-First strategy
-// Always tries to fetch the freshest version from GitHub first.
-// Only falls back to the saved offline cache if there is no mobile signal.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // If online, save a copy of the fresh file to cache and display it
         if (networkResponse && networkResponse.status === 200) {
           const responseClone = networkResponse.clone();
           caches.open(CACHE_VERSION).then((cache) => {
@@ -48,8 +45,60 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(() => {
-        // If offline (e.g. poor signal at the Stadium of Light), load from cache
         return caches.match(event.request);
       })
+  );
+});
+
+// Push Event Listener (for Web Push payloads)
+self.addEventListener('push', (event) => {
+  let payload = {
+    title: 'Coxhoe Branch SAFC',
+    body: 'New matchday update available.',
+    targetTab: 'view-hud'
+  };
+
+  if (event.data) {
+    try {
+      payload = Object.assign(payload, event.data.json());
+    } catch (e) {
+      payload.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: payload.body,
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    vibrate: [150, 75, 150],
+    data: { targetTab: payload.targetTab || 'view-hud' }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, options)
+  );
+});
+
+// Notification Tap Handler: Focus app and open the relevant tab
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetTab = (event.notification.data && event.notification.data.targetTab)
+    ? event.notification.data.targetTab
+    : 'view-hud';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (let i = 0; i < clientList.length; i++) {
+        const client = clientList[i];
+        if ('focus' in client) {
+          client.focus();
+          client.postMessage({ type: 'OPEN_TAB_FROM_NOTIFICATION', targetTab: targetTab });
+          return;
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow('./');
+      }
+    })
   );
 });
