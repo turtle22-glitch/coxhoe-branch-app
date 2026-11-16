@@ -96,29 +96,58 @@
       <!-- PANE A: MEMBER SIGN IN -->
       <div id="auth-pane-signin">
         <h2 style="font-size:17px; font-weight:900; margin-bottom:4px;">Supporter Portal Sign-In</h2>
-        <p class="text-xs text-muted mb-2">Enter your full name or official Coxhoe Branch membership number.</p>
+        <p class="text-xs text-muted mb-2">Sign in with your Email Address, Full Name, or Coxhoe Branch Member #.</p>
 
         <div class="form-group">
-          <label class="form-label">Full Name or Member #</label>
-          <input type="text" id="login-username" class="form-input" placeholder="e.g. Gary Miller or COX-084" autocomplete="username" />
+          <label class="form-label">Email, Full Name or Member #</label>
+          <input type="text" id="login-username" class="form-input" placeholder="e.g. gary@email.com, Gary Miller or COX-084" autocomplete="username" />
         </div>
 
         <div class="form-group">
-          <label class="form-label">4-Digit PIN (If Configured on Account)</label>
-          <input type="password" id="login-pin-input" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Optional unless PIN is active" style="letter-spacing:3px;" />
+          <label class="form-label">4-Digit Security PIN</label>
+          <input type="password" id="login-pin-input" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Enter your 4-digit PIN" style="letter-spacing:4px;" />
         </div>
 
-        <button type="button" class="btn btn-red" onclick="window.handleLogin()">Sign In to Portal ➔</button>
+        <button type="button" id="btn-signin-submit" class="btn btn-red" onclick="window.handleLogin()">Sign In to Portal ➔</button>
       </div>
 
       <!-- PANE B: NEW MEMBER REGISTRATION -->
       <div id="auth-pane-register" style="display:none;">
         <h2 style="font-size:17px; font-weight:900; margin-bottom:4px;">Register Branch Membership</h2>
-        <p class="text-xs text-muted mb-2">Create your digital pass for coach travel, away ticket ballots, and branch updates.</p>
+        <p class="text-xs text-muted mb-2">Create your verified digital pass for coach travel, away ticket ballots, and branch updates.</p>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div class="form-group">
+            <label class="form-label">First Name *</label>
+            <input type="text" id="reg-first-name" class="form-input" placeholder="e.g. Chris" autocomplete="given-name" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Surname *</label>
+            <input type="text" id="reg-last-name" class="form-input" placeholder="e.g. Jordan" autocomplete="family-name" />
+          </div>
+        </div>
 
         <div class="form-group">
-          <label class="form-label">Full Name *</label>
-          <input type="text" id="reg-full-name" class="form-input" placeholder="e.g. Chris Jordan" />
+          <label class="form-label">Email Address *</label>
+          <div style="display:flex; gap:6px;">
+            <input type="email" id="reg-email" class="form-input" placeholder="name@example.com" autocomplete="email" style="flex:1;" />
+            <button type="button" id="btn-send-verify-code" class="btn btn-outline btn-sm" style="white-space:nowrap; border-color:var(--safc-gold); color:var(--safc-gold);" onclick="window.sendRegistrationVerificationCode()">✉️ Verify Email</button>
+          </div>
+        </div>
+
+        <!-- 6-Digit Email Verification Box -->
+        <div id="reg-email-verify-box" style="display:none; background:#0f172a; border:1px solid var(--safc-gold); padding:10px; border-radius:8px; margin-bottom:10px;">
+          <div class="flex-between" style="margin-bottom:4px;">
+            <strong style="font-size:11px; color:var(--safc-gold);">🔐 Verify Your Email Address</strong>
+            <span id="reg-email-status-pill" class="badge-gold">Code Sent</span>
+          </div>
+          <p id="reg-email-verify-hint" style="font-size:10px; color:#cbd5e1; margin-bottom:6px; line-height:1.35;">
+            Enter the 6-digit verification code sent to your email address.
+          </p>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="reg-verify-code-input" class="form-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit code" style="flex:1; text-align:center; letter-spacing:4px; font-weight:800;" />
+            <button type="button" class="btn btn-gold btn-sm" onclick="window.confirmRegistrationVerificationCode()">Confirm Code</button>
+          </div>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
@@ -145,20 +174,26 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
           <div class="form-group">
             <label class="form-label">Mobile Number *</label>
-            <input type="tel" id="reg-phone" class="form-input" placeholder="07..." />
+            <input type="tel" id="reg-phone" class="form-input" placeholder="07..." autocomplete="tel" />
           </div>
           <div class="form-group">
-            <label class="form-label">Set 4-Digit PIN</label>
+            <label class="form-label">Set 4-Digit PIN *</label>
             <input type="password" id="reg-pin" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1973" style="text-align:center; letter-spacing:3px;" />
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Emergency Next-of-Kin (Name & Phone)</label>
-          <input type="text" id="reg-emergency" class="form-input" placeholder="For coach travel manifest safety" />
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div class="form-group">
+            <label class="form-label">Emergency Contact Name *</label>
+            <input type="text" id="reg-emergency-name" class="form-input" placeholder="Next of Kin Name" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Emergency Phone *</label>
+            <input type="tel" id="reg-emergency-phone" class="form-input" placeholder="Next of Kin Phone" />
+          </div>
         </div>
 
-        <button type="button" class="btn btn-gold" onclick="window.handleMemberRegistration()">✓ Complete Registration & Sign In</button>
+        <button type="button" id="btn-complete-registration" class="btn btn-gold" onclick="window.handleMemberRegistration()">✓ Complete Registration & Sign In</button>
       </div>
     </div>
 

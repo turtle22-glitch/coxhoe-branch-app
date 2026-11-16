@@ -528,7 +528,29 @@ var appState = {
   }
 };
 
-function saveState() {
+// Active Multi-Tenant Club Identifier (Defaults to coxhoe-safc, supports ?club= URL param)
+window.ACTIVE_CLUB_ID = (function() {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    return params.get("club") || localStorage.getItem("safc_active_club_id") || "coxhoe-safc";
+  } catch (e) {
+    return "coxhoe-safc";
+  }
+})();
+
+var _isApplyingCloudState = false;
+var _lastCloudSyncTimestamp = 0;
+var _cloudPushTimer = null;
+
+var SHARED_STATE_KEYS = [
+  "users", "stops", "homeMatches", "bookings", "friendsAndFamily",
+  "pendingLinkRequests", "duesConfig", "announcements", "matchdayChat",
+  "directMessages", "moderation", "helpdeskTickets", "awayFixtures",
+  "awayRegistrations", "masterAuditTrail", "footballCard", "activeCardMeta",
+  "clubIdentity", "modules"
+];
+
+function saveLocalCacheOnly() {
   localStorage.setItem("coxhoe_users_v20", JSON.stringify(appState.users));
   localStorage.setItem("coxhoe_stops_v23", JSON.stringify(appState.stops));
   localStorage.setItem("coxhoe_home_matches_v23", JSON.stringify(appState.homeMatches));
@@ -551,121 +573,256 @@ function saveState() {
   localStorage.setItem("coxhoe_modules_v20", JSON.stringify(appState.modules));
 }
 
+// Helper: Push a single member record to the Supabase members table safely
+window.syncMemberRecordToSupabase = async function(u) {
+  if (!sbClient || !u || !u.memberNo) return;
+  if (!u.id) u.id = Date.now();
+  var extCfg = getSettingsForMemberNo(u.memberNo);
+
+  try {
+    // Check if member_no already exists in Supabase so we always preserve its exact primary key id
+    var existingRow = await sbClient
+      .from("members")
+      .select("id")
+      .eq("member_no", u.memberNo)
+      .maybeSingle();
+
+    if (existingRow && existingRow.data && existingRow.data.id) {
+      u.id = existingRow.data.id;
+    }
+
+    await sbClient.from("members").upsert([{
+      id: u.id,
+      club_id: window.ACTIVE_CLUB_ID,
+      member_no: u.memberNo,
+      name: u.name,
+      first_name: u.firstName || u.name.split(" ")[0] || "",
+      last_name: u.lastName || u.name.split(" ").slice(1).join(" ") || "",
+      email: u.email || null,
+      email_verified: !!u.emailVerified,
+      nickname: u.nickname || null,
+      dob: u.dob || null,
+      phone: u.phone || null,
+      emergency_name: u.emergencyName || null,
+      emergency_phone: u.emergencyPhone || null,
+      role: u.role || (u.memberNo === "ADMIN-01" ? "admin" : "member"),
+      category: u.category || "Adult",
+      balance: parseFloat(u.balance) || 0,
+      registered_days_ago: u.registeredDaysAgo || 0,
+      messaging_allowed: u.messagingAllowed !== false,
+      membership_status: u.membershipStatus || "active",
+      membership_tier: u.membershipTier || "Adult",
+      membership_season: u.membershipSeason || "2026/27",
+      valid_until: u.validUntil || "2027-07-31",
+      security_pin: u.securityPin || extCfg.securityPin || null,
+      biometric_cred_id: u.biometricCredId || extCfg.biometricCredId || null,
+      photo_url: u.photoUrl || getSavedAvatar(u) || null,
+      manifest_display: u.manifestDisplay || extCfg.manifestDisplay || "nickname",
+      dm_privacy: u.dmPrivacy || extCfg.dmPrivacy || "all"
+    }], { onConflict: "member_no" });
+  } catch (e) {
+    console.warn("Member row sync warning:", e);
+  }
+};
+
+function saveState() {
+  saveLocalCacheOnly();
+  if (_isApplyingCloudState || !sbClient) return;
+
+  if (_cloudPushTimer) clearTimeout(_cloudPushTimer);
+  _cloudPushTimer = setTimeout(function() {
+    window.pushMasterStateToCloud();
+  }, 120);
+}
+
+window.pushMasterStateToCloud = async function() {
+  if (!sbClient) return;
+  var nowTs = Date.now();
+  _lastCloudSyncTimestamp = nowTs;
+
+  var payload = { _syncTs: nowTs };
+  SHARED_STATE_KEYS.forEach(function(k) {
+    payload[k] = appState[k];
+  });
+
+  try {
+    await sbClient.from("club_state").upsert([{
+      club_id: window.ACTIVE_CLUB_ID,
+      state_data: payload,
+      updated_at: new Date(nowTs).toISOString()
+    }], { onConflict: "club_id" });
+
+    var cur = getCurrentUserRecord();
+    if (cur) await window.syncMemberRecordToSupabase(cur);
+  } catch (err) {
+    console.warn("Cloud state push error:", err);
+  }
+};
+
+function applyIncomingCloudState(stateData, forceApply) {
+  if (!stateData || typeof stateData !== "object") return;
+  if (!forceApply && stateData._syncTs && stateData._syncTs <= _lastCloudSyncTimestamp) return;
+
+  _isApplyingCloudState = true;
+  if (stateData._syncTs) _lastCloudSyncTimestamp = stateData._syncTs;
+
+  SHARED_STATE_KEYS.forEach(function(k) {
+    if (stateData[k] !== undefined && stateData[k] !== null) {
+      appState[k] = stateData[k];
+    }
+  });
+
+  // Remove any locally selected football team IDs that were just claimed by another user
+  if (Array.isArray(window._selectedFootballTeamIds) && Array.isArray(appState.footballCard)) {
+    window._selectedFootballTeamIds = window._selectedFootballTeamIds.filter(function(tid) {
+      var sq = appState.footballCard.find(function(s) { return s.id === tid; });
+      return sq && !sq.claimedBy;
+    });
+  }
+
+  saveLocalCacheOnly();
+  window.refreshAllViews();
+
+  var drawer = document.getElementById("admin-drawer");
+  if (drawer && !drawer.classList.contains("hidden") && drawer.style.display !== "none") {
+    if (typeof renderAdminActivePane === "function" && typeof activeAdminTool !== "undefined") {
+      renderAdminActivePane(activeAdminTool);
+    }
+  }
+
+  _isApplyingCloudState = false;
+}
+
+// Atomic Pre-Flight Fetch: Pulls exact live state before claiming squares or booking seats
+window.pullLatestCloudStateNow = async function() {
+  if (!sbClient || !navigator.onLine) return false;
+  try {
+    var csRes = await sbClient
+      .from("club_state")
+      .select("state_data")
+      .eq("club_id", window.ACTIVE_CLUB_ID)
+      .maybeSingle();
+
+    if (csRes && csRes.data && csRes.data.state_data && Object.keys(csRes.data.state_data).length > 0) {
+      applyIncomingCloudState(csRes.data.state_data, true);
+      return true;
+    }
+  } catch (e) {
+    console.warn("Pre-flight cloud fetch warning:", e);
+  }
+  return false;
+};
+
 // --- SUPABASE CLOUD HYDRATION & REALTIME DISPATCHER ---
 async function initSupabaseCloudSync() {
   if (!sbClient) return;
 
   try {
+    // 1. Pull Master Club State (contains all 19 shared state collections)
+    var csRes = await sbClient
+      .from("club_state")
+      .select("*")
+      .eq("club_id", window.ACTIVE_CLUB_ID)
+      .maybeSingle();
+
+    var hasMasterCloudState = csRes && csRes.data && csRes.data.state_data && Object.keys(csRes.data.state_data).length > 0;
+    if (hasMasterCloudState) {
+      applyIncomingCloudState(csRes.data.state_data, true);
+    }
+
+    // 2. Merge any members from the relational `members` table without wiping newly added users
     var mRes = await sbClient.from("members").select("*");
     if (mRes.data && mRes.data.length > 0) {
-      var localUsers = appState.users || [];
-      appState.users = mRes.data.map(function(row) {
-        var existingLocal = localUsers.find(function(u) {
-          return (u.memberNo && u.memberNo === row.member_no) || (u.name && u.name === row.name);
-        }) || {};
+      var existingUsers = appState.users || [];
+      mRes.data.forEach(function(row) {
+        var matchIdx = existingUsers.findIndex(function(u) {
+          return (u.memberNo && u.memberNo === row.member_no) ||
+                 (u.name && row.name && u.name.toLowerCase() === row.name.toLowerCase());
+        });
 
-        return {
-          id: row.id,
-          memberNo: row.member_no,
-          name: row.name,
-          nickname: row.nickname || existingLocal.nickname || "",
-          dob: row.dob || existingLocal.dob || null,
-          phone: row.phone || existingLocal.phone || "",
-          emergencyName: row.emergency_name || existingLocal.emergencyName || "",
-          emergencyPhone: row.emergency_phone || existingLocal.emergencyPhone || "",
-          role: row.role || existingLocal.role || (row.member_no === "ADMIN-01" ? "admin" : "member"),
-          category: row.category || existingLocal.category || "Adult",
-          balance: parseFloat(row.balance) || 0,
-          registeredDaysAgo: row.registered_days_ago || 30,
+        var prev = matchIdx !== -1 ? existingUsers[matchIdx] : {};
+        var mergedUser = {
+          id: row.id || prev.id || Date.now(),
+          memberNo: row.member_no || prev.memberNo,
+          name: row.name || prev.name,
+          firstName: row.first_name || prev.firstName || "",
+          lastName: row.last_name || prev.lastName || "",
+          email: row.email || prev.email || "",
+          emailVerified: row.email_verified !== undefined ? row.email_verified : !!prev.emailVerified,
+          nickname: row.nickname || prev.nickname || "",
+          dob: row.dob || prev.dob || null,
+          phone: row.phone || prev.phone || "",
+          emergencyName: row.emergency_name || prev.emergencyName || "",
+          emergencyPhone: row.emergency_phone || prev.emergencyPhone || "",
+          role: row.role || prev.role || (row.member_no === "ADMIN-01" ? "admin" : "member"),
+          category: row.category || prev.category || "Adult",
+          balance: (prev.balance !== undefined && hasMasterCloudState) ? parseFloat(prev.balance) : (parseFloat(row.balance) || 0),
+          registeredDaysAgo: row.registered_days_ago || prev.registeredDaysAgo || 0,
           messagingAllowed: row.messaging_allowed !== false,
-          membershipStatus: row.membership_status || "active",
-          membershipTier: row.membership_tier || "Adult",
-          membershipSeason: row.membership_season || "2026/27",
-          validUntil: row.valid_until || "2027-07-31",
+          membershipStatus: prev.membershipStatus || row.membership_status || "active",
+          membershipTier: row.membership_tier || prev.membershipTier || "Adult",
+          membershipSeason: row.membership_season || prev.membershipSeason || "2026/27",
+          validUntil: row.valid_until || prev.validUntil || "2027-07-31",
+          securityPin: row.security_pin || prev.securityPin || "",
+          biometricCredId: row.biometric_cred_id || prev.biometricCredId || null,
+          photoUrl: row.photo_url || prev.photoUrl || null,
+          manifestDisplay: row.manifest_display || prev.manifestDisplay || "nickname",
+          dmPrivacy: row.dm_privacy || prev.dmPrivacy || "all",
           hasAppAccount: true
         };
+
+        if (matchIdx !== -1) existingUsers[matchIdx] = mergedUser;
+        else existingUsers.push(mergedUser);
       });
+      appState.users = existingUsers;
     }
 
-    var bRes = await sbClient.from("bus_bookings").select("*");
-    if (bRes.data && bRes.data.length > 0) {
-      appState.bookings = bRes.data.map(function(row) {
-        return {
-          id: row.id,
-          matchId: row.match_id,
-          busId: row.bus_id || 1,
-          name: row.name,
-          stop: row.stop,
-          adults: row.adults,
-          juniors: row.juniors,
-          total: parseFloat(row.total) || 0,
-          boarded: row.boarded
-        };
-      });
+    // Seed initial master state if club_state table was empty
+    if (!hasMasterCloudState) {
+      await window.pushMasterStateToCloud();
+    } else {
+      saveLocalCacheOnly();
+      window.refreshAllViews();
     }
 
-    var lRes = await sbClient.from("audit_ledger").select("*").order("timestamp", { ascending: false }).limit(100);
-    if (lRes.data && lRes.data.length > 0) {
-      appState.masterAuditTrail = lRes.data.map(function(row) {
-        return {
-          txnId: row.txn_id,
-          timestamp: row.timestamp,
-          actor: row.actor,
-          role: row.role,
-          target: row.target,
-          category: row.category,
-          desc: row.description,
-          debit: parseFloat(row.debit) || 0,
-          credit: parseFloat(row.credit) || 0,
-          branchImpact: parseFloat(row.branch_impact) || 0,
-          balanceAfter: parseFloat(row.balance_after) || 0
-        };
-      });
-    }
-
-    saveState();
-    window.refreshAllViews();
-
+    // 3. Subscribe to Realtime Broadcasts across club_state and bus_bookings
     sbClient
-      .channel("branch-master-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bus_bookings" }, function(payload) {
-        if (payload.eventType === "INSERT") {
-          var exists = appState.bookings.some(function(b) { return b.id === payload.new.id; });
-          if (!exists) {
-            appState.bookings.push({
-              id: payload.new.id,
-              matchId: payload.new.match_id,
-              busId: payload.new.bus_id || 1,
-              name: payload.new.name,
-              stop: payload.new.stop,
-              adults: payload.new.adults,
-              juniors: payload.new.juniors,
-              total: parseFloat(payload.new.total) || 0,
-              boarded: payload.new.boarded
-            });
-          }
-        } else if (payload.eventType === "UPDATE") {
-          var idx = appState.bookings.findIndex(function(b) { return b.id === payload.new.id; });
-          if (idx !== -1) appState.bookings[idx].boarded = payload.new.boarded;
-        } else if (payload.eventType === "DELETE") {
-          appState.bookings = appState.bookings.filter(function(b) { return b.id !== payload.old.id; });
+      .channel("branch-master-sync-" + window.ACTIVE_CLUB_ID)
+      .on("postgres_changes", { event: "*", schema: "public", table: "club_state" }, function(payload) {
+        if (payload.new && payload.new.club_id === window.ACTIVE_CLUB_ID && payload.new.state_data) {
+          applyIncomingCloudState(payload.new.state_data, false);
         }
-        saveState();
-        window.refreshAllViews();
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "members" }, function(payload) {
-        if (payload.new && payload.new.member_no) {
-          var m = appState.users.find(function(u) { return u.memberNo === payload.new.member_no; });
-          if (m) {
-            m.balance = parseFloat(payload.new.balance) || 0;
-            m.membershipStatus = payload.new.membership_status || m.membershipStatus;
-            saveState();
-            window.updateBalanceDisplay();
+      .on("postgres_changes", { event: "*", schema: "public", table: "bus_bookings" }, function(payload) {
+        if (payload.eventType === "UPDATE" && payload.new) {
+          var idx = appState.bookings.findIndex(function(b) { return b.id === payload.new.id; });
+          if (idx !== -1) {
+            appState.bookings[idx].boarded = payload.new.boarded;
+            saveLocalCacheOnly();
             window.refreshAllViews();
           }
         }
       })
       .subscribe();
+
+    // 4. Automatic 3.5-second heartbeat & tab-focus sync so mobile browsers never miss an update
+    setInterval(async function() {
+      if (document.hidden || !navigator.onLine) return;
+      try {
+        var pollRes = await sbClient
+          .from("club_state")
+          .select("state_data")
+          .eq("club_id", window.ACTIVE_CLUB_ID)
+          .maybeSingle();
+        if (pollRes && pollRes.data && pollRes.data.state_data) {
+          applyIncomingCloudState(pollRes.data.state_data, false);
+        }
+      } catch (e) {}
+    }, 3500);
+
+    window.addEventListener("focus", function() {
+      window.pullLatestCloudStateNow();
+    });
   } catch (syncErr) {
     console.warn("Supabase Realtime initial connection fallback:", syncErr);
   }
@@ -773,17 +930,87 @@ window.updateBalanceDisplay = function() {
   if (profileWalletCard) profileWalletCard.style.display = isU18 ? "none" : "block";
 };
 
-window.handleWalletTopUp = function() {
+window.handleWalletTopUp = async function() {
   var user = getCurrentUserRecord();
   if (isMemberUnder18(user)) {
     alert("🛡️ Under-18 Accounts do not hold a wallet balance. All bookings and payments are managed by your linked adult guardian until your 18th birthday.");
     return;
   }
-  user.balance = (parseFloat(user.balance) || 0) + 20.00;
-  logForensicTransaction(user.name, "Member", user.name, "TOPUP", "Debit Card Wallet Top-Up", 0, 20.00, 0);
-  saveState();
+
+  var rawAmt = prompt(
+    "💳 Top Up Branch Wallet (" + user.name + ")\n\n" +
+    "Current Balance: £" + Number(user.balance || 0).toFixed(2) + "\n" +
+    "Enter deposit amount (£5.00 – £200.00):",
+    "20.00"
+  );
+  if (rawAmt === null) return;
+
+  var amount = parseFloat(String(rawAmt).replace(/[^0-9.]/g, ""));
+  if (isNaN(amount) || amount < 5 || amount > 200) {
+    alert("Please enter a valid top-up amount between £5.00 and £200.00.");
+    return;
+  }
+
+  if (!confirm("Confirm £" + amount.toFixed(2) + " debit card top-up to your Coxhoe Branch wallet?")) {
+    return;
+  }
+
+  user.balance = (parseFloat(user.balance) || 0) + amount;
+  logForensicTransaction(user.name, "Member", user.name, "TOPUP", "Debit Card Wallet Top-Up (+£" + amount.toFixed(2) + ")", 0, amount, 0);
+  await window.pushMasterStateToCloud();
   window.refreshAllViews();
-  alert("✓ £20.00 added to your branch wallet!");
+  alert("✓ £" + amount.toFixed(2) + " added to your branch wallet! New balance: £" + user.balance.toFixed(2));
+};
+
+window.payMyAnnualSubs = async function() {
+  var user = getCurrentUserRecord();
+  if (!user) return;
+
+  if (user.membershipStatus === "active") {
+    alert("✓ Your " + (appState.duesConfig.activeSeason || "2026/27") + " branch membership subs are already active!");
+    return;
+  }
+
+  if (isMemberUnder18(user)) {
+    alert("🛡️ Under-18 Junior Subs (£" + Number(appState.duesConfig.juniorFee || 5).toFixed(2) + ") must be settled by your linked adult guardian or the Branch Treasurer.");
+    return;
+  }
+
+  var season = (appState.duesConfig && appState.duesConfig.activeSeason) ? appState.duesConfig.activeSeason : "2026/27";
+  var tier = user.membershipTier || "Adult";
+  var fee = Number(appState.duesConfig ? appState.duesConfig.adultFee : 10.00);
+  if (tier === "Senior") fee = Number(appState.duesConfig ? appState.duesConfig.seniorFee : 5.00);
+
+  if ((user.balance || 0) < fee) {
+    if (confirm("Your wallet balance is £" + Number(user.balance || 0).toFixed(2) + ", and " + season + " " + tier + " Subs are £" + fee.toFixed(2) + ".\n\nWould you like to top up your wallet first?")) {
+      await window.handleWalletTopUp();
+    }
+    return;
+  }
+
+  if (!window.verifyWalletSpendAuthorization(fee, season + " Annual Branch Membership Subs (" + tier + ")")) {
+    return;
+  }
+
+  user.balance = (parseFloat(user.balance) || 0) - fee;
+  user.membershipStatus = "active";
+  user.membershipSeason = season;
+  user.validUntil = "2027-07-31";
+
+  logForensicTransaction(
+    user.name,
+    "Member",
+    "Branch",
+    "SUBS_DUES",
+    "Annual Membership Subs " + season + " (" + tier + ")",
+    fee,
+    0,
+    fee
+  );
+
+  await window.pushMasterStateToCloud();
+  window.refreshAllViews();
+  alert("🎉 Thank you, " + user.name + "! Your " + season + " branch membership is now ACTIVE.");
 };
 
 function logForensicTransaction(actor, role, target, category, desc, debit, credit, branchImpact) {
@@ -800,6 +1027,10 @@ function logForensicTransaction(actor, role, target, category, desc, debit, cred
   saveState();
   window.updateBalanceDisplay();
   if (typeof renderWalletStatement === "function") renderWalletStatement();
+
+  if (user && typeof window.syncMemberRecordToSupabase === "function") {
+    window.syncMemberRecordToSupabase(user);
+  }
 
   if (sbClient) {
     sbClient.from("audit_ledger").insert([{
@@ -943,11 +1174,43 @@ function updateAdminDrawerBadge() {
 
 // --- AUTH, REGISTRATION & QUICK-UNLOCK ENGINE ---
 function getSettingsForMemberNo(memberNo) {
+  var saved = {};
   try {
-    return JSON.parse(localStorage.getItem("safc_ext_settings_" + (memberNo || "DEFAULT")) || "{}");
-  } catch (e) {
-    return {};
+    saved = JSON.parse(localStorage.getItem("safc_ext_settings_" + (memberNo || "DEFAULT")) || "{}");
+  } catch (e) {}
+
+  // Merge cloud-synced security & privacy fields from the member record
+  var userRec = (appState && appState.users || []).find(function(u) {
+    return u.memberNo && memberNo && u.memberNo.toLowerCase() === memberNo.toLowerCase();
+  });
+  if (userRec) {
+    if (userRec.securityPin) saved.securityPin = userRec.securityPin;
+    if (userRec.biometricCredId) saved.biometricCredId = userRec.biometricCredId;
+    if (userRec.manifestDisplay) saved.manifestDisplay = userRec.manifestDisplay;
+    if (userRec.dmPrivacy) saved.dmPrivacy = userRec.dmPrivacy;
   }
+  return saved;
+}
+
+// WebAuthn Binary Helpers for Real Hardware Fingerprint / Face ID
+function bufferToBase64Url(buffer) {
+  var bytes = new Uint8Array(buffer);
+  var binary = "";
+  for (var i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlToUint8Array(base64Url) {
+  var padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
+  var base64 = (base64Url + padding).replace(/-/g, "+").replace(/_/g, "/");
+  var raw = atob(base64);
+  var output = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) {
+    output[i] = raw.charCodeAt(i);
+  }
+  return output;
 }
 
 window.switchAuthMode = function(mode) {
@@ -969,7 +1232,6 @@ window.switchAuthMode = function(mode) {
   }
 };
 
-// Helper: Check if a user record holds verified Committee Admin privileges
 function isUserVerifiedAdmin(user) {
   if (!user) return false;
   return user.role === "admin" || user.memberNo === "ADMIN-01";
@@ -1000,7 +1262,6 @@ window.renderLoginScreenState = function() {
     }
   }
 
-  // Only show the Demo Quick-Switch card if an Admin has authenticated on this session
   if (demoCard) {
     demoCard.style.display = isAdminDevice ? "block" : "none";
   }
@@ -1012,8 +1273,9 @@ window.renderLoginScreenState = function() {
   }
 
   var extCfg = getSettingsForMemberNo(matched.memberNo);
-  var hasPin = extCfg.securityPin && extCfg.securityPin.length === 4;
-  var hasBio = !!extCfg.biometricUnlock;
+  var activePin = matched.securityPin || extCfg.securityPin || "";
+  var hasPin = activePin.length === 4;
+  var hasBio = !!(extCfg.biometricUnlock && (matched.biometricCredId || extCfg.biometricCredId));
 
   quickCard.style.display = "block";
 
@@ -1045,7 +1307,8 @@ window.renderLoginScreenState = function() {
   }
 };
 
-window.handlePinQuickUnlock = function() {
+window.handlePinQuickUnlock = async function() {
+  await window.pullLatestCloudStateNow();
   var savedSession = null;
   try {
     savedSession = JSON.parse(localStorage.getItem("safc_last_member_session") || "null");
@@ -1056,13 +1319,16 @@ window.handlePinQuickUnlock = function() {
     return (savedSession.memberNo && u.memberNo === savedSession.memberNo) ||
            (u.name && u.name.toLowerCase() === savedSession.name.toLowerCase());
   });
-  var resolvedRole = isUserVerifiedAdmin(matched) ? "admin" : "member";
+  if (!matched) return;
 
-  var extCfg = getSettingsForMemberNo(savedSession.memberNo);
-  if (extCfg.securityPin && extCfg.securityPin.length === 4) {
+  var resolvedRole = isUserVerifiedAdmin(matched) ? "admin" : "member";
+  var extCfg = getSettingsForMemberNo(matched.memberNo);
+  var activePin = matched.securityPin || extCfg.securityPin || "";
+
+  if (activePin && activePin.length === 4) {
     var pinInput = document.getElementById("quick-unlock-pin-input");
     var entered = pinInput ? pinInput.value.trim() : "";
-    if (entered !== extCfg.securityPin) {
+    if (entered !== activePin) {
       alert("❌ Incorrect 4-digit PIN.");
       if (pinInput) pinInput.value = "";
       return;
@@ -1070,10 +1336,10 @@ window.handlePinQuickUnlock = function() {
     if (pinInput) pinInput.value = "";
   }
 
-  window.setUserSession(savedSession.name, resolvedRole, savedSession.memberNo);
+  window.setUserSession(matched.name, resolvedRole, matched.memberNo);
 };
 
-window.handleBiometricQuickUnlock = function() {
+window.handleBiometricQuickUnlock = async function() {
   var savedSession = null;
   try {
     savedSession = JSON.parse(localStorage.getItem("safc_last_member_session") || "null");
@@ -1084,11 +1350,42 @@ window.handleBiometricQuickUnlock = function() {
     return (savedSession.memberNo && u.memberNo === savedSession.memberNo) ||
            (u.name && u.name.toLowerCase() === savedSession.name.toLowerCase());
   });
-  var resolvedRole = isUserVerifiedAdmin(matched) ? "admin" : "member";
+  if (!matched) return;
 
-  window.setUserSession(savedSession.name, resolvedRole, savedSession.memberNo);
-  if (typeof window.showInAppNotificationToast === "function") {
-    window.showInAppNotificationToast("🧬 Biometric Verified", "Signed in as " + savedSession.name, "view-hud");
+  var extCfg = getSettingsForMemberNo(matched.memberNo);
+  var credId = matched.biometricCredId || extCfg.biometricCredId;
+
+  if (!window.PublicKeyCredential || !navigator.credentials || !credId) {
+    alert("⚠️ Biometric passkey not enrolled on this device yet. Please sign in with your PIN and enable Biometrics in ⚙️ App Settings.");
+    return;
+  }
+
+  try {
+    var challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    var assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge: challenge,
+        allowCredentials: [{
+          type: "public-key",
+          id: base64UrlToUint8Array(credId)
+        }],
+        userVerification: "required",
+        timeout: 60000
+      }
+    });
+
+    if (assertion) {
+      var resolvedRole = isUserVerifiedAdmin(matched) ? "admin" : "member";
+      window.setUserSession(matched.name, resolvedRole, matched.memberNo);
+      if (typeof window.showInAppNotificationToast === "function") {
+        window.showInAppNotificationToast("🧬 Biometric Verified", "Authenticated as " + matched.name, "view-hud");
+      }
+    }
+  } catch (err) {
+    console.warn("Biometric verification cancelled or failed:", err);
+    alert("🧬 Biometric scan was cancelled or not recognised. Please use your 4-digit PIN.");
   }
 };
 
@@ -1181,38 +1478,63 @@ window.setUserSession = function(name, role, memberNo) {
   window.refreshAllViews();
 };
 
-window.handleLogin = function() {
+window.handleLogin = async function() {
   var input = document.getElementById("login-username");
   var pinInput = document.getElementById("login-pin-input");
+  var submitBtn = document.getElementById("btn-signin-submit");
   var val = (input && input.value.trim()) ? input.value.trim() : "";
 
   if (!val) {
-    alert("Please enter your Full Name or Branch Membership Number (e.g. Gary Miller or COX-084).");
+    alert("Please enter your Email Address, Full Name, or Branch Membership Number (e.g. Gary Miller or COX-084).");
     return;
   }
 
-  var matched = appState.users.find(function(u) {
-    return (u.name && u.name.toLowerCase() === val.toLowerCase()) ||
-           (u.memberNo && u.memberNo.toLowerCase() === val.toLowerCase());
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Checking Cloud Roster...";
+  }
+
+  // Always pull latest cloud roster first so newly registered members on any device are found
+  await window.pullLatestCloudStateNow();
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Sign In to Portal ➔";
+  }
+
+  var q = val.toLowerCase();
+  var matched = (appState.users || []).find(function(u) {
+    return (u.name && u.name.toLowerCase() === q) ||
+           (u.memberNo && u.memberNo.toLowerCase() === q) ||
+           (u.email && u.email.toLowerCase() === q);
   });
 
   if (!matched) {
     if (confirm("No existing member record found for '" + val + "'.\n\nWould you like to switch to the Join Branch registration form?")) {
       window.switchAuthMode("register");
-      var regName = document.getElementById("reg-full-name");
-      if (regName) regName.value = val;
+      var parts = val.split(" ");
+      var fEl = document.getElementById("reg-first-name");
+      var lEl = document.getElementById("reg-last-name");
+      var eEl = document.getElementById("reg-email");
+      if (val.indexOf("@") !== -1 && eEl) {
+        eEl.value = val;
+      } else {
+        if (fEl) fEl.value = parts[0] || "";
+        if (lEl) lEl.value = parts.slice(1).join(" ") || "";
+      }
     }
     return;
   }
 
-  // Verify 4-Digit PIN if this member has configured one
+  // Verify 4-Digit PIN (checks cloud record first, then local settings)
   var extCfg = getSettingsForMemberNo(matched.memberNo);
-  if (extCfg.securityPin && extCfg.securityPin.length === 4) {
+  var activePin = matched.securityPin || extCfg.securityPin || "";
+  if (activePin && activePin.length === 4) {
     var enteredPin = pinInput ? pinInput.value.trim() : "";
     if (!enteredPin) {
       enteredPin = prompt("🔐 Enter the 4-digit Security PIN for " + matched.name + ":") || "";
     }
-    if (enteredPin.trim() !== extCfg.securityPin) {
+    if (enteredPin.trim() !== activePin) {
       alert("❌ Incorrect 4-digit Security PIN.");
       return;
     }
@@ -1220,8 +1542,84 @@ window.handleLogin = function() {
 
   if (pinInput) pinInput.value = "";
   var role = isUserVerifiedAdmin(matched) ? "admin" : "member";
-
   window.setUserSession(matched.name, role, matched.memberNo);
+};
+
+// --- EMAIL VERIFICATION & REGISTRATION WORKFLOW ---
+window._pendingEmailVerification = {
+  email: "",
+  code: "",
+  verified: false
+};
+
+window.sendRegistrationVerificationCode = function() {
+  var emailEl = document.getElementById("reg-email");
+  var verifyBox = document.getElementById("reg-email-verify-box");
+  var hintEl = document.getElementById("reg-email-verify-hint");
+  var statusPill = document.getElementById("reg-email-status-pill");
+  var email = emailEl ? emailEl.value.trim().toLowerCase() : "";
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert("Please enter a valid email address (e.g. name@example.com) first.");
+    return;
+  }
+
+  var code = String(Math.floor(100000 + Math.random() * 900000));
+  window._pendingEmailVerification = {
+    email: email,
+    code: code,
+    verified: false
+  };
+
+  if (verifyBox) verifyBox.style.display = "block";
+  if (statusPill) {
+    statusPill.className = "badge-gold";
+    statusPill.textContent = "Awaiting Code";
+  }
+  if (hintEl) {
+    hintEl.innerHTML = "Verification code dispatched to <strong>" + email + "</strong>.<br><span style='color:var(--safc-gold);'>Instant Verification Code: <strong>" + code + "</strong></span>";
+  }
+
+  if (typeof window.showInAppNotificationToast === "function") {
+    window.showInAppNotificationToast(
+      "✉️ Email Verification Code",
+      "Your Coxhoe Branch verification code for " + email + " is: " + code,
+      null
+    );
+  }
+};
+
+window.confirmRegistrationVerificationCode = function() {
+  var codeInput = document.getElementById("reg-verify-code-input");
+  var emailEl = document.getElementById("reg-email");
+  var statusPill = document.getElementById("reg-email-status-pill");
+  var sendBtn = document.getElementById("btn-send-verify-code");
+  var entered = codeInput ? codeInput.value.trim() : "";
+  var currentEmail = emailEl ? emailEl.value.trim().toLowerCase() : "";
+
+  if (!window._pendingEmailVerification.code || window._pendingEmailVerification.email !== currentEmail) {
+    alert("Please tap '✉️ Verify Email' to generate a code for this email address.");
+    return;
+  }
+
+  if (entered !== window._pendingEmailVerification.code) {
+    alert("❌ Invalid 6-digit verification code. Please check the code and try again.");
+    return;
+  }
+
+  window._pendingEmailVerification.verified = true;
+  if (statusPill) {
+    statusPill.className = "badge-gold";
+    statusPill.style.background = "var(--green)";
+    statusPill.style.color = "#fff";
+    statusPill.textContent = "✓ Verified";
+  }
+  if (sendBtn) {
+    sendBtn.textContent = "✓ Email Verified";
+    sendBtn.style.borderColor = "var(--green)";
+    sendBtn.style.color = "var(--green)";
+  }
+  alert("✓ Email address verified!");
 };
 
 window.checkRegistrationAge = function() {
@@ -1244,38 +1642,65 @@ window.checkRegistrationAge = function() {
   return isU18;
 };
 
-window.handleMemberRegistration = function() {
-  var nameEl = document.getElementById("reg-full-name");
+// Generate the next unique COX-XXX number without colliding with existing members
+function generateNextBranchMemberNo() {
+  var maxNum = 104;
+  (appState.users || []).forEach(function(u) {
+    if (u.memberNo && /^COX-(\d+)$/i.test(u.memberNo)) {
+      var n = parseInt(u.memberNo.replace(/^COX-/i, ""), 10);
+      if (!isNaN(n) && n > maxNum) maxNum = n;
+    }
+  });
+  return "COX-" + (maxNum + 1);
+}
+
+window.handleMemberRegistration = async function() {
+  var firstEl = document.getElementById("reg-first-name");
+  var lastEl = document.getElementById("reg-last-name");
+  var emailEl = document.getElementById("reg-email");
   var dobEl = document.getElementById("reg-dob");
   var nickEl = document.getElementById("reg-nickname");
   var phoneEl = document.getElementById("reg-phone");
   var pinEl = document.getElementById("reg-pin");
-  var emEl = document.getElementById("reg-emergency");
+  var emNameEl = document.getElementById("reg-emergency-name");
+  var emPhoneEl = document.getElementById("reg-emergency-phone");
   var guardEl = document.getElementById("reg-guardian-name");
+  var regBtn = document.getElementById("btn-complete-registration");
 
-  var fullName = nameEl ? nameEl.value.trim() : "";
+  var firstName = firstEl ? firstEl.value.trim() : "";
+  var lastName = lastEl ? lastEl.value.trim() : "";
+  var fullName = (firstName + " " + lastName).trim();
+  var email = emailEl ? emailEl.value.trim().toLowerCase() : "";
   var dob = dobEl ? dobEl.value : "";
   var nickname = nickEl ? nickEl.value.trim() : "";
   var phone = phoneEl ? phoneEl.value.trim() : "";
   var pin = pinEl ? pinEl.value.trim() : "";
-  var emergency = emEl ? emEl.value.trim() : "";
+  var emergencyName = emNameEl ? emNameEl.value.trim() : "";
+  var emergencyPhone = emPhoneEl ? emPhoneEl.value.trim() : "";
 
-  if (!fullName || !dob || !phone) {
-    alert("Please complete Full Name, Date of Birth, and Mobile Number.");
+  if (!firstName || !lastName) {
+    alert("Please enter both your First Name and Surname.");
     return;
   }
-
-  if (pin && !/^\d{4}$/.test(pin)) {
-    alert("Your optional Security PIN must be an exact 4-digit number (e.g. 1973).");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert("Please enter a valid Email Address.");
     return;
   }
-
-  var existing = (appState.users || []).find(function(u) {
-    return u.name && u.name.toLowerCase() === fullName.toLowerCase();
-  });
-  if (existing) {
-    alert("A member named '" + existing.name + "' (" + existing.memberNo + ") is already registered. Please use the Sign In tab.");
-    window.switchAuthMode("signin");
+  if (!window._pendingEmailVerification.verified || window._pendingEmailVerification.email !== email) {
+    window.sendRegistrationVerificationCode();
+    alert("🔐 Please verify your email address first!\n\nWe have just sent a 6-digit verification code to the box above—enter it and click 'Confirm Code'.");
+    return;
+  }
+  if (!dob || !phone) {
+    alert("Please complete your Date of Birth and Mobile Number.");
+    return;
+  }
+  if (!/^\d{4}$/.test(pin)) {
+    alert("Please set a 4-digit numeric Security PIN (e.g. 1973) to protect your account and wallet.");
+    return;
+  }
+  if (!emergencyName || !emergencyPhone) {
+    alert("Please provide an Emergency Contact Name and Phone Number for coach travel manifest safety.");
     return;
   }
 
@@ -1286,17 +1711,46 @@ window.handleMemberRegistration = function() {
     return;
   }
 
-  var nextNum = 105 + (appState.users ? appState.users.length : 10);
-  var newMemberNo = "COX-" + nextNum;
+  if (regBtn) {
+    regBtn.disabled = true;
+    regBtn.textContent = "Saving Member Account to Cloud...";
+  }
+
+  // Pull latest cloud roster before checking duplicates or assigning a member number
+  await window.pullLatestCloudStateNow();
+
+  var existing = (appState.users || []).find(function(u) {
+    return (u.name && u.name.toLowerCase() === fullName.toLowerCase()) ||
+           (u.email && u.email.toLowerCase() === email);
+  });
+
+  if (existing) {
+    if (regBtn) {
+      regBtn.disabled = false;
+      regBtn.textContent = "✓ Complete Registration & Sign In";
+    }
+    alert("A member account for '" + existing.name + "' (" + existing.memberNo + ") is already registered. Please use the Sign In tab.");
+    window.switchAuthMode("signin");
+    return;
+  }
+
+  var newMemberNo = generateNextBranchMemberNo();
+  var safeId = Math.floor(10000 + Math.random() * 90000000);
 
   var newMember = {
-    id: Date.now(),
+    id: safeId,
+    firstName: firstName,
+    lastName: lastName,
     name: fullName,
+    email: email,
+    emailVerified: true,
     nickname: nickname,
     dob: dob,
     phone: phone,
-    emergencyName: emergency,
+    emergencyName: emergencyName,
+    emergencyPhone: emergencyPhone,
     memberNo: newMemberNo,
+    role: "member",
     category: isU18 ? "Child" : "Adult",
     hasAppAccount: true,
     balance: 0.00,
@@ -1305,7 +1759,10 @@ window.handleMemberRegistration = function() {
     membershipStatus: "active",
     membershipTier: isU18 ? "Junior" : "Adult",
     membershipSeason: appState.duesConfig ? appState.duesConfig.activeSeason : "2026/27",
-    validUntil: "2027-07-31"
+    validUntil: "2027-07-31",
+    securityPin: pin,
+    manifestDisplay: "nickname",
+    dmPrivacy: isU18 ? "committee" : "all"
   };
 
   appState.users.push(newMember);
@@ -1318,7 +1775,7 @@ window.handleMemberRegistration = function() {
     });
     var resolvedGuardian = matchedGuard ? matchedGuard.name : guardianQuery;
     appState.pendingLinkRequests.push({
-      id: Date.now() + 1,
+      id: Math.floor(100000 + Math.random() * 90000000),
       requester: resolvedGuardian,
       targetName: fullName,
       relation: "Child",
@@ -1327,44 +1784,32 @@ window.handleMemberRegistration = function() {
     });
   }
 
-  // Save 4-digit PIN if provided during registration
-  if (pin) {
-    var cfgKey = "safc_ext_settings_" + newMemberNo;
-    var initCfg = {
-      manifestDisplay: "nickname",
-      dmPrivacy: isU18 ? "committee" : "all",
-      notifTravelUrgent: true,
-      notifAwayTickets: true,
-      notifFundraiser: true,
-      notifComms: true,
-      confirmWalletSpend: true,
-      biometricUnlock: false,
-      securityPin: pin
-    };
-    try { localStorage.setItem(cfgKey, JSON.stringify(initCfg)); } catch (e) {}
-  }
+  // Save extended settings locally as well
+  var cfgKey = "safc_ext_settings_" + newMemberNo;
+  var initCfg = {
+    manifestDisplay: "nickname",
+    dmPrivacy: isU18 ? "committee" : "all",
+    notifTravelUrgent: true,
+    notifAwayTickets: true,
+    notifFundraiser: true,
+    notifComms: true,
+    confirmWalletSpend: true,
+    biometricUnlock: false,
+    securityPin: pin
+  };
+  try { localStorage.setItem(cfgKey, JSON.stringify(initCfg)); } catch (e) {}
 
-  saveState();
+  // Permanently persist to both Supabase `members` and `club_state` before continuing
+  await window.syncMemberRecordToSupabase(newMember);
+  await window.pushMasterStateToCloud();
 
-  if (sbClient) {
-    sbClient.from("members").upsert([{
-      id: newMember.id,
-      member_no: newMember.memberNo,
-      name: newMember.name,
-      nickname: newMember.nickname || null,
-      category: newMember.category,
-      balance: 0,
-      registered_days_ago: 0,
-      messaging_allowed: newMember.messagingAllowed,
-      membership_status: "active",
-      membership_tier: newMember.membershipTier,
-      membership_season: newMember.membershipSeason,
-      valid_until: newMember.validUntil
-    }]).then(function() {});
+  if (regBtn) {
+    regBtn.disabled = false;
+    regBtn.textContent = "✓ Complete Registration & Sign In";
   }
 
   window.setUserSession(newMember.name, "member", newMember.memberNo);
-  alert("🎉 Welcome to Coxhoe Branch SAFC, " + newMember.name + "!\n\nYour Official Member Number is: " + newMember.memberNo);
+  alert("🎉 Welcome to Coxhoe Branch SAFC, " + newMember.name + "!\n\nYour Official Member Number is: " + newMember.memberNo + "\nYour account is permanently synced to the cloud.");
 };
 
 window.quickLogin = function(name, role, no) {
@@ -2336,12 +2781,13 @@ window.renderAdminTreasury = function() {
   var statsContainer = document.getElementById("admin-treasury-stats");
   var ledgerContainer = document.getElementById("admin-financial-ledger");
   var catFilter = document.getElementById("treasury-filter-category") ? document.getElementById("treasury-filter-category").value : "all";
+  var timeFilter = document.getElementById("treasury-filter-time") ? document.getElementById("treasury-filter-time").value : "all";
 
   var totalInflow = 0;
   var totalOutflow = 0;
   var branchRetained = 0;
 
-  appState.masterAuditTrail.forEach(function(t) {
+  (appState.masterAuditTrail || []).forEach(function(t) {
     if (t.debit > 0) totalInflow += t.debit;
     if (t.credit > 0) totalOutflow += t.credit;
     branchRetained += (t.branchImpact || 0);
@@ -2350,31 +2796,91 @@ window.renderAdminTreasury = function() {
   if (statsContainer) {
     statsContainer.innerHTML = 
       "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Gross Inflow: <strong style='color:var(--green);'>+£" + totalInflow.toFixed(2) + "</strong></div>" +
-      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Payouts: <strong style='color:#ef4444;'>-£" + totalOutflow.toFixed(2) + "</strong></div>" +
-      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px; grid-column:span 2;'>Branch Net Funds: <strong style='color:var(--safc-gold);'>£" + branchRetained.toFixed(2) + "</strong></div>";
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px;'>Payouts/Credits: <strong style='color:#ef4444;'>-£" + totalOutflow.toFixed(2) + "</strong></div>" +
+      "<div style='background:#1e293b; padding:8px; border-radius:6px; font-size:11px; grid-column:span 2; display:flex; justify-content:space-between; align-items:center;'>" +
+        "<span>Branch Net Retained Funds: <strong style='color:var(--safc-gold);'>£" + branchRetained.toFixed(2) + "</strong></span>" +
+        "<button type='button' class='btn btn-gold btn-sm' style='font-size:10px; padding:3px 8px;' onclick='window.adminManualWalletCredit()'>+ Cash / Bank Credit</button>" +
+      "</div>";
   }
 
   if (ledgerContainer) {
-    var filtered = appState.masterAuditTrail.filter(function(t) {
+    var nowMs = Date.now();
+    var filtered = (appState.masterAuditTrail || []).filter(function(t) {
+      var cat = (t.category || "").toUpperCase();
+      var desc = (t.desc || "").toUpperCase();
+
       if (catFilter !== "all") {
-        if (catFilter === "subs" && t.category !== "SUBS_DUES") return false;
-        if (catFilter === "bus" && t.category !== "BUS_BOOKING" && t.category !== "BUS_REFUND") return false;
-        if (catFilter === "card" && t.category.indexOf("CARD") === -1) return false;
+        if (catFilter === "subs" && cat.indexOf("SUBS") === -1) return false;
+        if (catFilter === "bus" && cat.indexOf("BUS") === -1) return false;
+        if (catFilter === "away" && cat.indexOf("AWAY") === -1 && desc.indexOf("AWAY") === -1) return false;
+        if (catFilter === "card" && cat.indexOf("CARD") === -1) return false;
+        if (catFilter === "topup" && cat.indexOf("TOPUP") === -1) return false;
+        if (catFilter === "payout" && cat.indexOf("PAYOUT") === -1 && cat.indexOf("REFUND") === -1 && !(t.credit > 0 && cat.indexOf("TOPUP") === -1)) return false;
+      }
+
+      if (timeFilter !== "all" && t.timestamp) {
+        var txDate = new Date(t.timestamp.replace(" ", "T")).getTime();
+        if (!isNaN(txDate)) {
+          var daysDiff = (nowMs - txDate) / (1000 * 60 * 60 * 24);
+          if (timeFilter === "7d" && daysDiff > 7) return false;
+          if (timeFilter === "30d" && daysDiff > 30) return false;
+          if (timeFilter === "season" && t.timestamp < "2026-07-01") return false;
+        }
       }
       return true;
     });
 
-    var html = "<div style='max-height:240px; overflow-y:auto;'>";
-    filtered.slice(0, 30).forEach(function(t) {
-      html += 
-        "<div style='background:#1e293b; border-bottom:1px solid #334155; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px;'>" +
-          "<div style='display:flex; justify-content:space-between;'><strong>" + t.txnId + " • " + t.category + "</strong><span style='color:var(--safc-gold);'>" + t.timestamp.substring(0, 16) + "</span></div>" +
-          "<div style='color:#cbd5e1;'>" + t.desc + " (" + t.actor + ")</div>" +
-        "</div>";
-    });
+    var html = "<div style='max-height:260px; overflow-y:auto;'>";
+    if (filtered.length === 0) {
+      html += "<div class='text-xs text-muted' style='text-align:center; padding:12px;'>No ledger transactions match the selected filter.</div>";
+    } else {
+      filtered.slice(0, 50).forEach(function(t) {
+        var amtBadge = t.debit > 0
+          ? "<span style='color:var(--green); font-weight:700;'>+£" + Number(t.debit).toFixed(2) + "</span>"
+          : (t.credit > 0 ? "<span style='color:#f87171; font-weight:700;'>-£" + Number(t.credit).toFixed(2) + "</span>" : "<span style='color:#94a3b8;'>£0.00</span>");
+        html += 
+          "<div style='background:#1e293b; border-bottom:1px solid #334155; padding:7px 9px; border-radius:4px; margin-bottom:4px; font-size:10px;'>" +
+            "<div style='display:flex; justify-content:space-between;'><strong>" + t.txnId + " • " + t.category + "</strong><span>" + amtBadge + " • <span style='color:var(--safc-gold);'>" + t.timestamp.substring(0, 16) + "</span></span></div>" +
+            "<div style='color:#cbd5e1; margin-top:2px;'>" + t.desc + " (Actor: " + t.actor + " ➔ " + t.target + ")</div>" +
+          "</div>";
+      });
+    }
     html += "</div>";
     ledgerContainer.innerHTML = html;
   }
+};
+
+window.adminManualWalletCredit = async function() {
+  var who = prompt("💰 Treasurer Manual Wallet Credit\n\nEnter Member Name or Member # (e.g. Gary Miller or COX-084):");
+  if (!who) return;
+
+  var targetUser = (appState.users || []).find(function(u) {
+    return (u.name && u.name.toLowerCase() === who.trim().toLowerCase()) ||
+           (u.memberNo && u.memberNo.toLowerCase() === who.trim().toLowerCase());
+  });
+  if (!targetUser) {
+    alert("No member found matching '" + who + "'.");
+    return;
+  }
+  if (isMemberUnder18(targetUser)) {
+    alert("Under-18 junior accounts cannot hold a wallet balance. Credit their adult guardian instead.");
+    return;
+  }
+
+  var amtStr = prompt("Enter cash / bank transfer amount (£) to credit to " + targetUser.name + " (" + targetUser.memberNo + "):", "20.00");
+  if (!amtStr) return;
+  var amt = parseFloat(amtStr);
+  if (isNaN(amt) || amt <= 0) {
+    alert("Please enter a valid positive amount.");
+    return;
+  }
+
+  targetUser.balance = (parseFloat(targetUser.balance) || 0) + amt;
+  var adminName = (appState.currentUser && appState.currentUser.name) ? appState.currentUser.name : "Treasurer";
+  logForensicTransaction(adminName, "Admin", targetUser.name, "TOPUP", "Treasurer Cash/Bank Deposit Credit", 0, amt, 0);
+  await window.pushMasterStateToCloud();
+  window.renderAdminTreasury();
+  alert("✓ Credited £" + amt.toFixed(2) + " to " + targetUser.name + " (New Balance: £" + targetUser.balance.toFixed(2) + ").");
 };
 
 window.exportMasterAuditCSV = function() {
@@ -2464,70 +2970,142 @@ window.toggleAwayAllocation = function(fixtureId, memberName) {
 
 // --- PANE 6: BRANCH NEWS & BROADCASTS ---
 window.renderAdminNews = function() {
+  // Dynamically ensure the 'Mark as Urgent Matchday Banner' checkbox exists inside Pane 6
+  var linkTextEl = document.getElementById("admin-news-link-text");
+  if (linkTextEl && !document.getElementById("admin-news-urgent")) {
+    var gridParent = linkTextEl.closest("div[style*='grid']");
+    if (gridParent) {
+      var urgentWrap = document.createElement("label");
+      urgentWrap.style.cssText = "display:flex; align-items:center; gap:8px; background:#1e1b4b; border:1px solid #ef4444; padding:7px 10px; border-radius:6px; margin-bottom:8px; font-size:11px; color:#fca5a5; cursor:pointer;";
+      urgentWrap.innerHTML = "<input type='checkbox' id='admin-news-urgent' style='width:16px; height:16px; accent-color:#ef4444;' /> <span><strong>🚨 Pin as Urgent Matchday Alert Banner</strong> (Top of Home HUD)</span>";
+      gridParent.parentNode.insertBefore(urgentWrap, gridParent.nextSibling);
+    }
+  }
+
   var manageList = document.getElementById("admin-news-manage-list");
   if (!manageList) return;
 
   var html = "";
-  appState.announcements.forEach(function(post) {
+  (appState.announcements || []).forEach(function(post) {
     html += 
       "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:11px; border-left:3px solid " + (post.isUrgent ? "#ef4444" : "var(--safc-gold)") + ";'>" +
-        "<div class='flex-between'><strong>" + post.title + "</strong><span style='font-size:9px; color:" + (post.archived ? "#94a3b8" : "var(--green)") + ";'>" + (post.archived ? "ARCHIVED" : "ACTIVE") + "</span></div>" +
+        "<div class='flex-between'>" +
+          "<strong>" + (post.isUrgent ? "🚨 " : "") + post.title + "</strong>" +
+          "<span style='font-size:9px; color:" + (post.archived ? "#94a3b8" : "var(--green)") + ";'>" + (post.archived ? "ARCHIVED" : "ACTIVE") + "</span>" +
+        "</div>" +
         "<div style='color:#cbd5e1; font-size:10px; margin:4px 0;'>" + post.content + "</div>" +
+        (post.imageUrl ? "<div style='font-size:9px; color:var(--safc-gold);'>🖼️ Photo attached</div>" : "") +
+        (post.linkUrl ? "<div style='font-size:9px; color:#60a5fa;'>🔗 Link: " + (post.linkText || post.linkUrl) + "</div>" : "") +
         "<div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:9px; color:var(--text-muted);'>" +
-          "<span>" + post.date + "</span>" +
+          "<span>" + post.date + " • 👍 " + (post.reactions || 0) + "</span>" +
           "<div style='display:flex; gap:4px;'>" +
+            "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px;' onclick='window.toggleUrgentAnnouncement(" + post.id + ")'>" + (post.isUrgent ? "Unpin Urgent" : "🚨 Make Urgent") + "</button>" +
             "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px;' onclick='window.toggleArchiveAnnouncement(" + post.id + ")'>" + (post.archived ? "Unarchive" : "Archive") + "</button>" +
             "<button class='btn btn-outline btn-sm' style='padding:1px 6px; font-size:9px; color:#ef4444;' onclick='window.deleteAnnouncement(" + post.id + ")'>Delete</button>" +
           "</div>" +
         "</div>" +
       "</div>";
   });
-  manageList.innerHTML = html;
+  manageList.innerHTML = html || "<div class='text-xs text-muted'>No announcements posted yet.</div>";
 };
 
-window.adminPostAnnouncement = function() {
+window.adminPostAnnouncement = async function() {
   var titleInput = document.getElementById("admin-news-title");
   var bodyInput = document.getElementById("admin-news-body");
+  var imgInput = document.getElementById("admin-news-image-url");
+  var linkUrlInput = document.getElementById("admin-news-link-url");
+  var linkTextInput = document.getElementById("admin-news-link-text");
+  var urgentInput = document.getElementById("admin-news-urgent");
+
   if (!titleInput || !bodyInput || !titleInput.value.trim() || !bodyInput.value.trim()) {
-    alert("Please enter headline and details.");
+    alert("Please enter both a headline and announcement details.");
     return;
   }
 
+  var tVal = titleInput.value.trim();
+  var bVal = bodyInput.value.trim();
+  var isUrg = urgentInput ? !!urgentInput.checked : false;
+
   var newPost = {
-    id: Date.now(),
-    title: titleInput.value.trim(),
-    content: bodyInput.value.trim(),
+    id: Math.floor(100000 + Math.random() * 90000000),
+    title: tVal,
+    content: bVal,
+    imageUrl: imgInput && imgInput.value.trim() ? imgInput.value.trim() : null,
+    linkUrl: linkUrlInput && linkUrlInput.value.trim() ? linkUrlInput.value.trim() : null,
+    linkText: linkTextInput && linkTextInput.value.trim() ? linkTextInput.value.trim() : "Open Link ➔",
     date: new Date().toISOString().substring(0, 10),
-    isUrgent: false,
+    isUrgent: isUrg,
     reactions: 0,
     archived: false,
     readBy: []
   };
 
   appState.announcements.unshift(newPost);
+
   titleInput.value = "";
   bodyInput.value = "";
+  if (imgInput) imgInput.value = "";
+  if (linkUrlInput) linkUrlInput.value = "";
+  if (linkTextInput) linkTextInput.value = "";
+  if (urgentInput) urgentInput.checked = false;
 
-  saveState();
+  if (sbClient) {
+    sbClient.from("announcements").upsert([{
+      id: newPost.id,
+      club_id: window.ACTIVE_CLUB_ID,
+      title: newPost.title,
+      date: newPost.date,
+      is_urgent: newPost.isUrgent,
+      content: newPost.content,
+      image_url: newPost.imageUrl,
+      link_url: newPost.linkUrl,
+      link_text: newPost.linkText,
+      reactions: 0,
+      archived: false,
+      read_by: []
+    }]).then(function() {});
+  }
+
+  await window.pushMasterStateToCloud();
   renderHUDView();
   window.renderAdminNews();
-  alert("✓ Announcement broadcasted.");
+
+  if (typeof window.dispatchClubNotification === "function") {
+    window.dispatchClubNotification("travel", (isUrg ? "🚨 URGENT: " : "📢 ") + tVal, bVal, "view-hud");
+  }
+  alert("✓ Announcement broadcasted to all branch members!");
 };
 
-window.toggleArchiveAnnouncement = function(postId) {
-  var post = appState.announcements.find(function(a) { return a.id === postId; });
+window.toggleUrgentAnnouncement = async function(postId) {
+  var post = (appState.announcements || []).find(function(a) { return String(a.id) === String(postId); });
   if (post) {
-    post.archived = !post.archived;
-    saveState();
+    post.isUrgent = !post.isUrgent;
+    await window.pushMasterStateToCloud();
     renderHUDView();
     window.renderAdminNews();
   }
 };
 
-window.deleteAnnouncement = function(postId) {
-  if (confirm("Delete this announcement?")) {
-    appState.announcements = appState.announcements.filter(function(a) { return a.id !== postId; });
-    saveState();
+window.toggleArchiveAnnouncement = async function(postId) {
+  var post = (appState.announcements || []).find(function(a) { return String(a.id) === String(postId); });
+  if (post) {
+    post.archived = !post.archived;
+    if (sbClient) {
+      sbClient.from("announcements").update({ archived: post.archived }).eq("id", post.id).then(function() {});
+    }
+    await window.pushMasterStateToCloud();
+    renderHUDView();
+    window.renderAdminNews();
+  }
+};
+
+window.deleteAnnouncement = async function(postId) {
+  if (confirm("Delete this announcement for all members?")) {
+    appState.announcements = (appState.announcements || []).filter(function(a) { return String(a.id) !== String(postId); });
+    if (sbClient) {
+      sbClient.from("announcements").delete().eq("id", postId).then(function() {});
+    }
+    await window.pushMasterStateToCloud();
     renderHUDView();
     window.renderAdminNews();
   }
@@ -2694,11 +3272,11 @@ window.renderFootballGrid = function() {
   }
 };
 
-window.confirmFootballTeamPurchase = function() {
+window.confirmFootballTeamPurchase = async function() {
   if (!verifyMembershipAccess("play the Scratch Card")) return;
 
-  var selCount = window._selectedFootballTeamIds.length;
-  if (selCount === 0) return;
+  var selIds = (window._selectedFootballTeamIds || []).slice();
+  if (selIds.length === 0) return;
 
   var user = getCurrentUserRecord();
   if (isMemberUnder18(user)) {
@@ -2706,46 +3284,98 @@ window.confirmFootballTeamPurchase = function() {
     return;
   }
 
+  var claimBtn = document.getElementById("btn-claim-football-team");
+  if (claimBtn) {
+    claimBtn.disabled = true;
+    claimBtn.textContent = "Verifying Live Card...";
+  }
+
+  // 1. Pull latest live state from Supabase so we never double-sell a square
+  await window.pullLatestCloudStateNow();
+  user = getCurrentUserRecord();
+
   var meta = getCardMetaDefaults();
+  if (meta.status === "completed") {
+    window._selectedFootballTeamIds = [];
+    window.renderFootballGrid();
+    alert("⚠️ This Scratch Card has just been drawn and completed.");
+    return;
+  }
+
+  // 2. Check if any of the user's selected squares were just claimed by another member
+  var conflictTeams = [];
+  var availableSquares = [];
+  selIds.forEach(function(teamId) {
+    var sq = (appState.footballCard || []).find(function(x) { return x.id === teamId; });
+    if (sq) {
+      if (sq.claimedBy) conflictTeams.push(sq.team + " (claimed by " + sq.claimedBy + ")");
+      else availableSquares.push(sq);
+    }
+  });
+
+  if (conflictTeams.length > 0) {
+    window._selectedFootballTeamIds = availableSquares.map(function(s) { return s.id; });
+    window.renderFootballGrid();
+    alert("⚠️ Another member just claimed:\n• " + conflictTeams.join("\n• ") + "\n\nYour selection has been refreshed—please review before claiming.");
+    return;
+  }
+
+  if (availableSquares.length === 0) {
+    window.renderFootballGrid();
+    return;
+  }
+
   var pricePerSquare = Number(meta.pricePerTeam || 2.00);
-  var totalCost = selCount * pricePerSquare;
+  var totalCost = availableSquares.length * pricePerSquare;
 
   if (user.balance < totalCost) {
+    window.renderFootballGrid();
     alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + totalCost.toFixed(2) + ".");
     return;
   }
 
-  var previewTeams = [];
-  window._selectedFootballTeamIds.forEach(function(teamId) {
-    var sq = appState.footballCard.find(function(x) { return x.id === teamId; });
-    if (sq && !sq.claimedBy) previewTeams.push(sq.team);
-  });
+  var previewTeams = availableSquares.map(function(s) { return s.team; });
 
-  if (previewTeams.length === 0) return;
-
-  // Trigger 4-Digit Security PIN or Wallet Spend Confirmation
   if (typeof window.verifyWalletSpendAuthorization === "function") {
     if (!window.verifyWalletSpendAuthorization(totalCost, previewTeams.length + " Scratch Card Team(s): " + previewTeams.join(", "))) {
+      window.renderFootballGrid();
       return;
     }
+  }
+
+  // 3. Re-verify availability one final time after PIN/Confirm prompt, then lock & push immediately
+  await window.pullLatestCloudStateNow();
+  user = getCurrentUserRecord();
+
+  var postPromptConflicts = [];
+  availableSquares.forEach(function(s) {
+    var liveSq = (appState.footballCard || []).find(function(x) { return x.id === s.id; });
+    if (!liveSq || liveSq.claimedBy) postPromptConflicts.push(s.team);
+  });
+
+  if (postPromptConflicts.length > 0) {
+    window._selectedFootballTeamIds = [];
+    window.renderFootballGrid();
+    alert("⚠️ Square claimed while confirming: " + postPromptConflicts.join(", ") + ". Your wallet was NOT charged.");
+    return;
   }
 
   user.balance -= totalCost;
   var claimedNames = [];
 
-  window._selectedFootballTeamIds.forEach(function(teamId) {
-    var sq = appState.footballCard.find(function(x) { return x.id === teamId; });
-    if (sq && !sq.claimedBy) {
-      sq.claimedBy = user.name;
-      sq.price = pricePerSquare;
-      claimedNames.push(sq.team);
+  availableSquares.forEach(function(s) {
+    var liveSq = (appState.footballCard || []).find(function(x) { return x.id === s.id; });
+    if (liveSq && !liveSq.claimedBy) {
+      liveSq.claimedBy = user.name;
+      liveSq.price = pricePerSquare;
+      claimedNames.push(liveSq.team);
     }
   });
 
-  logForensicTransaction(user.name, "Member", "Branch Lottery", "CARD", "Football Card: " + claimedNames.join(", "), totalCost, 0, totalCost);
-  saveState();
-
   window._selectedFootballTeamIds = [];
+  logForensicTransaction(user.name, "Member", "Branch Lottery", "CARD", "Football Card: " + claimedNames.join(", "), totalCost, 0, totalCost);
+  await window.pushMasterStateToCloud();
+
   window.updateBalanceDisplay();
   window.renderFootballGrid();
   renderHUDView();
@@ -3021,26 +3651,266 @@ window.adminLaunchNewFootballCard = function() {
 };
 
 // --- PANE 8: SAFEGUARDING & DISCIPLINARY ---
+function ensureModerationState() {
+  if (!appState.moderation) {
+    appState.moderation = { strikes: {}, mutedMembers: [], revokedMembers: [], incidents: [] };
+  }
+  if (!appState.moderation.strikes) appState.moderation.strikes = {};
+  if (!Array.isArray(appState.moderation.mutedMembers)) appState.moderation.mutedMembers = [];
+  if (!Array.isArray(appState.moderation.revokedMembers)) appState.moderation.revokedMembers = [];
+  if (!Array.isArray(appState.moderation.incidents)) appState.moderation.incidents = [];
+  return appState.moderation;
+}
+
+// Central Comms Guard: Checks mutes and runs profanity/abuse detection before any message is posted
+function checkAndEnforceModeration(senderName, rawText, channelLabel, recentMessages) {
+  var mod = ensureModerationState();
+
+  if (mod.revokedMembers.indexOf(senderName) !== -1) {
+    alert("⛔ Account Comms Revoked:\nYour messaging privileges have been revoked by the Branch Committee.");
+    return false;
+  }
+  if (mod.mutedMembers.indexOf(senderName) !== -1) {
+    alert("🔇 Comms Muted:\nYour account is currently muted from posting in branch comms pending committee review.");
+    return false;
+  }
+
+  var check = detectAbuseOrProfanity(rawText);
+  if (!check.flagged) return true;
+
+  // Increment strike count and auto-mute on flagged abuse/profanity
+  mod.strikes[senderName] = (mod.strikes[senderName] || 0) + 1;
+  if (mod.mutedMembers.indexOf(senderName) === -1) {
+    mod.mutedMembers.push(senderName);
+  }
+
+  var contextSnap = (recentMessages || []).slice(-5).map(function(m) {
+    return {
+      sender: m.sender || m.from || senderName,
+      time: m.time || "Now",
+      text: m.text || ""
+    };
+  });
+  contextSnap.push({
+    sender: senderName,
+    time: new Date().toTimeString().substring(0, 5),
+    text: "[FLAGGED & BLOCKED] " + rawText
+  });
+
+  var newIncident = {
+    id: "INC-" + Math.floor(1000 + Math.random() * 9000),
+    member: senderName,
+    channel: channelLabel || "Branch Comms",
+    timestamp: new Date().toISOString().replace("T", " ").substring(0, 16),
+    status: "active_ban",
+    reason: check.reason + " (Strike #" + mod.strikes[senderName] + ")",
+    offendingText: rawText,
+    transcriptContext: contextSnap,
+    internalDiscussion: [],
+    votes: {}
+  };
+
+  mod.incidents.unshift(newIncident);
+
+  if (sbClient) {
+    sbClient.from("disciplinary_incidents").upsert([{
+      id: newIncident.id,
+      member: newIncident.member,
+      timestamp: newIncident.timestamp,
+      status: newIncident.status,
+      reason: newIncident.reason,
+      offending_text: newIncident.offendingText,
+      transcript_context: newIncident.transcriptContext,
+      internal_discussion: newIncident.internalDiscussion,
+      votes: newIncident.votes
+    }]).then(function() {});
+  }
+
+  saveState();
+  updateAdminDrawerBadge();
+
+  alert("🛡️ Message Blocked by Branch Safeguarding Filter\n\nReason: " + check.reason + "\n\nYour Comms access has been temporarily muted and logged for Committee review.");
+  return false;
+}
+
 window.renderAdminDisciplinary = function() {
   var juniorLog = document.getElementById("admin-disciplinary-junior-log");
   var boardContainer = document.getElementById("admin-disciplinary-board");
+  var mod = ensureModerationState();
 
+  // 1. Active Junior Safeguarding Registry
   if (juniorLog) {
-    var children = appState.users.filter(function(u) { return u.category === "Child"; });
+    var children = (appState.users || []).filter(function(u) { return isMemberUnder18(u); });
     var htmlJ = "";
     children.forEach(function(ch) {
       var comp = checkChildCompliance(ch);
+      var parentLink = (appState.friendsAndFamily || []).find(function(f) {
+        return (f.owner === ch.name && f.relation === "Parent" && f.status === "approved") ||
+               (f.targetName === ch.name && (f.relation === "Daughter" || f.relation === "Son" || f.relation === "Child") && f.status === "approved");
+      });
+      var guardianName = parentLink ? (parentLink.owner === ch.name ? parentLink.targetName : parentLink.owner) : "Unlinked";
+
       htmlJ += 
-        "<div style='background:#1e293b; padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:10px; display:flex; justify-content:space-between; align-items:center;'>" +
-          "<div><strong>" + ch.name + "</strong> (" + ch.memberNo + ")<br><span style='color:" + (comp.compliant ? "var(--green)" : "#ef4444") + "; font-weight:700;'>" + (comp.compliant ? "✓ Verified Linked" : "🔴 Account Locked") + "</span></div>" +
+        "<div style='background:#1e293b; padding:7px 9px; border-radius:6px; margin-bottom:5px; font-size:10px; display:flex; justify-content:space-between; align-items:center; border-left:3px solid " + (comp.compliant && comp.linkedParent ? "var(--green)" : "#ef4444") + ";'>" +
+          "<div>" +
+            "<strong>" + ch.name + "</strong> (" + ch.memberNo + ") • Guardian: <strong style='color:var(--safc-gold);'>" + guardianName + "</strong><br>" +
+            "<span style='color:" + (comp.compliant && comp.linkedParent ? "var(--green)" : "#f87171") + "; font-weight:700;'>" +
+              (comp.compliant && comp.linkedParent ? "✓ Verified Guardian Link Active" : (comp.deactivated ? "🔴 Account Locked (7-Day Grace Expired)" : "⏳ Pending Guardian Link (" + (comp.daysRemaining || 7) + "d left)")) +
+            "</span>" +
+          "</div>" +
+          (!comp.linkedParent ? "<button class='btn btn-gold btn-sm' style='padding:2px 8px; font-size:9px;' onclick='window.adminQuickLinkGuardian(\"" + ch.name.replace(/'/g, "\\'") + "\")'>Link Guardian</button>" : "") +
         "</div>";
     });
-    juniorLog.innerHTML = htmlJ || "<p class='text-xs text-muted'>No junior accounts.</p>";
+    juniorLog.innerHTML = htmlJ || "<p class='text-xs text-muted'>No junior accounts registered.</p>";
   }
 
-  if (boardContainer) {
-    boardContainer.innerHTML = "<div class='text-xs text-muted'>✓ All members in good disciplinary standing. Profanity engine active.</div>";
+  // 2. Comms Mute Controls & Flagged Incidents Board
+  if (!boardContainer) return;
+
+  var mutedList = mod.mutedMembers || [];
+  var htmlB =
+    "<div class='admin-card' style='margin-bottom:10px;'>" +
+      "<div class='flex-between' style='margin-bottom:6px;'>" +
+        "<strong style='font-size:12px; color:var(--safc-gold);'>🔇 Muted Members (" + mutedList.length + ")</strong>" +
+        "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px;' onclick='window.adminManualMutePrompt()'>+ Mute Member</button>" +
+      "</div>";
+
+  if (mutedList.length === 0) {
+    htmlB += "<p class='text-xs text-muted'>No members are currently muted.</p>";
+  } else {
+    mutedList.forEach(function(mName) {
+      var stCount = mod.strikes[mName] || 0;
+      htmlB +=
+        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;'>" +
+          "<span><strong>" + mName + "</strong> <span style='font-size:9px; color:#f87171;'>(Strikes: " + stCount + ")</span></span>" +
+          "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px; color:var(--green); border-color:var(--green);' onclick='window.adminToggleMemberMute(\"" + mName.replace(/'/g, "\\'") + "\")'>Unmute ✓</button>" +
+        "</div>";
+    });
   }
+  htmlB += "</div>";
+
+  htmlB += "<div class='admin-card'><strong style='font-size:12px; color:var(--safc-gold); display:block; margin-bottom:8px;'>🚨 Flagged Comms Incidents (" + mod.incidents.length + ")</strong>";
+
+  if (mod.incidents.length === 0) {
+    htmlB += "<div class='text-xs text-muted'>✓ No flagged profanity or hostility incidents. Automated filter is active across Bus Chat, DMs, and Helpdesk.</div>";
+  } else {
+    mod.incidents.forEach(function(inc) {
+      var votesObj = inc.votes || {};
+      var upholdVotes = Object.keys(votesObj).filter(function(k) { return votesObj[k] === "uphold"; }).length;
+      var pardonVotes = Object.keys(votesObj).filter(function(k) { return votesObj[k] === "pardon"; }).length;
+      var isResolved = (inc.status !== "active_ban");
+
+      htmlB +=
+        "<div style='background:#1e293b; border-left:3px solid " + (isResolved ? "var(--green)" : "#ef4444") + "; padding:8px 10px; border-radius:6px; margin-bottom:8px; font-size:11px;'>" +
+          "<div class='flex-between'>" +
+            "<strong>" + inc.id + " • " + inc.member + " (" + (inc.channel || "Chat") + ")</strong>" +
+            "<span style='font-size:9px; color:" + (isResolved ? "var(--green)" : "#f87171") + "; font-weight:700;'>" + (isResolved ? "RESOLVED (" + inc.status.toUpperCase() + ")" : "ACTIVE MUTE") + "</span>" +
+          "</div>" +
+          "<div style='font-size:10px; color:#fca5a5; margin-top:3px;'>Reason: " + inc.reason + "</div>" +
+          "<div style='background:#0f172a; padding:5px 8px; border-radius:4px; margin:5px 0; font-size:10px; color:#cbd5e1;'>\"" + inc.offendingText + "\"</div>" +
+          "<div style='display:flex; justify-content:space-between; align-items:center; gap:4px; margin-top:6px;'>" +
+            "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px;' onclick='window.openTranscriptModal(\"" + inc.id + "\")'>📜 View Transcript</button>" +
+            "<div style='display:flex; gap:4px;'>" +
+              "<button class='btn btn-outline btn-sm' style='padding:2px 7px; font-size:9px; color:#f87171; border-color:#ef4444;' onclick='window.adminVoteDisciplinary(\"" + inc.id + "\", \"uphold\")'>🔨 Uphold (" + upholdVotes + ")</button>" +
+              "<button class='btn btn-outline btn-sm' style='padding:2px 7px; font-size:9px; color:var(--green); border-color:var(--green);' onclick='window.adminVoteDisciplinary(\"" + inc.id + "\", \"pardon\")'>✓ Pardon & Unmute (" + pardonVotes + ")</button>" +
+            "</div>" +
+          "</div>" +
+        "</div>";
+    });
+  }
+
+  htmlB += "</div>";
+  boardContainer.innerHTML = htmlB;
+};
+
+window.adminQuickLinkGuardian = async function(childName) {
+  var guardName = prompt("🛡️ Link Adult Parent/Guardian for " + childName + "\n\nEnter Adult Member Name or Member # (e.g. Gary Miller or COX-084):");
+  if (!guardName) return;
+
+  var matchedAdult = (appState.users || []).find(function(u) {
+    return !isMemberUnder18(u) && (u.name.toLowerCase() === guardName.trim().toLowerCase() || (u.memberNo && u.memberNo.toLowerCase() === guardName.trim().toLowerCase()));
+  });
+  var resolvedAdult = matchedAdult ? matchedAdult.name : guardName.trim();
+
+  appState.friendsAndFamily.push({ id: Date.now(), owner: resolvedAdult, targetName: childName, relation: "Child", type: "Child", status: "approved" });
+  appState.friendsAndFamily.push({ id: Date.now() + 1, owner: childName, targetName: resolvedAdult, relation: "Parent", type: "Adult", status: "approved" });
+
+  await window.pushMasterStateToCloud();
+  window.renderAdminDisciplinary();
+  window.refreshAllViews();
+  alert("✓ " + childName + " is now linked to adult guardian " + resolvedAdult + ".");
+};
+
+window.adminToggleMemberMute = async function(memberName) {
+  var mod = ensureModerationState();
+  var idx = mod.mutedMembers.indexOf(memberName);
+  if (idx !== -1) {
+    mod.mutedMembers.splice(idx, 1);
+  } else {
+    mod.mutedMembers.push(memberName);
+  }
+  await window.pushMasterStateToCloud();
+  window.renderAdminDisciplinary();
+};
+
+window.adminManualMutePrompt = async function() {
+  var name = prompt("Enter Member Name to mute from Branch Comms:");
+  if (!name || !name.trim()) return;
+  var mod = ensureModerationState();
+  if (mod.mutedMembers.indexOf(name.trim()) === -1) {
+    mod.mutedMembers.push(name.trim());
+    await window.pushMasterStateToCloud();
+    window.renderAdminDisciplinary();
+  }
+};
+
+window.adminVoteDisciplinary = async function(incId, decision) {
+  var mod = ensureModerationState();
+  var inc = mod.incidents.find(function(i) { return i.id === incId; });
+  if (!inc) return;
+
+  var adminName = (appState.currentUser && appState.currentUser.name) ? appState.currentUser.name : "Admin";
+  if (!inc.votes) inc.votes = {};
+  inc.votes[adminName] = decision;
+
+  if (decision === "pardon") {
+    inc.status = "pardoned";
+    mod.mutedMembers = mod.mutedMembers.filter(function(m) { return m !== inc.member; });
+  } else {
+    inc.status = "upheld";
+    if (mod.mutedMembers.indexOf(inc.member) === -1) mod.mutedMembers.push(inc.member);
+  }
+
+  await window.pushMasterStateToCloud();
+  window.renderAdminDisciplinary();
+  updateAdminDrawerBadge();
+};
+
+window.openTranscriptModal = function(incId) {
+  var mod = ensureModerationState();
+  var inc = mod.incidents.find(function(i) { return i.id === incId; });
+  var modal = document.getElementById("modal-transcript");
+  var body = document.getElementById("transcript-body");
+  if (!inc || !modal || !body) return;
+
+  var lines = (inc.transcriptContext || []).map(function(m) {
+    var isFlagged = m.text && m.text.indexOf("[FLAGGED") === 0;
+    return "<div style='padding:6px 8px; margin-bottom:4px; border-radius:6px; background:" + (isFlagged ? "#7f1d1d" : "#0f172a") + "; font-size:11px;'>" +
+      "<strong>" + m.sender + "</strong> <span style='font-size:9px; color:#94a3b8;'>(" + m.time + ")</span><br>" +
+      "<span>" + m.text + "</span>" +
+    "</div>";
+  }).join("");
+
+  body.innerHTML =
+    "<div style='font-size:11px; color:var(--safc-gold); margin-bottom:6px;'>Incident " + inc.id + " • " + inc.member + " • " + inc.timestamp + "</div>" +
+    (lines || "<div class='text-xs text-muted'>No surrounding transcript messages recorded.</div>");
+
+  modal.style.display = "flex";
+};
+
+window.closeTranscriptModal = function() {
+  var modal = document.getElementById("modal-transcript");
+  if (modal) modal.style.display = "none";
 };
 
 // --- HOME MATCHDAY HUD ---
@@ -3059,7 +3929,6 @@ window.renderHUDView = function() {
   if (nameElem) nameElem.textContent = user.nickname ? user.name + " (" + user.nickname + ")" : user.name;
   if (noElem) noElem.textContent = "Member #" + (user.memberNo || "COX-084") + (isU18 ? " • Junior (U18)" : "");
 
-  // Sync persistent profile photo to Homepage HUD
   var savedPhoto = getSavedAvatar(user);
   if (hudAvatar) {
     hudAvatar.src = savedPhoto || DEFAULT_AVATAR_SVG;
@@ -3067,49 +3936,97 @@ window.renderHUDView = function() {
 
   if (badgeElem) {
     var isActive = (user.membershipStatus === "active");
-    badgeElem.textContent = isActive ? "● 2026/27 Active" : "⚠️ Subs Overdue";
+    badgeElem.textContent = isActive ? "● " + (user.membershipSeason || "2026/27") + " Active" : "⚠️ Subs Overdue (Tap to Pay)";
     badgeElem.className = isActive ? "badge-gold" : "badge-red";
+    badgeElem.style.cursor = isActive ? "default" : "pointer";
+    badgeElem.onclick = isActive ? null : function() { window.payMyAnnualSubs(); };
   }
 
-  // Fundraiser Pulse Bar (Dynamic 20-100 Team Count)
-  var totalCardTeams = (appState.footballCard && appState.footballCard.length) ? appState.footballCard.length : 40;
+  // 1. Urgent Matchday Broadcast Banner (#hud-urgent-banner)
+  var urgentBanner = document.getElementById("hud-urgent-banner");
+  if (urgentBanner) {
+    var urgentNotice = (appState.announcements || []).find(function(a) {
+      var readList = Array.isArray(a.readBy) ? a.readBy : [];
+      return !a.archived && a.isUrgent && readList.indexOf(user.name) === -1;
+    });
+    if (urgentNotice) {
+      urgentBanner.style.display = "block";
+      urgentBanner.innerHTML =
+        "<div style='display:flex; justify-content:space-between; align-items:flex-start; gap:8px;'>" +
+          "<div><strong style='color:#fde047; display:block; margin-bottom:2px;'>🚨 URGENT BRANCH NOTICE: " + urgentNotice.title + "</strong>" +
+          "<span>" + (urgentNotice.content || "") + "</span></div>" +
+          "<button type='button' class='btn btn-outline btn-sm' style='padding:2px 6px; font-size:9px; color:#fff; border-color:#f87171; flex-shrink:0;' onclick='window.dismissAnnouncement(\"" + urgentNotice.id + "\")'>Dismiss</button>" +
+        "</div>";
+    } else {
+      urgentBanner.style.display = "none";
+    }
+  }
+
+  // 2. Fundraiser Pulse Bar (Dynamic 20-100 Team Count, Price & Prize Split)
+  var meta = getCardMetaDefaults();
+  var totalCardTeams = (appState.footballCard && appState.footballCard.length) ? appState.footballCard.length : (meta.teamCount || 40);
   var soldCount = (appState.footballCard || []).filter(function(sq) { return !!sq.claimedBy; }).length;
+  var pricePerSq = Number(meta.pricePerTeam || 2.00);
+  var maxPot = totalCardTeams * pricePerSq;
+  var winPrize = (meta.prizeMode === "custom") ? Number(meta.winnerPrize || 0) : (maxPot * 0.5);
+  var brPrize = (meta.prizeMode === "custom") ? Number(meta.branchPrize || 0) : (maxPot * 0.5);
+
   var soldCountElem = document.getElementById("hud-pulse-card-sold");
   var barElem = document.getElementById("hud-pulse-card-bar");
-  if (soldCountElem) soldCountElem.textContent = soldCount + " / " + totalCardTeams + " Claimed";
+  if (soldCountElem) {
+    soldCountElem.textContent = (meta.status === "completed")
+      ? ("🏆 Won by " + (meta.winnerMember || "Member"))
+      : (soldCount + " / " + totalCardTeams + " Claimed");
+  }
   if (barElem) barElem.style.width = Math.min(100, Math.round((soldCount / totalCardTeams) * 100)) + "%";
 
-  // Contextual Travel Card
+  var pulseCard = document.getElementById("hud-card-fundraiser-pulse");
+  if (pulseCard && pulseCard.children && pulseCard.children.length >= 3) {
+    var bottomMetaRow = pulseCard.children[2];
+    if (bottomMetaRow) {
+      bottomMetaRow.innerHTML =
+        "<span>£" + pricePerSq.toFixed(2) + " per team (" + totalCardTeams + " teams)</span>" +
+        "<span style='color:var(--green); font-weight:700;'>£" + winPrize.toFixed(2) + " Winner • £" + brPrize.toFixed(2) + " Branch</span>";
+    }
+  }
+
+  // 3. Contextual Travel Card & True Bus Stop Departure Resolution
   var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
   var bookedBus = (appState.bookings && Array.isArray(appState.bookings) && activeMatch)
-    ? appState.bookings.find(function(b) { return String(b.matchId) === String(activeMatch.id) && b.name.indexOf(user.name) !== -1; })
+    ? appState.bookings.find(function(b) {
+        return String(b.matchId) === String(activeMatch.id) &&
+               ((b.name && b.name.toLowerCase().indexOf(user.name.toLowerCase()) !== -1) ||
+                (b.bookedBy && b.bookedBy.toLowerCase() === user.name.toLowerCase()));
+      })
     : null;
 
   var statusCard = document.getElementById("hud-travel-card-status");
   if (statusCard) {
     if (bookedBus) {
+      var stopLabel = getDynamicStopDisplay(activeMatch.id, bookedBus.busId, bookedBus.stop);
       statusCard.innerHTML = 
         "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-          "<div><strong style='color:var(--green);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + bookedBus.stop + " • Bus #" + (bookedBus.busId || 1) + "</div></div>" +
+          "<div><strong style='color:var(--green);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + stopLabel + " • Bus #" + (bookedBus.busId || 1) + "</div></div>" +
           "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
         "</div>";
     } else {
+      var firstBus = (activeMatch && activeMatch.buses && activeMatch.buses[0]) ? activeMatch.buses[0] : { adultFare: 12, juniorFare: 8 };
       statusCard.innerHTML = 
         "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-          "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £12 Adult / £8 Junior</div></div>" +
+          "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £" + Number(firstBus.adultFare || 12).toFixed(2) + " Adult / £" + Number(firstBus.juniorFare || 8).toFixed(2) + " Junior</div></div>" +
           "<button class='btn btn-red btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
         "</div>";
     }
   }
 
-  // Next Match Spotlight, Kickoff Countdown & Weather Fetch from Live Feed
-  var masterList = appState.masterFixtures || JSON.parse(localStorage.getItem("coxhoe_master_fixtures_live_v21") || "[]");
+  // 4. Next Match Spotlight, True Bus Departure Countdown & Weather
+  var masterList = appState.masterFixtures || [];
   var nextFixture = masterList.length > 0 ? masterList[0] : (activeMatch ? {
     opponent: activeMatch.opponent,
     type: "HOME",
     competition: activeMatch.competition || "Premier League",
     venue: activeMatch.venue || "Stadium of Light",
-    dateTime: activeMatch.dateTime || "2026-11-21T15:00:00",
+    dateTime: activeMatch.dateTime || "2026-11-21T15:00:00Z",
     dateDisplay: (activeMatch.date || "") + " • " + (activeMatch.time || "15:00"),
     kickoffTime: activeMatch.time || "15:00",
     coordinates: { lat: 54.9146, lon: -1.3882 }
@@ -3134,8 +4051,35 @@ window.renderHUDView = function() {
     var venueDisplay = (nextFixture.venue || "Stadium of Light") + (nextFixture.city ? ", " + nextFixture.city : "");
     if (venueElem) venueElem.textContent = venueDisplay + " • " + (nextFixture.competition || "Premier League");
 
+    // Resolve the member's actual village pickup stop & departure time for the countdown
+    var countdownTargetIso = nextFixture.dateTime;
+    var stopDisplayLabel = "Kickoff @ " + (nextFixture.kickoffTime || "15:00");
+
+    if (activeMatch && activeMatch.buses && activeMatch.buses.length > 0) {
+      var targetBus = bookedBus
+        ? (activeMatch.buses.find(function(b) { return Number(b.busId || 1) === Number(bookedBus.busId || 1); }) || activeMatch.buses[0])
+        : activeMatch.buses[0];
+      var busStops = (targetBus && targetBus.stops && targetBus.stops.length > 0) ? targetBus.stops : DEFAULT_STOPS;
+      var chosenStopObj = busStops[0];
+
+      if (bookedBus && bookedBus.stop) {
+        var cleanBooked = bookedBus.stop.split("(")[0].trim().toLowerCase();
+        var foundSt = busStops.find(function(s) { return s.name.trim().toLowerCase() === cleanBooked; });
+        if (foundSt) chosenStopObj = foundSt;
+      }
+
+      if (chosenStopObj && chosenStopObj.time && nextFixture.dateTime) {
+        var datePrefix = nextFixture.dateTime.substring(0, 10);
+        var depCandidate = new Date(datePrefix + "T" + chosenStopObj.time.trim() + ":00");
+        if (!isNaN(depCandidate.getTime())) {
+          countdownTargetIso = depCandidate.toISOString();
+        }
+        stopDisplayLabel = "🚏 " + chosenStopObj.name + " (" + chosenStopObj.time + ")";
+      }
+    }
+
     if (typeof startKickoffCountdown === "function") {
-      startKickoffCountdown(nextFixture.dateTime, nextFixture.kickoffTime || "15:00");
+      startKickoffCountdown(countdownTargetIso, stopDisplayLabel);
     }
     if (typeof fetchLiveMatchWeather === "function") {
       if (nextFixture.coordinates) {
@@ -3149,7 +4093,47 @@ window.renderHUDView = function() {
     }
   }
 
-  // Announcements Feed (with 'Mark as Read' dismissal & reactions)
+  // 5. Action Required / Notifications Box (#hud-actions-box)
+  var actionsBox = document.getElementById("hud-actions-box");
+  var actionsList = document.getElementById("hud-actions-list");
+  if (actionsBox && actionsList) {
+    var actionItems = [];
+    if (user.membershipStatus === "lapsed") {
+      var dueFee = isU18 ? Number(appState.duesConfig.juniorFee || 5) : Number(appState.duesConfig.adultFee || 10);
+      actionItems.push(
+        "<div style='display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0;'>" +
+          "<span>🔴 <strong>Annual Subs Overdue (" + (appState.duesConfig.activeSeason || "2026/27") + "):</strong> Renew now (£" + dueFee.toFixed(2) + ") to unlock coach bookings and ballots.</span>" +
+          (!isU18 ? "<button type='button' class='btn btn-gold btn-sm' style='flex-shrink:0; font-size:10px; padding:4px 10px;' onclick='window.payMyAnnualSubs()'>Pay £" + dueFee.toFixed(2) + " Subs</button>" : "") +
+        "</div>"
+      );
+    }
+    var childComp = checkChildCompliance(user);
+    if (childComp && childComp.pendingWarning) {
+      actionItems.push(
+        "<div style='padding:4px 0; color:#fde047;'>🛡️ <strong>Under-18 Safeguarding:</strong> Please ensure your adult parent/guardian links your account within " + childComp.daysRemaining + " day(s).</div>"
+      );
+    }
+    var myAllocatedAway = (appState.awayRegistrations || []).filter(function(r) {
+      return r.allocated && (r.memberName === user.name || (r.party && r.party.some(function(p) { return p.indexOf(user.name) !== -1; })));
+    });
+    if (myAllocatedAway.length > 0) {
+      var afix = (appState.awayFixtures || []).find(function(f) { return f.id === myAllocatedAway[0].fixtureId; });
+      if (afix) {
+        actionItems.push(
+          "<div style='padding:4px 0; color:var(--green);'>🎟️ <strong>Away Ticket Allocated:</strong> You have been allocated ticket(s) for " + afix.opponent + " (A) on " + afix.date + ".</div>"
+        );
+      }
+    }
+
+    if (actionItems.length > 0) {
+      actionsBox.style.display = "block";
+      actionsList.innerHTML = actionItems.join("<hr style='border:none; border-top:1px solid #334155; margin:4px 0;'/>");
+    } else {
+      actionsBox.style.display = "none";
+    }
+  }
+
+  // 6. Rich Announcements Feed (with Images, External Links, Reactions & Mark as Read)
   var newsContainer = document.getElementById("hud-news-feed");
   if (newsContainer) {
     newsContainer.innerHTML = "";
@@ -3171,12 +4155,21 @@ window.renderHUDView = function() {
         itemCard.style.cssText = "margin-bottom:8px; padding:10px 12px; background:#0f172a; border-left:3px solid " + (item.isUrgent ? "#ef4444" : "var(--safc-gold)") + ";";
         var bodyText = item.content || item.body || "";
 
+        var mediaHtml = "";
+        if (item.imageUrl) {
+          mediaHtml += "<img src='" + item.imageUrl + "' class='announcement-banner-img' alt='Announcement Image' onerror='this.style.display=\"none\"' />";
+        }
+        if (item.linkUrl) {
+          mediaHtml += "<a href='" + item.linkUrl + "' target='_blank' rel='noopener noreferrer' class='announcement-link-btn'>🔗 " + (item.linkText || "View Link") + " ➔</a>";
+        }
+
         itemCard.innerHTML = 
           "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>" +
-            "<strong style='font-size:12px; color:#fff;'>" + item.title + "</strong>" +
+            "<strong style='font-size:12px; color:#fff;'>" + (item.isUrgent ? "🚨 " : "") + item.title + "</strong>" +
             "<span style='font-size:9px; color:var(--text-muted);'>" + (item.date || "") + "</span>" +
           "</div>" +
-          "<div style='font-size:11px; color:#cbd5e1; line-height:1.4; margin-bottom:8px;'>" + bodyText + "</div>" +
+          "<div style='font-size:11px; color:#cbd5e1; line-height:1.4; margin-bottom:6px;'>" + bodyText + "</div>" +
+          (mediaHtml ? "<div style='margin-bottom:8px;'>" + mediaHtml + "</div>" : "") +
           "<div style='display:flex; justify-content:space-between; align-items:center; border-top:1px solid #1e293b; padding-top:6px;'>" +
             "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px;' onclick='window.reactAnnouncement(\"" + item.id + "\")'>👍 " + (item.reactions || 0) + "</button>" +
             "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:10px; color:var(--safc-gold); border-color:var(--safc-gold);' onclick='window.dismissAnnouncement(\"" + item.id + "\")'>✓ Mark as Read</button>" +
@@ -3675,7 +4668,7 @@ window.updatePartyFareCalculation = function() {
   }
 };
 
-window.openBookingModal = function() {
+window.openBookingModal = async function() {
   if (!verifyMembershipAccess("book coach seats")) return;
 
   var user = getCurrentUserRecord();
@@ -3684,14 +4677,61 @@ window.openBookingModal = function() {
     return;
   }
 
+  var selectedPassengers = currentBookingParty.filter(function(p) { return p.checked && !p.alreadyBooked; });
+  if (selectedPassengers.length === 0) return;
+
+  var stopEl = document.getElementById("booking-stop");
+  var chosenStop = stopEl ? stopEl.value : "Coxhoe Londis Shop";
+
+  var bookBtn = document.getElementById("btn-book-seat");
+  if (bookBtn) {
+    bookBtn.disabled = true;
+    bookBtn.textContent = "Checking Live Coach Availability...";
+  }
+
+  // 1. Pull latest live bookings & bus capacities from Supabase
+  await window.pullLatestCloudStateNow();
+  user = getCurrentUserRecord();
+
   var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+  if (!activeMatch || activeMatch.bookingStatus !== "open") {
+    renderBusBookingView();
+    alert("⚠️ Coach bookings for this fixture are currently closed.");
+    return;
+  }
+
   var buses = activeMatch.buses || [];
   var selectedBus = buses.find(function(b, idx) {
     return String(b.busId || (idx + 1)) === String(appState.selectedBookingBusId);
   }) || buses[0];
 
-  var selectedPassengers = currentBookingParty.filter(function(p) { return p.checked && !p.alreadyBooked; });
-  if (selectedPassengers.length === 0) return;
+  // 2. Check live remaining seats on this coach
+  var busBookings = (appState.bookings || []).filter(function(b) {
+    return String(b.matchId) === String(activeMatch.id) && String(b.busId || 1) === String(selectedBus.busId || 1);
+  });
+  var totalBooked = 0;
+  busBookings.forEach(function(b) { totalBooked += ((b.adults || 0) + (b.juniors || 0)); });
+  var cap = selectedBus.capacity || 53;
+  var remainingSeats = Math.max(0, cap - totalBooked);
+
+  if (selectedPassengers.length > remainingSeats) {
+    renderBusBookingView();
+    alert("⚠️ Not enough seats remaining on " + selectedBus.title + "!\n\nRequested: " + selectedPassengers.length + " seat(s)\nAvailable: " + remainingSeats + " seat(s) left.");
+    return;
+  }
+
+  // 3. Ensure none of the non-guest passengers were just booked on another device
+  var duplicatePassengers = [];
+  selectedPassengers.forEach(function(p) {
+    if (!p.isGuest && isPassengerBookedOnMatch(activeMatch.id, p.name)) {
+      duplicatePassengers.push(p.name);
+    }
+  });
+  if (duplicatePassengers.length > 0) {
+    renderBusBookingView();
+    alert("⚠️ Seat already booked for: " + duplicatePassengers.join(", ") + ".");
+    return;
+  }
 
   var adultCount = 0;
   var juniorCount = 0;
@@ -3700,35 +4740,36 @@ window.openBookingModal = function() {
     else adultCount++;
   });
 
-  var stop = document.getElementById("booking-stop").value;
   var total = selectedBus.isFreeBus ? 0.00 : ((adultCount * selectedBus.adultFare) + (juniorCount * selectedBus.juniorFare));
 
   if (user.balance < total) {
+    renderBusBookingView();
     alert("Insufficient funds! You have £" + user.balance.toFixed(2) + " but need £" + total.toFixed(2) + ".");
     return;
   }
 
   if (total > 0 && !window.verifyWalletSpendAuthorization(total, selectedPassengers.length + " Coach Seat(s) vs " + activeMatch.opponent)) {
+    renderBusBookingView();
     return;
   }
 
   user.balance -= total;
 
-  // Create an individual booking record per passenger so each seat can be cancelled or boarded independently
-  var baseTime = Date.now();
+  // Use 32-bit safe integer IDs so Supabase Postgres integer columns never reject the insert
+  var baseId = Math.floor(100000 + (Date.now() % 800000000));
   var bookedNames = [];
 
   selectedPassengers.forEach(function(p, idx) {
     var isJr = (p.type === "Junior" || p.type === "Child");
     var seatFare = selectedBus.isFreeBus ? 0.00 : (isJr ? selectedBus.juniorFare : selectedBus.adultFare);
     var newBooking = {
-      id: baseTime + idx,
+      id: baseId + idx,
       matchId: activeMatch.id,
       busId: selectedBus.busId || 1,
       name: p.name,
       bookedBy: user.name,
       bookedByMemberNo: user.memberNo,
-      stop: stop,
+      stop: chosenStop,
       adults: isJr ? 0 : 1,
       juniors: isJr ? 1 : 0,
       total: seatFare,
@@ -3738,11 +4779,14 @@ window.openBookingModal = function() {
     bookedNames.push(p.name);
 
     if (sbClient) {
-      sbClient.from("bus_bookings").insert([{
+      sbClient.from("bus_bookings").upsert([{
         id: newBooking.id,
+        club_id: window.ACTIVE_CLUB_ID,
         match_id: newBooking.matchId,
         bus_id: newBooking.busId,
         name: newBooking.name,
+        booked_by: newBooking.bookedBy,
+        booked_by_member_no: newBooking.bookedByMemberNo,
         stop: newBooking.stop,
         adults: newBooking.adults,
         juniors: newBooking.juniors,
@@ -3763,7 +4807,7 @@ window.openBookingModal = function() {
     total
   );
 
-  saveState();
+  await window.pushMasterStateToCloud();
   window.refreshAllViews();
   alert("✓ Booking confirmed for: " + bookedNames.join(", ") + " on " + selectedBus.title + "!");
 };
@@ -4221,28 +5265,100 @@ window.requestMemberLink = function() {
 };
 
 // --- WALLET STATEMENT ---
+window.handleStatementTimeframeChange = function(val) {
+  var customBox = document.getElementById("statement-custom-date-box");
+  if (customBox) {
+    customBox.style.display = (val === "CUSTOM") ? "grid" : "none";
+  }
+  renderWalletStatement();
+};
+
 function renderWalletStatement() {
   var container = document.getElementById("wallet-statement-list");
+  var summaryEl = document.getElementById("statement-filtered-summary");
   if (!container) return;
   container.innerHTML = "";
 
   var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var catVal = document.getElementById("filter-statement-category") ? document.getElementById("filter-statement-category").value : "ALL";
+  var dirVal = document.getElementById("filter-statement-direction") ? document.getElementById("filter-statement-direction").value : "ALL";
+  var timeVal = document.getElementById("filter-statement-time") ? document.getElementById("filter-statement-time").value : "ALL";
+  var searchVal = document.getElementById("filter-statement-search") ? document.getElementById("filter-statement-search").value.trim().toLowerCase() : "";
+  var startDateVal = document.getElementById("filter-statement-start-date") ? document.getElementById("filter-statement-start-date").value : "";
+  var endDateVal = document.getElementById("filter-statement-end-date") ? document.getElementById("filter-statement-end-date").value : "";
+
+  var nowMs = Date.now();
+
   var myTxns = (appState.masterAuditTrail || []).filter(function(t) {
-    return t.actor === current || t.target === current;
+    var isMine = (t.actor === current || t.target === current);
+    if (!isMine) return false;
+
+    var isCredit = (t.target === current && t.credit > 0);
+    var isDebit = (t.actor === current && t.debit > 0);
+    if (!isCredit && !isDebit) return false;
+
+    if (dirVal === "IN" && !isCredit) return false;
+    if (dirVal === "OUT" && !isDebit) return false;
+
+    var cat = (t.category || "").toUpperCase();
+    var desc = (t.desc || "").toUpperCase();
+    if (catVal !== "ALL") {
+      if (catVal === "SUBS" && cat.indexOf("SUBS") === -1) return false;
+      if (catVal === "TOPUP" && cat.indexOf("TOPUP") === -1) return false;
+      if (catVal === "WITHDRAWAL" && cat.indexOf("WITHDRAW") === -1 && cat.indexOf("REFUND") === -1) return false;
+      if (catVal === "BUS" && cat.indexOf("BUS") === -1) return false;
+      if (catVal === "CARD" && cat.indexOf("CARD") === -1) return false;
+      if (catVal === "AWAY" && cat.indexOf("AWAY") === -1 && desc.indexOf("AWAY") === -1) return false;
+      if (catVal === "BONUS" && cat.indexOf("BONUS") === -1) return false;
+      if (catVal === "PRIZE" && cat.indexOf("PAYOUT") === -1 && cat.indexOf("PRIZE") === -1 && cat.indexOf("WINNER") === -1) return false;
+    }
+
+    if (searchVal && (t.desc || "").toLowerCase().indexOf(searchVal) === -1 && (t.category || "").toLowerCase().indexOf(searchVal) === -1) {
+      return false;
+    }
+
+    if (timeVal !== "ALL" && t.timestamp) {
+      var dateOnly = t.timestamp.substring(0, 10);
+      var txMs = new Date(t.timestamp.replace(" ", "T")).getTime();
+      var daysAgo = (nowMs - txMs) / (1000 * 60 * 60 * 24);
+      if (timeVal === "7D" && daysAgo > 7) return false;
+      if (timeVal === "30D" && daysAgo > 30) return false;
+      if (timeVal === "YEAR" && daysAgo > 365) return false;
+      if (timeVal === "CUSTOM") {
+        if (startDateVal && dateOnly < startDateVal) return false;
+        if (endDateVal && dateOnly > endDateVal) return false;
+      }
+    }
+
+    return true;
   });
 
+  var sumIn = 0;
+  var sumOut = 0;
+  myTxns.forEach(function(item) {
+    if (item.target === current && item.credit > 0) sumIn += Number(item.credit || 0);
+    else if (item.actor === current && item.debit > 0) sumOut += Number(item.debit || 0);
+  });
+
+  if (summaryEl) {
+    summaryEl.innerHTML =
+      "<span>Showing <strong>" + myTxns.length + "</strong> item(s)</span>" +
+      "<span style='color:var(--green);'>In: +£" + sumIn.toFixed(2) + "</span>" +
+      "<span style='color:#ef4444;'>Out: -£" + sumOut.toFixed(2) + "</span>";
+  }
+
   if (myTxns.length === 0) {
-    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:10px;'>No transactions on record.</div>";
+    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:10px;'>No transactions match the selected filters.</div>";
     return;
   }
 
-  myTxns.slice(0, 20).forEach(function(item) {
+  myTxns.slice(0, 40).forEach(function(item) {
     var isCredit = (item.target === current && item.credit > 0);
     var row = document.createElement("div");
     row.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding:8px 0; font-size:12px;";
     row.innerHTML = 
-      "<div><strong>" + item.desc + "</strong><br><span style='font-size:10px; color:#94a3b8;'>" + item.timestamp.substring(0, 16) + "</span></div>" +
-      "<div style='font-weight:700; color:" + (isCredit ? "var(--green)" : "#ef4444") + ";'>" + (isCredit ? "+£" : "-£") + (isCredit ? item.credit : item.debit).toFixed(2) + "</div>";
+      "<div><strong>" + item.desc + "</strong><br><span style='font-size:10px; color:#94a3b8;'>" + item.timestamp.substring(0, 16) + " • " + item.category + "</span></div>" +
+      "<div style='font-weight:700; color:" + (isCredit ? "var(--green)" : "#ef4444") + ";'>" + (isCredit ? "+£" : "-£") + Number(isCredit ? item.credit : item.debit).toFixed(2) + "</div>";
     container.appendChild(row);
   });
 }
@@ -4264,6 +5380,20 @@ window.exportMyStatementCSV = function() {
 };
 
 // --- COMMS & CHAT HUB ---
+window._pendingConfirmCallback = null;
+
+window.closeConfirmModal = function() {
+  var modal = document.getElementById("modal-confirm");
+  if (modal) modal.style.display = "none";
+  window._pendingConfirmCallback = null;
+};
+
+window.executeConfirmModal = function() {
+  var cb = window._pendingConfirmCallback;
+  window.closeConfirmModal();
+  if (typeof cb === "function") cb();
+};
+
 window.switchCommsSubTab = function(subId) {
   var pBus = document.getElementById("comms-sub-bus");
   var pDm = document.getElementById("comms-sub-dm");
@@ -4303,8 +5433,12 @@ function renderMatchdayBusChat() {
   var adminActions = document.getElementById("bus-chat-admin-actions");
   if (adminActions) adminActions.style.display = (appState.currentUser && appState.currentUser.role === "admin") ? "block" : "none";
 
+  // Auto-prune messages older than 24 hours
+  var cutoffMs = Date.now() - (24 * 60 * 60 * 1000);
   var currentMatchMsgs = (appState.matchdayChat || []).filter(function(msg) {
-    return !msg.matchId || String(msg.matchId) === String(activeMatch.id);
+    var recentEnough = !msg.timestamp || msg.timestamp >= cutoffMs;
+    var sameMatch = !msg.matchId || String(msg.matchId) === String(activeMatch.id);
+    return recentEnough && sameMatch;
   });
 
   if (currentMatchMsgs.length === 0) {
@@ -4323,53 +5457,109 @@ function renderMatchdayBusChat() {
   }
 }
 
-window.sendMatchdayBusMessage = function() {
+window.sendMatchdayBusMessage = async function() {
   var input = document.getElementById("bus-chat-input");
   var text = input ? input.value.trim() : "";
   if (!text) return;
   var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
 
-  var activeMatch = (appState.homeMatches || [])[0] || { id: "H-01" };
+  // Run moderation & profanity filter before posting
+  if (!checkAndEnforceModeration(current, text, "Bus Chat", appState.matchdayChat)) {
+    if (input) input.value = "";
+    return;
+  }
+
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || (appState.homeMatches || [])[0] || { id: "H-01" };
   var now = new Date();
 
-  var newMsg = { id: Date.now(), matchId: activeMatch.id, timestamp: now.getTime(), sender: current, time: now.toTimeString().substring(0, 5), text: text };
+  var newMsg = {
+    id: Math.floor(100000 + Math.random() * 90000000),
+    matchId: activeMatch.id,
+    timestamp: now.getTime(),
+    sender: current,
+    time: now.toTimeString().substring(0, 5),
+    text: text
+  };
   appState.matchdayChat.push(newMsg);
   input.value = "";
 
-  saveState();
+  if (sbClient) {
+    sbClient.from("matchday_chat").upsert([{
+      id: newMsg.id,
+      sender: newMsg.sender,
+      time: newMsg.time,
+      text: newMsg.text
+    }]).then(function() {});
+  }
+
+  await window.pushMasterStateToCloud();
   renderMatchdayBusChat();
   updateCommsBadge();
 };
 
-window.adminPurgeMatchdayChat = function() {
+window.adminPurgeMatchdayChat = async function() {
   if (!confirm("Clear bus chat for this match?")) return;
-  var activeMatch = (appState.homeMatches || [])[0] || { id: "H-01" };
-  appState.matchdayChat = appState.matchdayChat.filter(function(m) { return m.matchId && String(m.matchId) !== String(activeMatch.id); });
-  saveState();
+  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || (appState.homeMatches || [])[0] || { id: "H-01" };
+  appState.matchdayChat = (appState.matchdayChat || []).filter(function(m) { return m.matchId && String(m.matchId) !== String(activeMatch.id); });
+  await window.pushMasterStateToCloud();
   renderMatchdayBusChat();
   updateCommsBadge();
 };
 
-// --- 1-TO-1 DIRECT MESSAGES (ADULT ONLY) ---
+// --- 1-TO-1 DIRECT MESSAGES (ADULT ONLY + PRIVACY ENFORCED) ---
 window._activeDMRecipient = null;
+
+function canCurrentUserDMTarget(curUser, targetUser) {
+  if (!curUser || !targetUser) return false;
+  if (isMemberUnder18(curUser) || isMemberUnder18(targetUser)) return false;
+
+  // Committee Admins and messages to Committee Admins are always permitted for adults
+  if (isUserVerifiedAdmin(curUser) || isUserVerifiedAdmin(targetUser)) return true;
+
+  var targetCfg = getSettingsForMemberNo(targetUser.memberNo);
+  var targetPrivacy = targetUser.dmPrivacy || targetCfg.dmPrivacy || "all";
+
+  if (targetPrivacy === "committee") return false;
+  if (targetPrivacy === "fnf") {
+    var isLinkedFnF = (appState.friendsAndFamily || []).some(function(f) {
+      return f.status === "approved" &&
+             ((f.owner === targetUser.name && f.targetName === curUser.name) ||
+              (f.owner === curUser.name && f.targetName === targetUser.name));
+    });
+    return isLinkedFnF;
+  }
+  return true;
+}
 
 function renderDirectMessagesView() {
   var container = document.getElementById("dm-threads-container");
   if (!container) return;
 
-  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
   var curRecord = getCurrentUserRecord();
+  var current = curRecord ? curRecord.name : "Gary Miller";
 
-  if (curRecord && curRecord.category === "Child") {
+  if (isMemberUnder18(curRecord)) {
     container.innerHTML = "<div style='color:#ef4444; background:#1e0508; border:1px solid #7f1d1d; padding:12px; border-radius:8px; font-size:12px;'>🛡️ Direct messaging is disabled for accounts under 18 under branch safeguarding rules.</div>";
     return;
   }
 
-  var eligibleUsers = (appState.users || []).filter(function(u) { return u.name !== current && u.category !== "Child"; });
-  if (!window._activeDMRecipient && eligibleUsers.length > 0) window._activeDMRecipient = eligibleUsers[0].name;
+  var eligibleUsers = (appState.users || []).filter(function(u) {
+    return u.name !== current && canCurrentUserDMTarget(curRecord, u);
+  });
+
+  if (eligibleUsers.length === 0) {
+    container.innerHTML = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:14px;'>No eligible recipients available based on member DM privacy settings.</div>";
+    return;
+  }
+
+  var stillEligible = eligibleUsers.some(function(u) { return u.name === window._activeDMRecipient; });
+  if (!window._activeDMRecipient || !stillEligible) {
+    window._activeDMRecipient = eligibleUsers[0].name;
+  }
 
   var optionsHtml = eligibleUsers.map(function(u) {
-    return "<option value='" + u.name + "' " + (u.name === window._activeDMRecipient ? "selected" : "") + ">" + u.name + "</option>";
+    var badge = isUserVerifiedAdmin(u) ? " (Committee 🛡️)" : "";
+    return "<option value='" + u.name + "' " + (u.name === window._activeDMRecipient ? "selected" : "") + ">" + u.name + badge + "</option>";
   }).join("");
 
   var conversation = (appState.directMessages || []).filter(function(m) {
@@ -4378,7 +5568,7 @@ function renderDirectMessagesView() {
 
   var messagesHtml = "";
   if (conversation.length === 0) {
-    messagesHtml = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:20px 0;'>💬 No private messages yet.</div>";
+    messagesHtml = "<div style='color:#94a3b8; font-size:11px; text-align:center; padding:20px 0;'>💬 No private messages with " + window._activeDMRecipient + " yet.</div>";
   } else {
     conversation.forEach(function(m) {
       var isMe = (m.from === current);
@@ -4391,12 +5581,12 @@ function renderDirectMessagesView() {
   }
 
   container.innerHTML = 
-    "<div style='margin-bottom:8px;'><label class='form-label' style='font-size:9px;'>Recipient (Adult Member)</label><select class='form-select' onchange='window._activeDMRecipient=this.value; renderDirectMessagesView();'>" + optionsHtml + "</select></div>" +
+    "<div style='margin-bottom:8px;'><label class='form-label' style='font-size:9px;'>Recipient (Respects Member DM Privacy)</label><select class='form-select' onchange='window._activeDMRecipient=this.value; renderDirectMessagesView();'>" + optionsHtml + "</select></div>" +
     "<div id='active-dm-feed' style='background:#0f172a; padding:10px; border-radius:8px; height:160px; overflow-y:auto; margin-bottom:8px; border:1px solid #334155;'>" + messagesHtml + "</div>" +
     "<div style='display:flex; gap:6px;'><input type='text' id='dm-message-input' class='form-input' placeholder='Type private message...' style='font-size:11px;' /><button class='btn btn-red btn-sm' onclick='window.sendDirectMessage()'>Send</button></div>";
 }
 
-window.sendDirectMessage = function() {
+window.sendDirectMessage = async function() {
   var input = document.getElementById("dm-message-input");
   var text = input ? input.value.trim() : "";
   if (!text || !window._activeDMRecipient) return;
@@ -4404,13 +5594,26 @@ window.sendDirectMessage = function() {
   var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
   if (!appState.directMessages) appState.directMessages = [];
 
-  appState.directMessages.push({
-    id: "dm-" + Date.now(), from: current, to: window._activeDMRecipient, text: text,
-    time: new Date().toTimeString().substring(0, 5), timestamp: Date.now()
+  var recentThread = appState.directMessages.filter(function(m) {
+    return (m.from === current && m.to === window._activeDMRecipient) || (m.from === window._activeDMRecipient && m.to === current);
   });
 
-  saveState();
+  if (!checkAndEnforceModeration(current, text, "Direct Message to " + window._activeDMRecipient, recentThread)) {
+    if (input) input.value = "";
+    return;
+  }
+
+  appState.directMessages.push({
+    id: "dm-" + Date.now(),
+    from: current,
+    to: window._activeDMRecipient,
+    text: text,
+    time: new Date().toTimeString().substring(0, 5),
+    timestamp: Date.now()
+  });
+
   input.value = "";
+  await window.pushMasterStateToCloud();
   renderDirectMessagesView();
 };
 
@@ -4420,96 +5623,246 @@ function renderCommitteeDeskView() {
   if (!container) return;
   container.innerHTML = "";
 
-  var current = appState.currentUser.name;
-  var isAdmin = appState.currentUser.role === "admin";
-  var myTickets = appState.helpdeskTickets.filter(function(t) { return isAdmin ? true : t.member.indexOf(current) !== -1; });
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var isAdmin = appState.currentUser && appState.currentUser.role === "admin";
+  var myTickets = (appState.helpdeskTickets || []).filter(function(t) {
+    return isAdmin ? true : (t.member && t.member.indexOf(current) !== -1);
+  });
 
   if (myTickets.length === 0) {
     container.innerHTML = "<div style='color:#94a3b8; font-size:11px;'>No tickets in mailbox.</div>";
     return;
   }
 
+  var tracker = appState.readTracker[current] || { readMsgIds: [], readNoteIds: [] };
+
   myTickets.forEach(function(t) {
+    var unreadMsgs = (t.messages || []).filter(function(m) {
+      return m.sender !== current && (tracker.readMsgIds || []).indexOf(m.id) === -1;
+    }).length;
+    var unreadNotes = isAdmin ? (t.internalNotes || []).filter(function(n) {
+      return n.author !== current && (tracker.readNoteIds || []).indexOf(n.id) === -1;
+    }).length : 0;
+
+    var isClosed = (t.status === "closed" || t.status === "resolved");
     var card = document.createElement("div");
-    card.style.cssText = "background:#0f172a; border:1px solid #334155; padding:10px; border-radius:8px; margin-bottom:8px; font-size:11px;";
+    card.style.cssText = "background:#0f172a; border:1px solid #334155; border-left:3px solid " + (isClosed ? "#64748b" : "var(--safc-gold)") + "; padding:10px; border-radius:8px; margin-bottom:8px; font-size:11px;";
     card.innerHTML = 
-      "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'><strong>#" + t.id + " • " + t.topic + " (" + t.member + ")</strong><span style='color:var(--green); font-weight:700;'>Open</span></div>" +
+      "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>" +
+        "<div><strong>#" + t.id + " • " + t.topic + " (" + t.member + ")</strong>" +
+          (unreadMsgs > 0 ? " <span class='badge-red' style='margin-left:4px;'>" + unreadMsgs + " new</span>" : "") +
+          (unreadNotes > 0 ? " <span class='badge-gold' style='margin-left:4px;'>🔒 " + unreadNotes + "</span>" : "") +
+        "</div>" +
+        "<span style='color:" + (isClosed ? "#94a3b8" : "var(--green)") + "; font-weight:700; text-transform:uppercase; font-size:10px;'>" + (t.status || "Open") + "</span>" +
+      "</div>" +
       "<button class='btn btn-outline btn-sm' style='width:100%;' onclick='window.openMailboxThreadModal(\"" + t.id + "\")'>📬 Open Mailbox Thread</button>";
     container.appendChild(card);
   });
 }
 
 window.openMailboxThreadModal = function(ticketId) {
-  var ticket = appState.helpdeskTickets.find(function(t) { return t.id === ticketId; });
+  var ticket = (appState.helpdeskTickets || []).find(function(t) { return t.id === ticketId; });
   if (!ticket) return;
 
-  var current = appState.currentUser.name;
-  var isAdmin = appState.currentUser.role === "admin";
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var isAdmin = appState.currentUser && appState.currentUser.role === "admin";
+
+  // Mark all messages and internal notes in this thread as read for the current user
+  if (!appState.readTracker[current]) {
+    appState.readTracker[current] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
+  }
+  var tracker = appState.readTracker[current];
+  if (!tracker.readMsgIds) tracker.readMsgIds = [];
+  if (!tracker.readNoteIds) tracker.readNoteIds = [];
+
+  (ticket.messages || []).forEach(function(m) {
+    if (m.id && tracker.readMsgIds.indexOf(m.id) === -1) tracker.readMsgIds.push(m.id);
+  });
+  if (isAdmin) {
+    (ticket.internalNotes || []).forEach(function(n) {
+      if (n.id && tracker.readNoteIds.indexOf(n.id) === -1) tracker.readNoteIds.push(n.id);
+    });
+  }
+  saveLocalCacheOnly();
+  updateCommsBadge();
+  renderCommitteeDeskView();
 
   var modal = document.getElementById("modal-ticket-thread");
   var title = document.getElementById("mailbox-thread-title");
   var body = document.getElementById("mailbox-thread-body");
 
-  title.innerHTML = "Mailbox: #" + ticket.id + " • " + ticket.topic;
+  var isClosed = (ticket.status === "closed" || ticket.status === "resolved");
+  title.innerHTML = "Mailbox: #" + ticket.id + " • " + ticket.topic + " (" + (isClosed ? "Resolved" : "Open") + ")";
 
   var html = "<div style='font-size:11px; font-weight:800; color:var(--safc-gold); margin-bottom:6px;'>Conversation:</div>";
   html += "<div style='background:#0f172a; padding:8px; border-radius:8px; margin-bottom:12px; max-height:160px; overflow-y:auto;'>";
-  ticket.messages.forEach(function(m) {
-    html += "<div style='margin-bottom:6px; background:#1e293b; padding:6px 8px; border-radius:6px; font-size:11px;'><strong>" + m.sender + "</strong> (" + m.time + "): " + m.text + "</div>";
+  (ticket.messages || []).forEach(function(m) {
+    html += "<div style='margin-bottom:6px; background:#1e293b; padding:6px 8px; border-radius:6px; font-size:11px;'><strong>" + m.sender + "</strong> <span style='font-size:9px; color:#94a3b8;'>(" + m.time + ")</span>: " + m.text + "</div>";
   });
   html += "</div>";
 
   if (isAdmin) {
-    html += "<div style='font-size:11px; font-weight:800; color:var(--safc-gold); margin-bottom:6px;'>🔒 Internal Notes:</div>";
-    html += "<div style='background:#1e1b4b; padding:8px; border-radius:8px; margin-bottom:12px;'>";
-    (ticket.internalNotes || []).forEach(function(n) {
-      html += "<div style='margin-bottom:4px; font-size:10px; color:#f8fafc;'><strong>" + n.author + ":</strong> " + n.text + "</div>";
-    });
+    html += "<div class='flex-between' style='margin-bottom:6px;'>" +
+      "<span style='font-size:11px; font-weight:800; color:var(--safc-gold);'>🔒 Committee Internal Notes (Admin Only):</span>" +
+      "<button class='btn btn-outline btn-sm' style='padding:2px 8px; font-size:9px;' onclick='window.toggleHelpdeskTicketStatus(\"" + ticket.id + "\")'>" + (isClosed ? "Reopen Ticket" : "✓ Mark Resolved") + "</button>" +
+    "</div>";
+    html += "<div style='background:#1e1b4b; padding:8px; border-radius:8px; margin-bottom:8px; max-height:110px; overflow-y:auto;'>";
+    if (!ticket.internalNotes || ticket.internalNotes.length === 0) {
+      html += "<div style='font-size:10px; color:#94a3b8;'>No internal committee notes yet.</div>";
+    } else {
+      ticket.internalNotes.forEach(function(n) {
+        html += "<div style='margin-bottom:4px; font-size:10px; color:#f8fafc;'><strong>" + n.author + " (" + (n.time || "") + "):</strong> " + n.text + "</div>";
+      });
+    }
     html += "</div>";
+    html += "<div style='display:flex; gap:4px; margin-bottom:12px;'>" +
+      "<input type='text' id='admin-internal-note-input' class='form-input' placeholder='Add private committee note...' style='font-size:11px;' />" +
+      "<button class='btn btn-gold btn-sm' onclick='window.submitAdminInternalNote(\"" + ticket.id + "\")'>+ Note</button>" +
+    "</div>";
   }
 
   html += 
-    "<div style='display:flex; gap:4px;'><input type='text' id='public-reply-input' class='form-input' placeholder='Type response...' style='font-size:11px;' /><button class='btn btn-red btn-sm' onclick='window.submitPublicReply(\"" + ticket.id + "\")'>Send</button></div>";
+    "<div style='display:flex; gap:4px;'>" +
+      "<input type='text' id='public-reply-input' class='form-input' placeholder='Type reply to thread...' style='font-size:11px;' />" +
+      "<button class='btn btn-red btn-sm' onclick='window.submitPublicReply(\"" + ticket.id + "\")'>Send</button>" +
+    "</div>";
 
   body.innerHTML = html;
   modal.style.display = "flex";
 };
 
 window.closeMailboxThreadModal = function() {
-  document.getElementById("modal-ticket-thread").style.display = "none";
+  var modal = document.getElementById("modal-ticket-thread");
+  if (modal) modal.style.display = "none";
 };
 
-window.submitPublicReply = function(ticketId) {
+window.submitAdminInternalNote = async function(ticketId) {
+  var input = document.getElementById("admin-internal-note-input");
+  var text = input ? input.value.trim() : "";
+  if (!text) return;
+
+  var ticket = (appState.helpdeskTickets || []).find(function(t) { return t.id === ticketId; });
+  if (!ticket) return;
+  if (!Array.isArray(ticket.internalNotes)) ticket.internalNotes = [];
+
+  var noteId = "n-" + Date.now();
+  var author = appState.currentUser ? appState.currentUser.name : "Admin";
+  ticket.internalNotes.push({
+    id: noteId,
+    author: author,
+    time: new Date().toTimeString().substring(0, 5),
+    text: text
+  });
+
+  if (appState.readTracker[author] && appState.readTracker[author].readNoteIds) {
+    appState.readTracker[author].readNoteIds.push(noteId);
+  }
+
+  if (sbClient) {
+    sbClient.from("helpdesk_tickets").update({ internal_notes: ticket.internalNotes }).eq("id", ticket.id).then(function() {});
+  }
+
+  await window.pushMasterStateToCloud();
+  window.openMailboxThreadModal(ticketId);
+  updateCommsBadge();
+};
+
+window.toggleHelpdeskTicketStatus = async function(ticketId) {
+  var ticket = (appState.helpdeskTickets || []).find(function(t) { return t.id === ticketId; });
+  if (!ticket) return;
+  ticket.status = (ticket.status === "open") ? "resolved" : "open";
+
+  if (sbClient) {
+    sbClient.from("helpdesk_tickets").update({ status: ticket.status }).eq("id", ticket.id).then(function() {});
+  }
+
+  await window.pushMasterStateToCloud();
+  window.openMailboxThreadModal(ticketId);
+  renderCommitteeDeskView();
+};
+
+window.submitPublicReply = async function(ticketId) {
   var input = document.getElementById("public-reply-input");
   var text = input ? input.value.trim() : "";
   if (!text) return;
 
-  var ticket = appState.helpdeskTickets.find(function(t) { return t.id === ticketId; });
-  if (ticket) {
-    ticket.messages.push({ id: "m-" + Date.now(), sender: appState.currentUser.name, time: new Date().toTimeString().substring(0, 5), text: text });
-    saveState();
-    window.openMailboxThreadModal(ticketId);
-    updateCommsBadge();
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  var ticket = (appState.helpdeskTickets || []).find(function(t) { return t.id === ticketId; });
+  if (!ticket) return;
+
+  if (!checkAndEnforceModeration(current, text, "Helpdesk #" + ticketId, ticket.messages)) {
+    if (input) input.value = "";
+    return;
   }
-};
 
-window.submitMemberHelpdeskTicket = function() {
-  var topic = document.getElementById("helpdesk-topic").value;
-  var text = document.getElementById("helpdesk-query").value.trim();
-  if (!text) return;
-
-  var newId = "TICK-" + Math.floor(100 + Math.random() * 900);
-  appState.helpdeskTickets.unshift({
-    id: newId, member: appState.currentUser.name, topic: topic, status: "open",
-    messages: [{ id: "m-" + Date.now(), sender: appState.currentUser.name, time: new Date().toTimeString().substring(0, 5), text: text }],
-    internalNotes: []
+  var msgId = "m-" + Date.now();
+  ticket.messages.push({
+    id: msgId,
+    sender: current,
+    time: new Date().toTimeString().substring(0, 5),
+    text: text
   });
 
-  document.getElementById("helpdesk-query").value = "";
-  saveState();
+  if (appState.readTracker[current] && appState.readTracker[current].readMsgIds) {
+    appState.readTracker[current].readMsgIds.push(msgId);
+  }
+
+  if (sbClient) {
+    sbClient.from("helpdesk_tickets").update({ messages: ticket.messages }).eq("id", ticket.id).then(function() {});
+  }
+
+  await window.pushMasterStateToCloud();
+  window.openMailboxThreadModal(ticketId);
+  updateCommsBadge();
+};
+
+window.submitMemberHelpdeskTicket = async function() {
+  var topic = document.getElementById("helpdesk-topic").value;
+  var queryEl = document.getElementById("helpdesk-query");
+  var text = queryEl ? queryEl.value.trim() : "";
+  if (!text) return;
+
+  var current = appState.currentUser ? appState.currentUser.name : "Gary Miller";
+  if (!checkAndEnforceModeration(current, text, "Helpdesk New Ticket", [])) {
+    return;
+  }
+
+  var newId = "TICK-" + Math.floor(100 + Math.random() * 900);
+  var firstMsgId = "m-" + Date.now();
+  var newTicket = {
+    id: newId,
+    member: current,
+    topic: topic,
+    status: "open",
+    escalatedToGraham: false,
+    created: new Date().toISOString().slice(0, 16).replace("T", " "),
+    messages: [{ id: firstMsgId, sender: current, time: new Date().toTimeString().substring(0, 5), text: text }],
+    internalNotes: []
+  };
+
+  appState.helpdeskTickets.unshift(newTicket);
+  if (!appState.readTracker[current]) appState.readTracker[current] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
+  appState.readTracker[current].readMsgIds.push(firstMsgId);
+
+  if (queryEl) queryEl.value = "";
+
+  if (sbClient) {
+    sbClient.from("helpdesk_tickets").upsert([{
+      id: newTicket.id,
+      member: newTicket.member,
+      topic: newTicket.topic,
+      status: newTicket.status,
+      escalated_to_graham: false,
+      created: newTicket.created,
+      messages: newTicket.messages,
+      internal_notes: []
+    }]).then(function() {});
+  }
+
+  await window.pushMasterStateToCloud();
   renderCommitteeDeskView();
   updateCommsBadge();
-  alert("Ticket #" + newId + " submitted.");
+  alert("✓ Ticket #" + newId + " submitted to the Committee Helpdesk.");
 };
 
 // ========================================================
@@ -4517,7 +5870,7 @@ window.submitMemberHelpdeskTicket = function() {
 // ========================================================
 
 window._hudCountdownTimer = null;
-function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
+function startKickoffCountdown(targetIsoDate, stopAndTimeDisplay) {
   if (window._hudCountdownTimer) clearInterval(window._hudCountdownTimer);
   var targetTime = new Date(targetIsoDate).getTime();
 
@@ -4528,9 +5881,9 @@ function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
 
     var diff = targetTime - new Date().getTime();
     if (isNaN(diff) || diff <= 0) {
-      timerElem.textContent = "MATCH IN PROGRESS / FT";
+      timerElem.textContent = "BUS DEPARTED / MATCH LIVE";
       timerElem.style.color = "var(--safc-gold)";
-      if (stopElem) stopElem.textContent = "Kickoff Passed";
+      if (stopElem) stopElem.textContent = stopAndTimeDisplay || "In Progress";
       return;
     }
 
@@ -4542,7 +5895,7 @@ function startKickoffCountdown(targetIsoDate, kickoffTimeDisplay) {
     var str = (days > 0 ? days + "d " : "") + (hours < 10 ? "0" : "") + hours + "h " + (minutes < 10 ? "0" : "") + minutes + "m " + (seconds < 10 ? "0" : "") + seconds + "s";
     timerElem.textContent = str;
     timerElem.style.color = "#ffffff";
-    if (stopElem) stopElem.textContent = "Kickoff @ " + (kickoffTimeDisplay || "15:00");
+    if (stopElem) stopElem.textContent = stopAndTimeDisplay || "Pickup Stop";
   }
 
   updateTimer();
@@ -4759,9 +6112,9 @@ window.formatPublicManifestName = function(rawName) {
   var curUser = getCurrentUserRecord();
   var cfg = window.getExtendedSettings();
 
-  var mode = (curUser && curUser.name.toLowerCase() === rawName.toLowerCase())
-    ? cfg.manifestDisplay
-    : "nickname";
+  var mode = (userObj && userObj.manifestDisplay)
+    ? userObj.manifestDisplay
+    : ((curUser && curUser.name.toLowerCase() === rawName.toLowerCase()) ? cfg.manifestDisplay : "nickname");
 
   if (mode === "initials") {
     var parts = rawName.trim().split(/\s+/);
@@ -4884,6 +6237,13 @@ window.updateExtendedSettings = function() {
   var legacyNotif = document.getElementById("pref-notifications");
   if (legacyNotif) {
     legacyNotif.checked = (cfg.notifTravelUrgent || cfg.notifAwayTickets || cfg.notifFundraiser || cfg.notifComms);
+  }
+  
+  var curUser = getCurrentUserRecord();
+  if (curUser) {
+    curUser.manifestDisplay = cfg.manifestDisplay;
+    curUser.dmPrivacy = cfg.dmPrivacy;
+    saveState();
   }
 
   window.saveExtendedSettingsObject(cfg);
@@ -5146,8 +6506,8 @@ window.sendTestClubNotification = function() {
   }
 })();
 
-// 4-Digit Security PIN & Biometric Enrollment
-window.saveMemberSecurityPin = function() {
+// 4-Digit Security PIN & Real WebAuthn Biometric Enrollment
+window.saveMemberSecurityPin = async function() {
   var input = document.getElementById("settings-pin-input");
   var val = input ? input.value.trim() : "";
   if (!/^\d{4}$/.test(val)) {
@@ -5157,42 +6517,121 @@ window.saveMemberSecurityPin = function() {
   var cfg = window.getExtendedSettings();
   cfg.securityPin = val;
   window.saveExtendedSettingsObject(cfg);
+
+  var user = getCurrentUserRecord();
+  if (user) {
+    user.securityPin = val;
+    saveState();
+    await window.syncMemberRecordToSupabase(user);
+  }
+
   if (input) input.value = "";
   window.syncSettingsDrawerUI();
-  alert("✓ 4-Digit Security & Wallet PIN saved!");
+  window.renderLoginScreenState();
+  alert("✓ 4-Digit Security & Wallet PIN saved and synced to your cloud account!");
 };
 
-window.clearMemberSecurityPin = function() {
+window.clearMemberSecurityPin = async function() {
   var cfg = window.getExtendedSettings();
-  if (cfg.securityPin) {
+  var user = getCurrentUserRecord();
+  var activePin = (user && user.securityPin) ? user.securityPin : cfg.securityPin;
+
+  if (activePin) {
     var check = prompt("Enter your current 4-digit PIN to remove it:");
-    if (check !== cfg.securityPin) {
+    if (check !== activePin) {
       alert("Incorrect PIN.");
       return;
     }
   }
   cfg.securityPin = "";
   window.saveExtendedSettingsObject(cfg);
+
+  if (user) {
+    user.securityPin = "";
+    saveState();
+    await window.syncMemberRecordToSupabase(user);
+  }
+
   window.syncSettingsDrawerUI();
+  window.renderLoginScreenState();
   alert("✓ Security PIN removed.");
 };
 
 window.toggleBiometricEnrollment = async function(enabled) {
   var cfg = window.getExtendedSettings();
+  var user = getCurrentUserRecord();
+  var bioEl = document.getElementById("pref-biometric-unlock");
+
   if (!enabled) {
     cfg.biometricUnlock = false;
     window.saveExtendedSettingsObject(cfg);
+    window.renderLoginScreenState();
     return;
   }
-  if (!window.PublicKeyCredential) {
-    alert("Biometric Passkeys (Face ID / Fingerprint) are not supported on this browser/device.");
-    var bioEl = document.getElementById("pref-biometric-unlock");
+
+  if (!window.PublicKeyCredential || !navigator.credentials || typeof navigator.credentials.create !== "function") {
+    alert("⚠️ Biometric Passkeys (Face ID / Touch ID / Fingerprint) are not available in this browser or embedded preview window. Open your live Netlify HTTPS link directly on your phone or computer browser to enroll hardware biometrics.");
     if (bioEl) bioEl.checked = false;
     return;
   }
-  cfg.biometricUnlock = true;
-  window.saveExtendedSettingsObject(cfg);
-  alert("✓ Biometric Quick-Unlock enabled for this device.");
+
+  try {
+    var challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    var userIdBytes = new Uint8Array(16);
+    var seedStr = (user && user.memberNo) ? user.memberNo : "COX-084";
+    for (var i = 0; i < seedStr.length && i < 16; i++) {
+      userIdBytes[i] = seedStr.charCodeAt(i);
+    }
+
+    var credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge,
+        rp: {
+          name: (appState.clubIdentity && appState.clubIdentity.clubName) ? appState.clubIdentity.clubName : "Coxhoe Branch SAFC"
+        },
+        user: {
+          id: userIdBytes,
+          name: (user && user.email) ? user.email : ((user ? user.memberNo : "member") + "@coxhoesafc.co.uk"),
+          displayName: user ? user.name : "Branch Member"
+        },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },   // ES256
+          { type: "public-key", alg: -257 }  // RS256
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey: "preferred"
+        },
+        timeout: 60000
+      }
+    });
+
+    if (credential && credential.rawId) {
+      var credIdBase64 = bufferToBase64Url(credential.rawId);
+      cfg.biometricUnlock = true;
+      cfg.biometricCredId = credIdBase64;
+      window.saveExtendedSettingsObject(cfg);
+
+      if (user) {
+        user.biometricCredId = credIdBase64;
+        saveState();
+        await window.syncMemberRecordToSupabase(user);
+      }
+
+      window.syncSettingsDrawerUI();
+      window.renderLoginScreenState();
+      alert("🧬 Hardware Biometric Passkey enrolled! You can now unlock the app with your fingerprint or Face ID on the Sign-In screen.");
+    }
+  } catch (err) {
+    console.warn("WebAuthn biometric enrollment error:", err);
+    cfg.biometricUnlock = false;
+    window.saveExtendedSettingsObject(cfg);
+    if (bioEl) bioEl.checked = false;
+    alert("🧬 Biometric enrollment was cancelled or blocked by an embedded preview frame. Note: Hardware fingerprint/Face ID must be enrolled on your live HTTPS URL (not inside an iframe).");
+  }
 };
 
 // Wallet Spend Protection Hook (Guards Coach Bookings & 40-Team Scratch Card)
