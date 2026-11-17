@@ -1603,6 +1603,10 @@ window.setUserSession = function(name, role, memberNo) {
   window.refreshAllViews();
 };
 
+window.quickLogin = function(name, role, memberNo) {
+  window.setUserSession(name, role, memberNo);
+};
+
 window.handleLogin = async function() {
   var input = document.getElementById("login-username");
   var passInput = document.getElementById("login-password-input");
