@@ -96,7 +96,7 @@
       <!-- PANE A: MEMBER SIGN IN -->
       <div id="auth-pane-signin">
         <h2 style="font-size:17px; font-weight:900; margin-bottom:4px;">Supporter Portal Sign-In</h2>
-        <p class="text-xs text-muted mb-2">Sign in with your Email Address, Full Name, or Coxhoe Branch Member #.</p>
+        <p class="text-xs text-muted mb-2">Sign in with your Email Address, Full Name, or Coxhoe Branch Member # and Password.</p>
 
         <div class="form-group">
           <label class="form-label">Email, Full Name or Member #</label>
@@ -104,8 +104,9 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">4-Digit Security PIN</label>
-          <input type="password" id="login-pin-input" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="Enter your 4-digit PIN" style="letter-spacing:4px;" />
+          <label class="form-label">Password</label>
+          <input type="password" id="login-password-input" class="form-input" placeholder="Enter your account password" autocomplete="current-password" />
+          <span style="font-size:9px; color:var(--text-muted); display:block; margin-top:3px;">Tip: Once signed in, you can enable a 4-Digit Quick-Unlock PIN or Biometrics in ⚙️ App Settings.</span>
         </div>
 
         <button type="button" id="btn-signin-submit" class="btn btn-red" onclick="window.handleLogin()">Sign In to Portal ➔</button>
@@ -127,27 +128,39 @@
           </div>
         </div>
 
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div class="form-group">
+            <label class="form-label">Create Password *</label>
+            <input type="password" id="reg-password" class="form-input" placeholder="Min. 6 characters" autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Confirm Password *</label>
+            <input type="password" id="reg-password-confirm" class="form-input" placeholder="Repeat password" autocomplete="new-password" />
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Email Address *</label>
           <div style="display:flex; gap:6px;">
             <input type="email" id="reg-email" class="form-input" placeholder="name@example.com" autocomplete="email" style="flex:1;" />
-            <button type="button" id="btn-send-verify-code" class="btn btn-outline btn-sm" style="white-space:nowrap; border-color:var(--safc-gold); color:var(--safc-gold);" onclick="window.sendRegistrationVerificationCode()">✉️ Verify Email</button>
+            <button type="button" id="btn-send-verify-code" class="btn btn-outline btn-sm" style="white-space:nowrap; border-color:var(--safc-gold); color:var(--safc-gold);" onclick="window.sendRegistrationVerificationCode()">✉️ Send Verification Email</button>
           </div>
         </div>
 
-        <!-- 6-Digit Email Verification Box -->
+        <!-- Real Email Inbox Verification Box -->
         <div id="reg-email-verify-box" style="display:none; background:#0f172a; border:1px solid var(--safc-gold); padding:10px; border-radius:8px; margin-bottom:10px;">
           <div class="flex-between" style="margin-bottom:4px;">
-            <strong style="font-size:11px; color:var(--safc-gold);">🔐 Verify Your Email Address</strong>
-            <span id="reg-email-status-pill" class="badge-gold">Code Sent</span>
+            <strong style="font-size:11px; color:var(--safc-gold);">📧 Check Your Email Inbox</strong>
+            <span id="reg-email-status-pill" class="badge-gold">Email Sent</span>
           </div>
-          <p id="reg-email-verify-hint" style="font-size:10px; color:#cbd5e1; margin-bottom:6px; line-height:1.35;">
-            Enter the 6-digit verification code sent to your email address.
+          <p id="reg-email-verify-hint" style="font-size:10px; color:#cbd5e1; margin-bottom:8px; line-height:1.4;">
+            We have sent a verification email to your inbox. Click the confirmation link in that email (or enter the 6-digit code if included) and tap Verify below.
           </p>
-          <div style="display:flex; gap:6px;">
-            <input type="text" id="reg-verify-code-input" class="form-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit code" style="flex:1; text-align:center; letter-spacing:4px; font-weight:800;" />
-            <button type="button" class="btn btn-gold btn-sm" onclick="window.confirmRegistrationVerificationCode()">Confirm Code</button>
+          <div style="display:flex; gap:6px; margin-bottom:6px;">
+            <input type="text" id="reg-verify-code-input" class="form-input" maxlength="6" inputmode="numeric" placeholder="6-digit code (if using OTP)" style="flex:1; text-align:center; letter-spacing:2px; font-weight:700;" />
+            <button type="button" class="btn btn-gold btn-sm" onclick="window.confirmRegistrationVerificationCode()">Verify Code</button>
           </div>
+          <button type="button" class="btn btn-outline btn-sm" style="width:100%; border-color:var(--green); color:var(--green); font-size:10px;" onclick="window.checkEmailLinkVerified()">✓ I Clicked the Verification Link in My Email</button>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
@@ -161,7 +174,7 @@
           </div>
         </div>
 
-        <!-- Dynamic Under-18 Safeguarding Box (Appears automatically if DOB is under 18) -->
+        <!-- Dynamic Under-18 Safeguarding Box -->
         <div id="reg-u18-guardian-box" style="display:none; background:#1e1b4b; border:1px solid var(--safc-gold); padding:10px; border-radius:8px; margin-bottom:10px;">
           <strong style="font-size:11px; color:var(--safc-gold); display:block; margin-bottom:4px;">🛡️ Under-18 Junior Safeguarding</strong>
           <p style="font-size:10px; color:#cbd5e1; margin-bottom:6px; line-height:1.35;">
@@ -171,15 +184,9 @@
           <input type="text" id="reg-guardian-name" class="form-input" placeholder="e.g. Gary Miller or COX-084" />
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-          <div class="form-group">
-            <label class="form-label">Mobile Number *</label>
-            <input type="tel" id="reg-phone" class="form-input" placeholder="07..." autocomplete="tel" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Set 4-Digit PIN *</label>
-            <input type="password" id="reg-pin" class="form-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1973" style="text-align:center; letter-spacing:3px;" />
-          </div>
+        <div class="form-group">
+          <label class="form-label">Mobile Number *</label>
+          <input type="tel" id="reg-phone" class="form-input" placeholder="07..." autocomplete="tel" />
         </div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
@@ -195,7 +202,6 @@
 
         <button type="button" id="btn-complete-registration" class="btn btn-gold" onclick="window.handleMemberRegistration()">✓ Complete Registration & Sign In</button>
       </div>
-    </div>
 
     <!-- 3. Sandbox / Persona Quick-Switch (Locked to Authenticated Admins Only) -->
     <div id="login-demo-switcher-card" class="card" style="display:none; background:#0f172a; border:1px dashed var(--safc-gold);">
@@ -468,7 +474,10 @@
         <span>🚌 Bus Chat</span>
         <span id="sub-bus-badge" class="badge-red" style="display:none; margin-left:4px;">0</span>
       </button>
-      <button id="btn-sub-dm" class="btn btn-outline btn-sm" style="flex:1;" onclick="switchCommsSubTab('dm')">💬 Private DMs</button>
+      <button id="btn-sub-dm" class="btn btn-outline btn-sm" style="flex:1; position:relative;" onclick="switchCommsSubTab('dm')">
+        <span>💬 Private DMs</span>
+        <span id="sub-dm-badge" class="badge-red" style="display:none; margin-left:4px;">0</span>
+      </button>
       <button id="btn-sub-desk" class="btn btn-outline btn-sm" style="flex:1; position:relative;" onclick="switchCommsSubTab('desk')">
         <span>🛡️ Helpdesk</span>
         <span id="sub-helpdesk-badge" style="display:none; font-size:9px; margin-left:4px; font-weight:800;"></span>

@@ -580,7 +580,6 @@ window.syncMemberRecordToSupabase = async function(u) {
   var extCfg = getSettingsForMemberNo(u.memberNo);
 
   try {
-    // Check if member_no already exists in Supabase so we always preserve its exact primary key id
     var existingRow = await sbClient
       .from("members")
       .select("id")
@@ -600,6 +599,7 @@ window.syncMemberRecordToSupabase = async function(u) {
       last_name: u.lastName || u.name.split(" ").slice(1).join(" ") || "",
       email: u.email || null,
       email_verified: !!u.emailVerified,
+      password_hash: u.passwordHash || null,
       nickname: u.nickname || null,
       dob: u.dob || null,
       phone: u.phone || null,
@@ -637,7 +637,19 @@ function saveState() {
 
 window.pushMasterStateToCloud = async function() {
   if (!sbClient) return;
-  var nowTs = Date.now();
+
+  // Ensure any locally saved PIN/Biometrics on this device are copied into appState.users before pushing
+  (appState.users || []).forEach(function(u) {
+    if (!u || !u.memberNo) return;
+    try {
+      var rawLocal = JSON.parse(localStorage.getItem("safc_ext_settings_" + u.memberNo) || "{}");
+      if (rawLocal.securityPin && !u.securityPin) u.securityPin = rawLocal.securityPin;
+      if (rawLocal.biometricCredId && !u.biometricCredId) u.biometricCredId = rawLocal.biometricCredId;
+    } catch (e) {}
+  });
+
+  // Generate a unique revision stamp that never suffers from clock-skew between phone and computer
+  var nowTs = Date.now() + Math.floor(Math.random() * 999);
   _lastCloudSyncTimestamp = nowTs;
 
   var payload = { _syncTs: nowTs };
@@ -649,7 +661,7 @@ window.pushMasterStateToCloud = async function() {
     await sbClient.from("club_state").upsert([{
       club_id: window.ACTIVE_CLUB_ID,
       state_data: payload,
-      updated_at: new Date(nowTs).toISOString()
+      updated_at: new Date().toISOString()
     }], { onConflict: "club_id" });
 
     var cur = getCurrentUserRecord();
@@ -659,11 +671,75 @@ window.pushMasterStateToCloud = async function() {
   }
 };
 
+// Detect incoming messages/events addressed to the logged-in member and fire recipient-only notifications
+function checkIncomingRecipientNotifications(incomingState) {
+  if (!incomingState || !appState.currentUser || !appState.currentUser.name) return;
+  var loginView = document.getElementById("view-login");
+  if (loginView && loginView.classList.contains("active")) return; // Don't fire if logged out
+
+  var me = appState.currentUser.name;
+  var myRole = appState.currentUser.role;
+
+  // 1. Incoming Private DM (Recipient Only — just like WhatsApp)
+  var oldDmIds = (appState.directMessages || []).map(function(m) { return m.id; });
+  (incomingState.directMessages || []).forEach(function(m) {
+    if (m.id && oldDmIds.indexOf(m.id) === -1 && m.to === me && m.from !== me) {
+      if (typeof window.dispatchClubNotification === "function") {
+        window.dispatchClubNotification("comms", "💬 New Message from " + m.from, m.text, "view-comms");
+      }
+    }
+  });
+
+  // 2. Incoming Helpdesk Reply (Recipient or On-Call Admin Only)
+  var oldTickets = appState.helpdeskTickets || [];
+  (incomingState.helpdeskTickets || []).forEach(function(incT) {
+    var prevT = oldTickets.find(function(o) { return o.id === incT.id; });
+    var prevMsgIds = prevT && prevT.messages ? prevT.messages.map(function(x) { return x.id; }) : [];
+    var isMyTicket = (incT.member && incT.member.indexOf(me) !== -1) || myRole === "admin";
+    if (!isMyTicket) return;
+
+    (incT.messages || []).forEach(function(msg) {
+      if (msg.id && prevMsgIds.indexOf(msg.id) === -1 && msg.sender !== me) {
+        if (typeof window.dispatchClubNotification === "function") {
+          window.dispatchClubNotification("comms", "📬 Helpdesk Reply (#" + incT.id + ")", msg.sender + ": " + msg.text, "view-comms");
+        }
+      }
+    });
+  });
+
+  // 3. Incoming Branch Announcement
+  var oldAnnIds = (appState.announcements || []).map(function(a) { return String(a.id); });
+  (incomingState.announcements || []).forEach(function(a) {
+    if (a.id && oldAnnIds.indexOf(String(a.id)) === -1) {
+      if (typeof window.dispatchClubNotification === "function") {
+        window.dispatchClubNotification("travel", (a.isUrgent ? "🚨 URGENT: " : "📢 ") + a.title, a.content || "", "view-hud");
+      }
+    }
+  });
+
+  // 4. Away Ticket Allocation Update for Me
+  var oldRegs = appState.awayRegistrations || [];
+  (incomingState.awayRegistrations || []).forEach(function(r) {
+    var wasAlloc = oldRegs.some(function(or) { return or.fixtureId === r.fixtureId && or.memberName === r.memberName && or.allocated; });
+    var involvesMe = (r.memberName === me) || (r.party && r.party.some(function(p) { return p.indexOf(me) !== -1; }));
+    if (r.allocated && !wasAlloc && involvesMe) {
+      var fix = (incomingState.awayFixtures || appState.awayFixtures || []).find(function(f) { return f.id === r.fixtureId; });
+      if (typeof window.dispatchClubNotification === "function") {
+        window.dispatchClubNotification("away", "🎟️ Away Ticket Allocated!", "Your ticket application for " + (fix ? fix.opponent : "Away Fixture") + " has been approved!", "view-travel");
+      }
+    }
+  });
+}
+
 function applyIncomingCloudState(stateData, forceApply) {
   if (!stateData || typeof stateData !== "object") return;
-  if (!forceApply && stateData._syncTs && stateData._syncTs <= _lastCloudSyncTimestamp) return;
+  // Use strict !== comparison so slight clock differences between phone and PC never drop updates
+  if (!forceApply && stateData._syncTs && stateData._syncTs === _lastCloudSyncTimestamp) return;
 
   _isApplyingCloudState = true;
+  if (_lastCloudSyncTimestamp !== 0 && !forceApply) {
+    checkIncomingRecipientNotifications(stateData);
+  }
   if (stateData._syncTs) _lastCloudSyncTimestamp = stateData._syncTs;
 
   SHARED_STATE_KEYS.forEach(function(k) {
@@ -693,7 +769,7 @@ function applyIncomingCloudState(stateData, forceApply) {
   _isApplyingCloudState = false;
 }
 
-// Atomic Pre-Flight Fetch: Pulls exact live state before claiming squares or booking seats
+// Atomic Pre-Flight Fetch: Pulls exact live state + member security columns before login/claims
 window.pullLatestCloudStateNow = async function() {
   if (!sbClient || !navigator.onLine) return false;
   try {
@@ -705,8 +781,25 @@ window.pullLatestCloudStateNow = async function() {
 
     if (csRes && csRes.data && csRes.data.state_data && Object.keys(csRes.data.state_data).length > 0) {
       applyIncomingCloudState(csRes.data.state_data, true);
-      return true;
     }
+
+    var mRes = await sbClient.from("members").select("*");
+    if (mRes && mRes.data && mRes.data.length > 0) {
+      mRes.data.forEach(function(row) {
+        var u = (appState.users || []).find(function(x) {
+          return (x.memberNo && x.memberNo === row.member_no) || (x.name && row.name && x.name.toLowerCase() === row.name.toLowerCase());
+        });
+        if (u) {
+          if (row.security_pin) u.securityPin = row.security_pin;
+          if (row.password_hash) u.passwordHash = row.password_hash;
+          if (row.biometric_cred_id) u.biometricCredId = row.biometric_cred_id;
+          if (row.email) u.email = row.email;
+          if (row.role) u.role = row.role;
+        }
+      });
+      saveLocalCacheOnly();
+    }
+    return true;
   } catch (e) {
     console.warn("Pre-flight cloud fetch warning:", e);
   }
@@ -718,7 +811,6 @@ async function initSupabaseCloudSync() {
   if (!sbClient) return;
 
   try {
-    // 1. Pull Master Club State (contains all 19 shared state collections)
     var csRes = await sbClient
       .from("club_state")
       .select("*")
@@ -730,7 +822,6 @@ async function initSupabaseCloudSync() {
       applyIncomingCloudState(csRes.data.state_data, true);
     }
 
-    // 2. Merge any members from the relational `members` table without wiping newly added users
     var mRes = await sbClient.from("members").select("*");
     if (mRes.data && mRes.data.length > 0) {
       var existingUsers = appState.users || [];
@@ -749,6 +840,7 @@ async function initSupabaseCloudSync() {
           lastName: row.last_name || prev.lastName || "",
           email: row.email || prev.email || "",
           emailVerified: row.email_verified !== undefined ? row.email_verified : !!prev.emailVerified,
+          passwordHash: row.password_hash || prev.passwordHash || "",
           nickname: row.nickname || prev.nickname || "",
           dob: row.dob || prev.dob || null,
           phone: row.phone || prev.phone || "",
@@ -777,7 +869,6 @@ async function initSupabaseCloudSync() {
       appState.users = existingUsers;
     }
 
-    // Seed initial master state if club_state table was empty
     if (!hasMasterCloudState) {
       await window.pushMasterStateToCloud();
     } else {
@@ -785,7 +876,6 @@ async function initSupabaseCloudSync() {
       window.refreshAllViews();
     }
 
-    // 3. Subscribe to Realtime Broadcasts across club_state and bus_bookings
     sbClient
       .channel("branch-master-sync-" + window.ACTIVE_CLUB_ID)
       .on("postgres_changes", { event: "*", schema: "public", table: "club_state" }, function(payload) {
@@ -805,7 +895,6 @@ async function initSupabaseCloudSync() {
       })
       .subscribe();
 
-    // 4. Automatic 3.5-second heartbeat & tab-focus sync so mobile browsers never miss an update
     setInterval(async function() {
       if (document.hidden || !navigator.onLine) return;
       try {
@@ -818,7 +907,7 @@ async function initSupabaseCloudSync() {
           applyIncomingCloudState(pollRes.data.state_data, false);
         }
       } catch (e) {}
-    }, 3500);
+    }, 3000);
 
     window.addEventListener("focus", function() {
       window.pullLatestCloudStateNow();
@@ -1071,30 +1160,39 @@ function verifyMembershipAccess(actionName) {
   return true;
 }
 
-// --- COMMS DUAL-BADGE ENGINE ---
+// --- COMMS DUAL-BADGE & APP ICON BADGE ENGINE ---
 function computeUserBadges(userName, role) {
   if (!appState.readTracker[userName]) {
-    appState.readTracker[userName] = { busChatCount: 0, readMsgIds: [], readNoteIds: [] };
+    appState.readTracker[userName] = { busChatCount: 0, readMsgIds: [], readNoteIds: [], readDmIds: [] };
   }
   var tracker = appState.readTracker[userName];
   if (!tracker.readMsgIds) tracker.readMsgIds = [];
   if (!tracker.readNoteIds) tracker.readNoteIds = [];
+  if (!tracker.readDmIds) tracker.readDmIds = [];
 
-  var redCount = 0;
+  var unreadChat = 0;
   if (appState.modules && appState.modules.commsBusChat) {
     var totalChat = (appState.matchdayChat || []).length;
     if (totalChat > tracker.busChatCount) {
-      redCount += (totalChat - tracker.busChatCount);
+      unreadChat = (totalChat - tracker.busChatCount);
     }
   }
 
+  var unreadDms = 0;
+  (appState.directMessages || []).forEach(function(dm) {
+    if (dm.to === userName && dm.from !== userName && tracker.readDmIds.indexOf(dm.id) === -1) {
+      unreadDms++;
+    }
+  });
+
+  var unreadDesk = 0;
   if (appState.modules && appState.modules.commsHelpdesk && appState.helpdeskTickets) {
     appState.helpdeskTickets.forEach(function(t) {
       (t.messages || []).forEach(function(m) {
         if (m.sender !== userName && m.sender.indexOf(userName) === -1) {
           var isForMe = (role === "admin") ? true : (t.member && t.member.indexOf(userName) !== -1);
           if (isForMe && tracker.readMsgIds.indexOf(m.id) === -1) {
-            redCount++;
+            unreadDesk++;
           }
         }
       });
@@ -1112,7 +1210,14 @@ function computeUserBadges(userName, role) {
     });
   }
 
-  return { red: redCount, gold: goldCount };
+  var redCount = unreadChat + unreadDms + unreadDesk;
+  return {
+    red: redCount,
+    gold: goldCount,
+    unreadChat: unreadChat,
+    unreadDms: unreadDms,
+    unreadDesk: unreadDesk
+  };
 }
 
 function updateCommsBadge() {
@@ -1120,6 +1225,7 @@ function updateCommsBadge() {
   var role = appState.currentUser ? appState.currentUser.role : "member";
   var badges = computeUserBadges(user, role);
 
+  // 1. Bottom Navigation Bar Red & Gold Bubbles
   var badgeRed = document.getElementById("nav-comms-badge-red");
   var badgeGold = document.getElementById("nav-comms-badge-gold");
 
@@ -1132,30 +1238,49 @@ function updateCommsBadge() {
     badgeGold.style.display = badges.gold > 0 ? "inline-block" : "none";
   }
 
+  // 2. Sub-Tab 1: Bus Chat Badge
   var subBusBadge = document.getElementById("sub-bus-badge");
   if (subBusBadge) {
-    var totalChat = (appState.matchdayChat || []).length;
-    var userReadChat = appState.readTracker[user] ? appState.readTracker[user].busChatCount : 0;
-    var unreadChat = Math.max(0, totalChat - userReadChat);
-    subBusBadge.textContent = unreadChat;
-    subBusBadge.style.display = (unreadChat > 0 && appState.modules && appState.modules.commsBusChat) ? "inline-block" : "none";
+    subBusBadge.textContent = badges.unreadChat;
+    subBusBadge.style.display = (badges.unreadChat > 0 && appState.modules && appState.modules.commsBusChat) ? "inline-block" : "none";
   }
 
+  // 3. Sub-Tab 2: Private DMs Badge
+  var subDmBadge = document.getElementById("sub-dm-badge");
+  if (subDmBadge) {
+    subDmBadge.textContent = badges.unreadDms;
+    subDmBadge.style.display = badges.unreadDms > 0 ? "inline-block" : "none";
+  }
+
+  // 4. Sub-Tab 3: Helpdesk Badge
   var subHelpdeskBadge = document.getElementById("sub-helpdesk-badge");
   if (subHelpdeskBadge) {
-    if (badges.gold > 0 && badges.red > 0) {
-      subHelpdeskBadge.textContent = "🔴" + badges.red + " 🟡" + badges.gold;
+    if (badges.gold > 0 && badges.unreadDesk > 0) {
+      subHelpdeskBadge.textContent = "🔴" + badges.unreadDesk + " 🟡" + badges.gold;
       subHelpdeskBadge.style.display = "inline-block";
     } else if (badges.gold > 0) {
       subHelpdeskBadge.textContent = "🟡 " + badges.gold;
       subHelpdeskBadge.style.display = "inline-block";
-    } else if (badges.red > 0) {
-      subHelpdeskBadge.textContent = "🔴 " + badges.red;
+    } else if (badges.unreadDesk > 0) {
+      subHelpdeskBadge.textContent = "🔴 " + badges.unreadDesk;
       subHelpdeskBadge.style.display = "inline-block";
     } else {
       subHelpdeskBadge.style.display = "none";
     }
   }
+
+  // 5. Phone Home Screen PWA App Icon Badge (W3C Badging API)
+  var totalAppUnread = badges.red + badges.gold;
+  if ("setAppBadge" in navigator && "clearAppBadge" in navigator) {
+    try {
+      if (totalAppUnread > 0) {
+        navigator.setAppBadge(totalAppUnread).catch(function() {});
+      } else {
+        navigator.clearAppBadge().catch(function() {});
+      }
+    } catch (e) {}
+  }
+
   updateAdminDrawerBadge();
 }
 
@@ -1480,9 +1605,10 @@ window.setUserSession = function(name, role, memberNo) {
 
 window.handleLogin = async function() {
   var input = document.getElementById("login-username");
-  var pinInput = document.getElementById("login-pin-input");
+  var passInput = document.getElementById("login-password-input");
   var submitBtn = document.getElementById("btn-signin-submit");
   var val = (input && input.value.trim()) ? input.value.trim() : "";
+  var enteredPass = passInput ? passInput.value : "";
 
   if (!val) {
     alert("Please enter your Email Address, Full Name, or Branch Membership Number (e.g. Gary Miller or COX-084).");
@@ -1491,10 +1617,9 @@ window.handleLogin = async function() {
 
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.textContent = "Checking Cloud Roster...";
+    submitBtn.textContent = "Verifying Credentials...";
   }
 
-  // Always pull latest cloud roster first so newly registered members on any device are found
   await window.pullLatestCloudStateNow();
 
   if (submitBtn) {
@@ -1526,70 +1651,143 @@ window.handleLogin = async function() {
     return;
   }
 
-  // Verify 4-Digit PIN (checks cloud record first, then local settings)
   var extCfg = getSettingsForMemberNo(matched.memberNo);
-  var activePin = matched.securityPin || extCfg.securityPin || "";
-  if (activePin && activePin.length === 4) {
-    var enteredPin = pinInput ? pinInput.value.trim() : "";
-    if (!enteredPin) {
-      enteredPin = prompt("🔐 Enter the 4-digit Security PIN for " + matched.name + ":") || "";
+  var storedPass = matched.passwordHash || "";
+  var storedPin = matched.securityPin || extCfg.securityPin || "";
+
+  // 1. If account has a Password configured, require Password (or cloud PIN fallback)
+  if (storedPass) {
+    if (!enteredPass) {
+      enteredPass = prompt("🔐 Enter the account password for " + matched.name + ":") || "";
     }
-    if (enteredPin.trim() !== activePin) {
-      alert("❌ Incorrect 4-digit Security PIN.");
+    if (enteredPass !== storedPass && (!storedPin || enteredPass !== storedPin)) {
+      alert("❌ Incorrect password.");
       return;
     }
+  } else if (storedPin && storedPin.length === 4) {
+    // 2. Legacy pre-seeded account with a 4-digit PIN set
+    if (!enteredPass) {
+      enteredPass = prompt("🔐 Enter the 4-digit PIN (or new password) for " + matched.name + ":") || "";
+    }
+    if (enteredPass.trim() !== storedPin) {
+      alert("❌ Incorrect PIN/Password.");
+      return;
+    }
+  } else if (enteredPass && enteredPass.length >= 4) {
+    // 3. First time signing in with a password on a pre-seeded demo account -> save it to cloud
+    matched.passwordHash = enteredPass;
+    await window.syncMemberRecordToSupabase(matched);
+    await window.pushMasterStateToCloud();
   }
 
-  if (pinInput) pinInput.value = "";
+  if (passInput) passInput.value = "";
   var role = isUserVerifiedAdmin(matched) ? "admin" : "member";
   window.setUserSession(matched.name, role, matched.memberNo);
 };
 
-// --- EMAIL VERIFICATION & REGISTRATION WORKFLOW ---
+// --- REAL SUPABASE AUTH EMAIL VERIFICATION & REGISTRATION WORKFLOW ---
 window._pendingEmailVerification = {
   email: "",
-  code: "",
   verified: false
 };
 
-window.sendRegistrationVerificationCode = function() {
+window.sendRegistrationVerificationCode = async function() {
   var emailEl = document.getElementById("reg-email");
+  var passEl = document.getElementById("reg-password");
+  var passConfEl = document.getElementById("reg-password-confirm");
+  var firstEl = document.getElementById("reg-first-name");
+  var lastEl = document.getElementById("reg-last-name");
   var verifyBox = document.getElementById("reg-email-verify-box");
   var hintEl = document.getElementById("reg-email-verify-hint");
   var statusPill = document.getElementById("reg-email-status-pill");
+  var sendBtn = document.getElementById("btn-send-verify-code");
+
   var email = emailEl ? emailEl.value.trim().toLowerCase() : "";
+  var password = passEl ? passEl.value : "";
+  var passwordConfirm = passConfEl ? passConfEl.value : "";
+  var fullName = ((firstEl ? firstEl.value.trim() : "") + " " + (lastEl ? lastEl.value.trim() : "")).trim();
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     alert("Please enter a valid email address (e.g. name@example.com) first.");
     return;
   }
-
-  var code = String(Math.floor(100000 + Math.random() * 900000));
-  window._pendingEmailVerification = {
-    email: email,
-    code: code,
-    verified: false
-  };
-
-  if (verifyBox) verifyBox.style.display = "block";
-  if (statusPill) {
-    statusPill.className = "badge-gold";
-    statusPill.textContent = "Awaiting Code";
+  if (!password || password.length < 6) {
+    alert("Please create a password of at least 6 characters before verifying your email.");
+    return;
   }
-  if (hintEl) {
-    hintEl.innerHTML = "Verification code dispatched to <strong>" + email + "</strong>.<br><span style='color:var(--safc-gold);'>Instant Verification Code: <strong>" + code + "</strong></span>";
+  if (password !== passwordConfirm) {
+    alert("Your password and confirm password fields do not match.");
+    return;
   }
 
-  if (typeof window.showInAppNotificationToast === "function") {
-    window.showInAppNotificationToast(
-      "✉️ Email Verification Code",
-      "Your Coxhoe Branch verification code for " + email + " is: " + code,
-      null
-    );
+  if (!sbClient || !sbClient.auth) {
+    alert("Cloud authentication client is unavailable. Please check your internet connection.");
+    return;
+  }
+
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending Email...";
+  }
+
+  try {
+    var signUpRes = await sbClient.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: { full_name: fullName || email },
+        emailRedirectTo: window.location.origin + window.location.pathname
+      }
+    });
+
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "✉️ Resend Email";
+    }
+
+    if (signUpRes.error) {
+      alert("⚠️ Could not send verification email: " + signUpRes.error.message);
+      return;
+    }
+
+    window._pendingEmailVerification = {
+      email: email,
+      verified: false
+    };
+
+    // If Supabase project has 'Confirm email' turned off, session is active immediately
+    if (signUpRes.data && signUpRes.data.session) {
+      window._pendingEmailVerification.verified = true;
+      if (sendBtn) {
+        sendBtn.textContent = "✓ Email Verified";
+        sendBtn.style.borderColor = "var(--green)";
+        sendBtn.style.color = "var(--green)";
+      }
+      alert("✓ Email address verified with Supabase Auth!");
+      return;
+    }
+
+    if (verifyBox) verifyBox.style.display = "block";
+    if (statusPill) {
+      statusPill.className = "badge-gold";
+      statusPill.textContent = "Sent to Inbox";
+    }
+    if (hintEl) {
+      hintEl.innerHTML =
+        "A real verification email has been sent to <strong>" + email + "</strong>.<br>" +
+        "• <strong>Option 1:</strong> Click the confirmation link inside the email, then tap the green button below.<br>" +
+        "• <strong>Option 2:</strong> If your email includes a 6-digit OTP code, enter it below and tap Verify Code.";
+    }
+  } catch (err) {
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "✉️ Send Verification Email";
+    }
+    alert("Error dispatching verification email: " + (err.message || err));
   }
 };
 
-window.confirmRegistrationVerificationCode = function() {
+window.confirmRegistrationVerificationCode = async function() {
   var codeInput = document.getElementById("reg-verify-code-input");
   var emailEl = document.getElementById("reg-email");
   var statusPill = document.getElementById("reg-email-status-pill");
@@ -1597,29 +1795,80 @@ window.confirmRegistrationVerificationCode = function() {
   var entered = codeInput ? codeInput.value.trim() : "";
   var currentEmail = emailEl ? emailEl.value.trim().toLowerCase() : "";
 
-  if (!window._pendingEmailVerification.code || window._pendingEmailVerification.email !== currentEmail) {
-    alert("Please tap '✉️ Verify Email' to generate a code for this email address.");
+  if (!entered || entered.length < 6) {
+    alert("Please enter the 6-digit verification code from your email, or click the verification link in your email and tap the green button below.");
     return;
   }
 
-  if (entered !== window._pendingEmailVerification.code) {
-    alert("❌ Invalid 6-digit verification code. Please check the code and try again.");
+  try {
+    var verifyRes = await sbClient.auth.verifyOtp({
+      email: currentEmail,
+      token: entered,
+      type: "signup"
+    });
+
+    if (verifyRes.error) {
+      alert("❌ Verification code rejected: " + verifyRes.error.message);
+      return;
+    }
+
+    window._pendingEmailVerification = { email: currentEmail, verified: true };
+    if (statusPill) {
+      statusPill.style.background = "var(--green)";
+      statusPill.style.color = "#fff";
+      statusPill.textContent = "✓ Verified";
+    }
+    if (sendBtn) {
+      sendBtn.textContent = "✓ Email Verified";
+      sendBtn.style.borderColor = "var(--green)";
+      sendBtn.style.color = "var(--green)";
+    }
+    alert("✓ Email address verified via 6-digit code!");
+  } catch (err) {
+    alert("Verification error: " + (err.message || err));
+  }
+};
+
+window.checkEmailLinkVerified = async function() {
+  var emailEl = document.getElementById("reg-email");
+  var passEl = document.getElementById("reg-password");
+  var statusPill = document.getElementById("reg-email-status-pill");
+  var sendBtn = document.getElementById("btn-send-verify-code");
+
+  var currentEmail = emailEl ? emailEl.value.trim().toLowerCase() : "";
+  var password = passEl ? passEl.value : "";
+
+  if (!currentEmail || !password) {
+    alert("Please ensure your Email Address and Password are entered above.");
     return;
   }
 
-  window._pendingEmailVerification.verified = true;
-  if (statusPill) {
-    statusPill.className = "badge-gold";
-    statusPill.style.background = "var(--green)";
-    statusPill.style.color = "#fff";
-    statusPill.textContent = "✓ Verified";
+  try {
+    var signInRes = await sbClient.auth.signInWithPassword({
+      email: currentEmail,
+      password: password
+    });
+
+    if (signInRes.error || !signInRes.data || !signInRes.data.user) {
+      alert("⏳ Your email has not been confirmed yet (" + (signInRes.error ? signInRes.error.message : "awaiting click") + ").\n\nPlease open the email sent to " + currentEmail + ", click the confirmation link, and then tap this button again.");
+      return;
+    }
+
+    window._pendingEmailVerification = { email: currentEmail, verified: true };
+    if (statusPill) {
+      statusPill.style.background = "var(--green)";
+      statusPill.style.color = "#fff";
+      statusPill.textContent = "✓ Verified";
+    }
+    if (sendBtn) {
+      sendBtn.textContent = "✓ Email Verified";
+      sendBtn.style.borderColor = "var(--green)";
+      sendBtn.style.color = "var(--green)";
+    }
+    alert("✓ Email confirmation verified! You can now tap 'Complete Registration & Sign In'.");
+  } catch (err) {
+    alert("Could not verify email status: " + (err.message || err));
   }
-  if (sendBtn) {
-    sendBtn.textContent = "✓ Email Verified";
-    sendBtn.style.borderColor = "var(--green)";
-    sendBtn.style.color = "var(--green)";
-  }
-  alert("✓ Email address verified!");
 };
 
 window.checkRegistrationAge = function() {
@@ -1642,7 +1891,6 @@ window.checkRegistrationAge = function() {
   return isU18;
 };
 
-// Generate the next unique COX-XXX number without colliding with existing members
 function generateNextBranchMemberNo() {
   var maxNum = 104;
   (appState.users || []).forEach(function(u) {
@@ -1658,10 +1906,11 @@ window.handleMemberRegistration = async function() {
   var firstEl = document.getElementById("reg-first-name");
   var lastEl = document.getElementById("reg-last-name");
   var emailEl = document.getElementById("reg-email");
+  var passEl = document.getElementById("reg-password");
+  var passConfEl = document.getElementById("reg-password-confirm");
   var dobEl = document.getElementById("reg-dob");
   var nickEl = document.getElementById("reg-nickname");
   var phoneEl = document.getElementById("reg-phone");
-  var pinEl = document.getElementById("reg-pin");
   var emNameEl = document.getElementById("reg-emergency-name");
   var emPhoneEl = document.getElementById("reg-emergency-phone");
   var guardEl = document.getElementById("reg-guardian-name");
@@ -1671,10 +1920,11 @@ window.handleMemberRegistration = async function() {
   var lastName = lastEl ? lastEl.value.trim() : "";
   var fullName = (firstName + " " + lastName).trim();
   var email = emailEl ? emailEl.value.trim().toLowerCase() : "";
+  var password = passEl ? passEl.value : "";
+  var passwordConfirm = passConfEl ? passConfEl.value : "";
   var dob = dobEl ? dobEl.value : "";
   var nickname = nickEl ? nickEl.value.trim() : "";
   var phone = phoneEl ? phoneEl.value.trim() : "";
-  var pin = pinEl ? pinEl.value.trim() : "";
   var emergencyName = emNameEl ? emNameEl.value.trim() : "";
   var emergencyPhone = emPhoneEl ? emPhoneEl.value.trim() : "";
 
@@ -1682,21 +1932,24 @@ window.handleMemberRegistration = async function() {
     alert("Please enter both your First Name and Surname.");
     return;
   }
+  if (!password || password.length < 6) {
+    alert("Please create a password of at least 6 characters.");
+    return;
+  }
+  if (password !== passwordConfirm) {
+    alert("Your passwords do not match.");
+    return;
+  }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     alert("Please enter a valid Email Address.");
     return;
   }
   if (!window._pendingEmailVerification.verified || window._pendingEmailVerification.email !== email) {
-    window.sendRegistrationVerificationCode();
-    alert("🔐 Please verify your email address first!\n\nWe have just sent a 6-digit verification code to the box above—enter it and click 'Confirm Code'.");
+    alert("🔐 Please verify your email address first!\n\nTap '✉️ Send Verification Email' and confirm the link or code sent to your inbox.");
     return;
   }
   if (!dob || !phone) {
     alert("Please complete your Date of Birth and Mobile Number.");
-    return;
-  }
-  if (!/^\d{4}$/.test(pin)) {
-    alert("Please set a 4-digit numeric Security PIN (e.g. 1973) to protect your account and wallet.");
     return;
   }
   if (!emergencyName || !emergencyPhone) {
@@ -1716,7 +1969,6 @@ window.handleMemberRegistration = async function() {
     regBtn.textContent = "Saving Member Account to Cloud...";
   }
 
-  // Pull latest cloud roster before checking duplicates or assigning a member number
   await window.pullLatestCloudStateNow();
 
   var existing = (appState.users || []).find(function(u) {
@@ -1744,6 +1996,7 @@ window.handleMemberRegistration = async function() {
     name: fullName,
     email: email,
     emailVerified: true,
+    passwordHash: password,
     nickname: nickname,
     dob: dob,
     phone: phone,
@@ -1760,14 +2013,13 @@ window.handleMemberRegistration = async function() {
     membershipTier: isU18 ? "Junior" : "Adult",
     membershipSeason: appState.duesConfig ? appState.duesConfig.activeSeason : "2026/27",
     validUntil: "2027-07-31",
-    securityPin: pin,
+    securityPin: "",
     manifestDisplay: "nickname",
     dmPrivacy: isU18 ? "committee" : "all"
   };
 
   appState.users.push(newMember);
 
-  // If Under-18, automatically log a Parent/Guardian safeguarding approval request
   if (isU18 && guardianQuery) {
     var matchedGuard = (appState.users || []).find(function(u) {
       return u.name.toLowerCase() === guardianQuery.toLowerCase() ||
@@ -1784,7 +2036,6 @@ window.handleMemberRegistration = async function() {
     });
   }
 
-  // Save extended settings locally as well
   var cfgKey = "safc_ext_settings_" + newMemberNo;
   var initCfg = {
     manifestDisplay: "nickname",
@@ -1795,11 +2046,10 @@ window.handleMemberRegistration = async function() {
     notifComms: true,
     confirmWalletSpend: true,
     biometricUnlock: false,
-    securityPin: pin
+    securityPin: ""
   };
   try { localStorage.setItem(cfgKey, JSON.stringify(initCfg)); } catch (e) {}
 
-  // Permanently persist to both Supabase `members` and `club_state` before continuing
   await window.syncMemberRecordToSupabase(newMember);
   await window.pushMasterStateToCloud();
 
@@ -1809,7 +2059,7 @@ window.handleMemberRegistration = async function() {
   }
 
   window.setUserSession(newMember.name, "member", newMember.memberNo);
-  alert("🎉 Welcome to Coxhoe Branch SAFC, " + newMember.name + "!\n\nYour Official Member Number is: " + newMember.memberNo + "\nYour account is permanently synced to the cloud.");
+  alert("🎉 Welcome to Coxhoe Branch SAFC, " + newMember.name + "!\n\nYour Official Member Number is: " + newMember.memberNo + "\n\nTip: You can enable a 4-Digit Quick-Unlock PIN or Biometrics anytime inside My Pass ➔ ⚙️ App Settings.");
 };
 
 window.quickLogin = function(name, role, no) {
@@ -5410,6 +5660,10 @@ window.switchCommsSubTab = function(subId) {
   if (bBus) bBus.className = (subId === "bus") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
   if (bDm) bDm.className = (subId === "dm") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
   if (bDesk) bDesk.className = (subId === "desk") ? "btn btn-gold btn-sm" : "btn btn-outline btn-sm";
+
+  if (subId === "dm") {
+    renderDirectMessagesView();
+  }
 };
 
 function renderCommsTabs() {
@@ -5543,6 +5797,12 @@ function renderDirectMessagesView() {
     return;
   }
 
+  if (!appState.readTracker[current]) {
+    appState.readTracker[current] = { busChatCount: 0, readMsgIds: [], readNoteIds: [], readDmIds: [] };
+  }
+  var tracker = appState.readTracker[current];
+  if (!tracker.readDmIds) tracker.readDmIds = [];
+
   var eligibleUsers = (appState.users || []).filter(function(u) {
     return u.name !== current && canCurrentUserDMTarget(curRecord, u);
   });
@@ -5552,14 +5812,43 @@ function renderDirectMessagesView() {
     return;
   }
 
+  // If user has unread DMs and hasn't manually picked a thread yet, auto-select the sender with unread messages
   var stillEligible = eligibleUsers.some(function(u) { return u.name === window._activeDMRecipient; });
   if (!window._activeDMRecipient || !stillEligible) {
-    window._activeDMRecipient = eligibleUsers[0].name;
+    var firstUnreadSender = eligibleUsers.find(function(u) {
+      return (appState.directMessages || []).some(function(m) {
+        return m.from === u.name && m.to === current && tracker.readDmIds.indexOf(m.id) === -1;
+      });
+    });
+    window._activeDMRecipient = firstUnreadSender ? firstUnreadSender.name : eligibleUsers[0].name;
+  }
+
+  // If the Comms view & Private DMs sub-tab are currently visible on screen, mark messages from the active recipient as read
+  var commsView = document.getElementById("view-comms");
+  var dmSubPane = document.getElementById("comms-sub-dm");
+  var isDmVisibleOnScreen = commsView && commsView.classList.contains("active") && dmSubPane && dmSubPane.style.display !== "none";
+
+  if (isDmVisibleOnScreen && window._activeDMRecipient) {
+    var markedAny = false;
+    (appState.directMessages || []).forEach(function(m) {
+      if (m.from === window._activeDMRecipient && m.to === current && m.id && tracker.readDmIds.indexOf(m.id) === -1) {
+        tracker.readDmIds.push(m.id);
+        markedAny = true;
+      }
+    });
+    if (markedAny) {
+      saveLocalCacheOnly();
+      updateCommsBadge();
+    }
   }
 
   var optionsHtml = eligibleUsers.map(function(u) {
     var badge = isUserVerifiedAdmin(u) ? " (Committee 🛡️)" : "";
-    return "<option value='" + u.name + "' " + (u.name === window._activeDMRecipient ? "selected" : "") + ">" + u.name + badge + "</option>";
+    var unreadFromUser = (appState.directMessages || []).filter(function(m) {
+      return m.from === u.name && m.to === current && tracker.readDmIds.indexOf(m.id) === -1;
+    }).length;
+    var unreadTag = unreadFromUser > 0 ? " 🔴 (" + unreadFromUser + " new)" : "";
+    return "<option value='" + u.name + "' " + (u.name === window._activeDMRecipient ? "selected" : "") + ">" + u.name + badge + unreadTag + "</option>";
   }).join("");
 
   var conversation = (appState.directMessages || []).filter(function(m) {
@@ -5581,9 +5870,12 @@ function renderDirectMessagesView() {
   }
 
   container.innerHTML = 
-    "<div style='margin-bottom:8px;'><label class='form-label' style='font-size:9px;'>Recipient (Respects Member DM Privacy)</label><select class='form-select' onchange='window._activeDMRecipient=this.value; renderDirectMessagesView();'>" + optionsHtml + "</select></div>" +
+    "<div style='margin-bottom:8px;'><label class='form-label' style='font-size:9px;'>Conversation With</label><select class='form-select' onchange='window._activeDMRecipient=this.value; renderDirectMessagesView();'>" + optionsHtml + "</select></div>" +
     "<div id='active-dm-feed' style='background:#0f172a; padding:10px; border-radius:8px; height:160px; overflow-y:auto; margin-bottom:8px; border:1px solid #334155;'>" + messagesHtml + "</div>" +
     "<div style='display:flex; gap:6px;'><input type='text' id='dm-message-input' class='form-input' placeholder='Type private message...' style='font-size:11px;' /><button class='btn btn-red btn-sm' onclick='window.sendDirectMessage()'>Send</button></div>";
+
+  var feedEl = document.getElementById("active-dm-feed");
+  if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
 }
 
 window.sendDirectMessage = async function() {
@@ -6478,33 +6770,6 @@ window.sendTestClubNotification = function() {
       }
     };
   }
-
-  // 4. Direct Messages & Helpdesk Replies -> 'comms' channel
-  var origSendDM = window.sendDirectMessage;
-  if (typeof origSendDM === "function") {
-    window.sendDirectMessage = function() {
-      var input = document.getElementById("dm-message-input");
-      var txt = input ? input.value.trim() : "";
-      var recipient = window._activeDMRecipient;
-      origSendDM.apply(this, arguments);
-      if (txt && recipient) {
-        window.dispatchClubNotification("comms", "💬 Message Sent to " + recipient, txt, "view-comms");
-      }
-    };
-  }
-
-  var origReplyDesk = window.submitPublicReply;
-  if (typeof origReplyDesk === "function") {
-    window.submitPublicReply = function(ticketId) {
-      var input = document.getElementById("public-reply-input");
-      var txt = input ? input.value.trim() : "";
-      origReplyDesk.apply(this, arguments);
-      if (txt) {
-        window.dispatchClubNotification("comms", "📬 Helpdesk Update (#" + ticketId + ")", txt, "view-comms");
-      }
-    };
-  }
-})();
 
 // 4-Digit Security PIN & Real WebAuthn Biometric Enrollment
 window.saveMemberSecurityPin = async function() {
