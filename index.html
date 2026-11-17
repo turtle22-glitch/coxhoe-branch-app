@@ -110,7 +110,18 @@
         </div>
 
         <button type="button" id="btn-signin-submit" class="btn btn-red" onclick="window.handleLogin()">Sign In to Portal ➔</button>
-      </div>
+
+        <!-- QUICK TEST PERSONAS (For Fast Testing While Keeping Supabase Auth) -->
+        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed #334155; text-align: center;">
+          <span style="font-size: 10px; color: var(--safc-gold); display: block; margin-bottom: 6px;">⚡ Quick Test Login (Bypasses Email Wait):</span>
+          <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline btn-sm" style="font-size: 9px; padding: 3px 6px;" onclick="window.quickLogin('Graham', 'admin', 'ADMIN-01')">Graham (Admin)</button>
+            <button type="button" class="btn btn-outline btn-sm" style="font-size: 9px; padding: 3px 6px;" onclick="window.quickLogin('Gary Miller', 'member', 'COX-084')">Gary (Member)</button>
+            <button type="button" class="btn btn-outline btn-sm" style="font-size: 9px; padding: 3px 6px;" onclick="window.quickLogin('Billy', 'member', 'COX-099')">Billy (Subs Overdue)</button>
+          </div>
+        </div>
+
+      </div> <!-- Closes #auth-pane-signin -->
 
       <!-- PANE B: NEW MEMBER REGISTRATION -->
       <div id="auth-pane-register" style="display:none;">
