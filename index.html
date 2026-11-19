@@ -110,17 +110,7 @@
         </div>
 
         <button type="button" id="btn-signin-submit" class="btn btn-red" onclick="window.handleLogin()">Sign In to Portal ➔</button>
-
-        <!-- QUICK TEST PERSONAS (For Fast Testing While Keeping Supabase Auth) -->
-        <div style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed #334155; text-align: center;">
-          <span style="font-size: 10px; color: var(--safc-gold); display: block; margin-bottom: 6px;">⚡ Quick Test Login (Bypasses Email Wait):</span>
-          <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
-            <button type="button" class="btn btn-outline btn-sm" style="font-size: 9px; padding: 3px 6px;" onclick="window.quickLogin('Graham', 'admin', 'ADMIN-01')">Graham (Admin)</button>
-            <button type="button" class="btn btn-outline btn-sm" style="font-size: 9px; padding: 3px 6px;" onclick="window.quickLogin('Gary Miller', 'member', 'COX-084')">Gary (Member)</button>
-            <button type="button" class="btn btn-outline btn-sm" style="font-size: 9px; padding: 3px 6px;" onclick="window.quickLogin('Billy', 'member', 'COX-099')">Billy (Subs Overdue)</button>
-          </div>
-        </div>
-
+ 
       </div> <!-- Closes #auth-pane-signin -->
 
       <!-- PANE B: NEW MEMBER REGISTRATION -->
@@ -1265,5 +1255,70 @@
 <!-- Supabase Client Library -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
+
+<!-- DEV TEST BACKDOOR (Remove before public launch) -->
+<div id="dev-test-backdoor" style="margin-top: 16px; padding: 12px; background: rgba(15, 23, 42, 0.92); border: 1px solid #d4af37; border-radius: 10px; text-align: center;">
+  <div style="font-size: 11px; font-weight: 800; color: #d4af37; letter-spacing: 0.5px; margin-bottom: 8px;">
+    🛠️ DEV TEST BACKDOOR (BYPASS SUPABASE AUTH)
+  </div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+    <button type="button" id="btn-dev-admin" class="btn btn-red btn-sm" style="font-size: 11px; padding: 8px;">
+      🛡️ Enter as Admin
+    </button>
+    <button type="button" id="btn-dev-member" class="btn btn-outline btn-sm" style="font-size: 11px; padding: 8px; border-color: #94a3b8; color: #f8fafc;">
+      ⚽ Enter as Member
+    </button>
+  </div>
+</div>
+
+<script>
+(function() {
+  function enterTestProfile(targetRole) {
+    if (typeof window.setUserSession !== "function") {
+      alert("⚠️ app.js did not load properly (likely a syntax error). Open F12 Console to see the exact line.");
+      return;
+    }
+
+    try {
+      window.appState = window.appState || {};
+      window.appState.users = Array.isArray(window.appState.users) ? window.appState.users : [];
+
+      var profile = targetRole === "admin"
+        ? {
+            id: 999001, firstName: "Robbie", lastName: "Admin", name: "Robbie (Test Admin)",
+            email: "admin-test@coxhoebranch.co.uk", emailVerified: true, nickname: "Gaffer",
+            memberNo: "COX-001", role: "admin", isAdmin: true, category: "Adult",
+            hasAppAccount: true, balance: 150.00, membershipStatus: "active",
+            membershipTier: "Committee / Admin", membershipSeason: "2026/27",
+            validUntil: "2027-07-31", manifestDisplay: "nickname", dmPrivacy: "all"
+          }
+        : {
+            id: 999002, firstName: "Gary", lastName: "Miller", name: "Gary Miller (Test Member)",
+            email: "member-test@coxhoebranch.co.uk", emailVerified: true, nickname: "Gaz",
+            memberNo: "COX-084", role: "member", isAdmin: false, category: "Adult",
+            hasAppAccount: true, balance: 45.00, membershipStatus: "active",
+            membershipTier: "Adult", membershipSeason: "2026/27",
+            validUntil: "2027-07-31", manifestDisplay: "nickname", dmPrivacy: "all"
+          };
+
+      var idx = window.appState.users.findIndex(function(u) { return u.memberNo === profile.memberNo; });
+      if (idx >= 0) {
+        window.appState.users[idx] = Object.assign({}, window.appState.users[idx], profile);
+      } else {
+        window.appState.users.push(profile);
+      }
+
+      window.setUserSession(profile.name, targetRole, profile.memberNo);
+      if (typeof window.renderAll === "function") window.renderAll();
+    } catch (err) {
+      alert("Backdoor Error: " + err.message);
+    }
+  }
+
+  document.getElementById("btn-dev-admin").addEventListener("click", function() { enterTestProfile("admin"); });
+  document.getElementById("btn-dev-member").addEventListener("click", function() { enterTestProfile("member"); });
+})();
+</script>
+
 </body>
 </html>

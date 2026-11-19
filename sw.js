@@ -1,5 +1,5 @@
 // Increment this version number whenever you push major layout changes
-const CACHE_VERSION = 'coxhoe-safc-v9';
+const CACHE_VERSION = 'coxhoe-safc-v10';
 const STATIC_ASSETS = [
   './',
   './index.html',

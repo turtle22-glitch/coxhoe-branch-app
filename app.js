@@ -1603,10 +1603,6 @@ window.setUserSession = function(name, role, memberNo) {
   window.refreshAllViews();
 };
 
-window.quickLogin = function(name, role, memberNo) {
-  window.setUserSession(name, role, memberNo);
-};
-
 window.handleLogin = async function() {
   var input = document.getElementById("login-username");
   var passInput = document.getElementById("login-password-input");
@@ -6774,6 +6770,7 @@ window.sendTestClubNotification = function() {
       }
     };
   }
+}
 
 // 4-Digit Security PIN & Real WebAuthn Biometric Enrollment
 window.saveMemberSecurityPin = async function() {
