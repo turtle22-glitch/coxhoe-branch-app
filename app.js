@@ -6770,7 +6770,7 @@ window.sendTestClubNotification = function() {
       }
     };
   }
-}
+})();
 
 // 4-Digit Security PIN & Real WebAuthn Biometric Enrollment
 window.saveMemberSecurityPin = async function() {
