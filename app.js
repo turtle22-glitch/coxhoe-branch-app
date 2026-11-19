@@ -1750,6 +1750,22 @@ window.sendRegistrationVerificationCode = async function() {
       return;
     }
 
+    // Save registration draft locally so tapping the email link on mobile restores the form
+    try {
+      localStorage.setItem("safc_pending_reg_draft", JSON.stringify({
+        firstName: firstEl ? firstEl.value.trim() : "",
+        lastName: lastEl ? lastEl.value.trim() : "",
+        email: email,
+        password: password,
+        dob: (document.getElementById("reg-dob") || {}).value || "",
+        nickname: (document.getElementById("reg-nickname") || {}).value || "",
+        phone: (document.getElementById("reg-phone") || {}).value || "",
+        emergencyName: (document.getElementById("reg-emergency-name") || {}).value || "",
+        emergencyPhone: (document.getElementById("reg-emergency-phone") || {}).value || "",
+        guardianName: (document.getElementById("reg-guardian-name") || {}).value || ""
+      }));
+    } catch (e) {}
+
     window._pendingEmailVerification = {
       email: email,
       verified: false
@@ -2057,7 +2073,7 @@ window.handleMemberRegistration = async function() {
     regBtn.disabled = false;
     regBtn.textContent = "✓ Complete Registration & Sign In";
   }
-
+  try { localStorage.removeItem("safc_pending_reg_draft"); } catch (e) {}
   window.setUserSession(newMember.name, "member", newMember.memberNo);
   alert("🎉 Welcome to Coxhoe Branch SAFC, " + newMember.name + "!\n\nYour Official Member Number is: " + newMember.memberNo + "\n\nTip: You can enable a 4-Digit Quick-Unlock PIN or Biometrics anytime inside My Pass ➔ ⚙️ App Settings.");
 };
@@ -7029,10 +7045,62 @@ window.forceRefreshAppCache = async function() {
   window.syncSettingsDrawerUI();
 })();
 
+window.resumePendingRegistrationIfVerified = async function() {
+  var rawDraft = null;
+  try { rawDraft = localStorage.getItem("safc_pending_reg_draft"); } catch (e) {}
+  if (!rawDraft || !sbClient || !sbClient.auth) return;
+
+  try {
+    var draft = JSON.parse(rawDraft);
+    if (!draft || !draft.email) return;
+
+    var sessionRes = await sbClient.auth.getSession();
+    var sessionUser = (sessionRes && sessionRes.data && sessionRes.data.session) ? sessionRes.data.session.user : null;
+
+    if (sessionUser && sessionUser.email && sessionUser.email.toLowerCase() === draft.email.toLowerCase()) {
+      window.switchAuthMode("register");
+
+      var setVal = function(id, val) {
+        var el = document.getElementById(id);
+        if (el && val) el.value = val;
+      };
+      setVal("reg-first-name", draft.firstName);
+      setVal("reg-last-name", draft.lastName);
+      setVal("reg-email", draft.email);
+      setVal("reg-password", draft.password);
+      setVal("reg-password-confirm", draft.password);
+      setVal("reg-dob", draft.dob);
+      setVal("reg-nickname", draft.nickname);
+      setVal("reg-phone", draft.phone);
+      setVal("reg-emergency-name", draft.emergencyName);
+      setVal("reg-emergency-phone", draft.emergencyPhone);
+      setVal("reg-guardian-name", draft.guardianName);
+
+      if (typeof window.checkRegistrationAge === "function") window.checkRegistrationAge();
+
+      window._pendingEmailVerification = { email: draft.email, verified: true };
+
+      var sendBtn = document.getElementById("btn-send-verify-code");
+      if (sendBtn) {
+        sendBtn.textContent = "✓ Email Verified";
+        sendBtn.style.borderColor = "var(--green)";
+        sendBtn.style.color = "var(--green)";
+      }
+      var verifyBox = document.getElementById("reg-email-verify-box");
+      if (verifyBox) verifyBox.style.display = "none";
+
+      alert("✓ Email Verified! Your registration details have been restored. Complete any remaining fields and tap 'Complete Registration & Sign In'.");
+    }
+  } catch (e) {
+    console.warn("Draft resume check:", e);
+  }
+};
+
 // --- BOOTSTRAP ON LOAD ---
 window.onload = function() {
   window.renderLoginScreenState();
   window.refreshAllViews();
   window.syncLiveSAFCFixtures();
   initSupabaseCloudSync();
+  window.resumePendingRegistrationIfVerified();
 };
