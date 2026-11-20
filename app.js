@@ -6870,10 +6870,19 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-window.registerDeviceForBackgroundPush = async function() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !sbClient) return;
-  if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.indexOf("PASTE_") === 0) return;
-  if (Notification.permission !== "granted") return;
+window.registerDeviceForBackgroundPush = async function(showStatusAlert) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !sbClient) {
+    if (showStatusAlert) alert("Push not supported in this browser.");
+    return;
+  }
+  if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.indexOf("PASTE_") === 0) {
+    if (showStatusAlert) alert("VAPID_PUBLIC_KEY is still the placeholder in app.js.");
+    return;
+  }
+  if (Notification.permission !== "granted") {
+    if (showStatusAlert) alert("Notification permission is: " + Notification.permission);
+    return;
+  }
 
   try {
     var reg = await navigator.serviceWorker.ready;
@@ -6881,13 +6890,13 @@ window.registerDeviceForBackgroundPush = async function() {
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY.trim())
       });
     }
     var subJson = sub.toJSON();
     var user = getCurrentUserRecord();
     if (subJson && subJson.endpoint && subJson.keys) {
-      await sbClient.from("push_subscriptions").upsert([{
+      var res = await sbClient.from("push_subscriptions").upsert([{
         club_id: window.ACTIVE_CLUB_ID,
         member_no: user ? user.memberNo : null,
         member_name: user ? user.name : null,
@@ -6896,9 +6905,17 @@ window.registerDeviceForBackgroundPush = async function() {
         auth: subJson.keys.auth,
         updated_at: new Date().toISOString()
       }], { onConflict: "endpoint" });
+
+      if (res.error) {
+        console.error("Supabase push_subscriptions error:", res.error);
+        if (showStatusAlert) alert("Supabase Save Error: " + res.error.message);
+      } else if (showStatusAlert) {
+        alert("✓ Device registered for background push as: " + (user ? user.name : "Unknown"));
+      }
     }
   } catch (e) {
-    console.warn("Background push registration error:", e);
+    console.error("Background push registration error:", e);
+    if (showStatusAlert) alert("Push Register Error: " + (e.message || e));
   }
 };
 
@@ -6943,6 +6960,7 @@ window.requestBrowserPushPermission = function() {
 };
 
 window.sendTestClubNotification = function() {
+  window.registerDeviceForBackgroundPush(true);
   window.dispatchClubNotification(
     "travel",
     "Coxhoe Branch Matchday Alert",
