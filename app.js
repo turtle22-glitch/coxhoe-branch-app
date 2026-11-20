@@ -523,7 +523,8 @@ var appState = {
     awayTickets: true,
     fundraiser: true,
     commsBusChat: false,
-    commsHelpdesk: true,
+    commsPrivateDms: false,
+    commsHelpdesk: false,
     duesAndPass: true
   }
 };
@@ -2173,7 +2174,7 @@ window.applyAppModules = function() {
   if (navFundraiser) navFundraiser.style.display = mods.fundraiser ? "flex" : "none";
   if (navProfile) navProfile.style.display = mods.duesAndPass ? "flex" : "none";
 
-  var commsAny = mods.commsBusChat || mods.commsHelpdesk;
+  var commsAny = mods.commsBusChat || mods.commsPrivateDms || mods.commsHelpdesk;
   if (navComms) navComms.style.display = commsAny ? "flex" : "none";
 
   var navItems = document.querySelectorAll(".bottom-nav .nav-item");
@@ -2192,15 +2193,17 @@ window.applyAppModules = function() {
   if (awayCard && awayCard.parentElement) awayCard.parentElement.style.display = mods.awayTickets ? "block" : "none";
 
   var btnBus = document.getElementById("btn-sub-bus");
+  var btnDm = document.getElementById("btn-sub-dm");
   var btnDesk = document.getElementById("btn-sub-desk");
 
   if (btnBus) btnBus.style.display = mods.commsBusChat ? "block" : "none";
+  if (btnDm) btnDm.style.display = mods.commsPrivateDms ? "block" : "none";
   if (btnDesk) btnDesk.style.display = mods.commsHelpdesk ? "block" : "none";
 
-  if (!mods.commsBusChat && mods.commsHelpdesk) {
-    if (typeof switchCommsSubTab === "function") switchCommsSubTab("desk");
-  } else if (mods.commsBusChat && !mods.commsHelpdesk) {
-    if (typeof switchCommsSubTab === "function") switchCommsSubTab("bus");
+  if (typeof switchCommsSubTab === "function") {
+    if (mods.commsBusChat) switchCommsSubTab("bus");
+    else if (mods.commsPrivateDms) switchCommsSubTab("dm");
+    else if (mods.commsHelpdesk) switchCommsSubTab("desk");
   }
 };
 
@@ -2256,6 +2259,7 @@ window.renderAdminModulesManager = function() {
     { key: "awayTickets", icon: "🎟️", title: "Away Match Tickets", desc: "Allows members to submit expressions of interest for club away ticket ballots." },
     { key: "fundraiser", icon: "⚽", title: "Matchday Scratch Card (Fundraiser)", desc: "40-team multi-selection card with 50/50 prize splitting and winner reveals." },
     { key: "commsBusChat", icon: "💬", title: "Matchday Bus Chat", desc: "Passenger chatter tethered to active fixture with 24h auto-expiry." },
+    { key: "commsPrivateDms", icon: "✉️", title: "Private Member DMs", desc: "1-to-1 adult member messaging with privacy controls." },
     { key: "commsHelpdesk", icon: "🛡️", title: "Committee Helpdesk & Mailbox", desc: "Member query routing with dual red/gold notification badges." },
     { key: "duesAndPass", icon: "🪪", title: "Membership Passes & Wallet Ledger", desc: "Digital cards, annual dues renewal gates, and audit trail statements." }
   ];
@@ -3172,25 +3176,35 @@ window.renderAdminAwayFixture = function() {
   appState.awayFixtures.forEach(function(f) {
     var opt = document.createElement("option");
     opt.value = f.id;
-    opt.textContent = f.opponent + " (A) • " + f.date + " [Quota: " + f.allocation + "]";
+    var statusTag = (f.status === "Closed") ? "🔒 Closed" : "🟢 Open";
+    opt.textContent = f.opponent + " (A) • " + f.date + " [" + statusTag + "]";
     if (currentVal && currentVal === f.id) opt.selected = true;
     sel.appendChild(opt);
   });
   if (!sel.value && appState.awayFixtures.length > 0) sel.value = appState.awayFixtures[0].id;
 
   var fixture = appState.awayFixtures.find(function(f) { return f.id === sel.value; }) || appState.awayFixtures[0];
+  var isClosed = (fixture.status === "Closed");
+  var pkgPrice = Number(fixture.packagePrice || 45.00);
   var regs = appState.awayRegistrations.filter(function(r) { return r.fixtureId === fixture.id; });
   var allocatedCount = 0;
   regs.forEach(function(r) { if (r.allocated) allocatedCount += (r.party ? r.party.length : 1); });
 
   var html = 
     "<div class='admin-card'>" +
-      "<div class='flex-between'><strong>" + fixture.opponent + " (Away)</strong><span class='badge-gold'>" + fixture.date + "</span></div>" +
-      "<div style='display:flex; gap:6px; align-items:center; margin-top:8px;'>" +
-        "<label class='text-xs text-muted' style='flex:1;'>Branch Quota:</label>" +
-        "<input type='number' id='admin-away-quota-input' class='form-input' style='flex:1; padding:4px;' value='" + fixture.allocation + "' />" +
-        "<button class='btn btn-outline btn-sm' style='padding:4px 10px; font-size:10px;' onclick='window.confirmAwayQuota(\"" + fixture.id + "\")'>Confirm</button>" +
+      "<div class='flex-between'>" +
+        "<strong>" + fixture.opponent + " (Away)</strong>" +
+        "<span class='badge-gold'>" + fixture.date + "</span>" +
       "</div>" +
+      "<div style='display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:8px; border-radius:6px; margin-top:8px; border-left:3px solid " + (isClosed ? "#ef4444" : "var(--green)") + ";'>" +
+        "<span style='font-size:11px; font-weight:700; color:" + (isClosed ? "#f87171" : "var(--green)") + ";'>" + (isClosed ? "🔒 Interest Closed" : "🟢 Interest Open") + "</span>" +
+        "<button class='btn btn-outline btn-sm' style='padding:3px 10px; font-size:10px;' onclick='window.toggleAwayFixtureStatus(\"" + fixture.id + "\")'>" + (isClosed ? "Reopen Interest 🟢" : "Close Interest 🔒") + "</button>" +
+      "</div>" +
+      "<div style='display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;'>" +
+        "<div><label class='form-label'>Branch Quota</label><input type='number' id='admin-away-quota-input' class='form-input' style='padding:4px;' value='" + fixture.allocation + "' /></div>" +
+        "<div><label class='form-label'>Ticket + Bus Price (£)</label><input type='number' id='admin-away-price-input' class='form-input' step='0.50' style='padding:4px;' value='" + pkgPrice.toFixed(2) + "' /></div>" +
+      "</div>" +
+      "<button class='btn btn-outline btn-sm mt-2' style='width:100%; font-size:10px;' onclick='window.confirmAwayQuota(\"" + fixture.id + "\")'>💾 Save Quota & Price</button>" +
       "<div class='text-xs mt-2' style='color:var(--safc-gold);'>Allocated so far: <strong>" + allocatedCount + " / " + fixture.allocation + " Tickets</strong></div>" +
     "</div>" +
     "<div class='admin-card'><strong style='font-size:11px; display:block; margin-bottom:8px;'>Member Expressions of Interest:</strong>";
@@ -3200,8 +3214,11 @@ window.renderAdminAwayFixture = function() {
   } else {
     regs.forEach(function(r) {
       html += 
-        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:10px; border-left:3px solid " + (r.allocated ? "var(--green)" : "var(--safc-gold)") + ";'>" +
-          "<div><strong>" + r.memberName + "</strong><br><span style='color:#cbd5e1; font-size:9px;'>Party: " + (r.party ? r.party.join(", ") : "Lead Only") + "</span></div>" +
+        "<div style='display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 8px; border-radius:6px; margin-bottom:6px; font-size:10px; border-left:3px solid " + (r.paid ? "var(--green)" : (r.allocated ? "var(--safc-gold)" : "#64748b")) + ";'>" +
+          "<div>" +
+            "<strong>" + r.memberName + "</strong> " + (r.paid ? "<span style='color:var(--green); font-weight:800;'>✓ PAID</span>" : "") + "<br>" +
+            "<span style='color:#cbd5e1; font-size:9px;'>Party: " + (r.party ? r.party.join(", ") : "Lead Only") + "</span>" +
+          "</div>" +
           "<button class='btn btn-sm " + (r.allocated ? "btn-outline" : "btn-gold") + "' style='padding:2px 8px; font-size:9px;' onclick='window.toggleAwayAllocation(\"" + r.fixtureId + "\", \"" + r.memberName + "\")'>" + (r.allocated ? "✓ Allocated" : "Allocate ➔") + "</button>" +
         "</div>";
     });
@@ -3211,15 +3228,27 @@ window.renderAdminAwayFixture = function() {
   container.innerHTML = html;
 };
 
+window.toggleAwayFixtureStatus = function(fixtureId) {
+  var fix = appState.awayFixtures.find(function(f) { return f.id === fixtureId; });
+  if (!fix) return;
+  fix.status = (fix.status === "Closed") ? "Open" : "Closed";
+  saveState();
+  window.renderAdminAwayFixture();
+  renderMemberAwayView();
+};
+
 window.confirmAwayQuota = function(fixtureId) {
-  var input = document.getElementById("admin-away-quota-input");
-  var val = input ? parseInt(input.value) : 20;
+  var qInput = document.getElementById("admin-away-quota-input");
+  var pInput = document.getElementById("admin-away-price-input");
   var fix = appState.awayFixtures.find(function(f) { return f.id === fixtureId; });
   if (fix) {
-    fix.allocation = val || 20;
+    fix.allocation = qInput ? (parseInt(qInput.value, 10) || 20) : 20;
+    fix.packagePrice = pInput ? (parseFloat(pInput.value) || 45.00) : 45.00;
     saveState();
     window.renderAdminAwayFixture();
     renderMemberAwayView();
+    renderHUDView();
+    alert("✓ Quota & Ticket/Bus price saved.");
   }
 };
 
@@ -3232,6 +3261,49 @@ window.toggleAwayAllocation = function(fixtureId, memberName) {
     renderMemberAwayView();
     renderHUDView();
   }
+};
+
+window.payForAwayTicketAndBus = async function(fixtureId) {
+  var user = getCurrentUserRecord();
+  if (isMemberUnder18(user)) {
+    alert("🛡️ Under-18 Safeguarding Rule:\nJunior members cannot make wallet payments directly. Please ask your linked adult guardian to pay.");
+    return;
+  }
+
+  var fix = (appState.awayFixtures || []).find(function(f) { return f.id === fixtureId; });
+  var reg = (appState.awayRegistrations || []).find(function(r) {
+    return r.fixtureId === fixtureId && (r.memberName === user.name || (r.party && r.party.some(function(p) { return p.indexOf(user.name) !== -1; })));
+  });
+  if (!fix || !reg || !reg.allocated) return;
+  if (reg.paid) {
+    alert("✓ Your away ticket & travel for " + fix.opponent + " is already confirmed and paid!");
+    return;
+  }
+
+  var partyCount = (reg.party && reg.party.length) ? reg.party.length : 1;
+  var unitPrice = Number(fix.packagePrice || 45.00);
+  var totalCost = unitPrice * partyCount;
+
+  if ((user.balance || 0) < totalCost) {
+    alert("Insufficient funds! You have £" + Number(user.balance || 0).toFixed(2) + " but need £" + totalCost.toFixed(2) + " (" + partyCount + " × £" + unitPrice.toFixed(2) + ").");
+    return;
+  }
+
+  if (typeof window.verifyWalletSpendAuthorization === "function") {
+    if (!window.verifyWalletSpendAuthorization(totalCost, fix.opponent + " (A) Ticket & Bus (" + partyCount + " person(s))")) {
+      return;
+    }
+  }
+
+  user.balance -= totalCost;
+  reg.paid = true;
+  reg.paidBy = user.name;
+  reg.paidAmount = totalCost;
+
+  logForensicTransaction(user.name, "Member", "Branch", "AWAY_TICKET", "Away Ticket & Bus: " + fix.opponent + " (A) ×" + partyCount, totalCost, 0, totalCost);
+  await window.pushMasterStateToCloud();
+  window.refreshAllViews();
+  alert("🎉 Confirmed & Paid! Your away ticket and coach travel for " + fix.opponent + " is locked in.");
 };
 
 // --- PANE 6: BRANCH NEWS & BROADCASTS ---
@@ -4256,108 +4328,145 @@ window.renderHUDView = function() {
     }
   }
 
-  // 3. Contextual Travel Card & True Bus Stop Departure Resolution
-  var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
-  var bookedBus = (appState.bookings && Array.isArray(appState.bookings) && activeMatch)
-    ? appState.bookings.find(function(b) {
-        return String(b.matchId) === String(activeMatch.id) &&
-               ((b.name && b.name.toLowerCase().indexOf(user.name.toLowerCase()) !== -1) ||
-                (b.bookedBy && b.bookedBy.toLowerCase() === user.name.toLowerCase()));
-      })
-    : null;
+// 3 & 4. Unified Next Match Spotlight (Home vs. Away Split)
+var activeMatch = (appState.homeMatches || []).find(function(m) { return String(m.id) === String(appState.selectedHomeMatchId); }) || appState.homeMatches[0];
+var masterList = appState.masterFixtures || [];
+var nextFixture = masterList.length > 0 ? masterList[0] : (activeMatch ? {
+  id: activeMatch.id,
+  opponent: activeMatch.opponent,
+  type: "HOME",
+  competition: activeMatch.competition || "Premier League",
+  venue: activeMatch.venue || "Stadium of Light",
+  dateTime: activeMatch.dateTime || "2026-11-21T15:00:00Z",
+  dateDisplay: (activeMatch.date || "") + " • " + (activeMatch.time || "15:00"),
+  kickoffTime: activeMatch.time || "15:00",
+  coordinates: { lat: 54.9146, lon: -1.3882 }
+} : null);
 
-  var statusCard = document.getElementById("hud-travel-card-status");
-  if (statusCard) {
-    if (bookedBus) {
-      var stopLabel = getDynamicStopDisplay(activeMatch.id, bookedBus.busId, bookedBus.stop);
-      statusCard.innerHTML = 
-        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-          "<div><strong style='color:var(--green);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + stopLabel + " • Bus #" + (bookedBus.busId || 1) + "</div></div>" +
-          "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
-        "</div>";
-    } else {
-      var firstBus = (activeMatch && activeMatch.buses && activeMatch.buses[0]) ? activeMatch.buses[0] : { adultFare: 12, juniorFare: 8 };
-      statusCard.innerHTML = 
-        "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
-          "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £" + Number(firstBus.adultFare || 12).toFixed(2) + " Adult / £" + Number(firstBus.juniorFare || 8).toFixed(2) + " Junior</div></div>" +
-          "<button class='btn btn-red btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
-        "</div>";
-    }
+var statusCard = document.getElementById("hud-travel-card-status");
+var countdownBox = document.getElementById("hud-countdown-box");
+
+if (nextFixture) {
+  var isNextAway = (nextFixture.type === "AWAY");
+  var typePill = document.getElementById("hud-match-type-pill");
+  var dateElem = document.getElementById("hud-next-match-date");
+  var titleElem = document.getElementById("hud-next-match-title");
+  var venueElem = document.getElementById("hud-next-match-venue");
+
+  if (typePill) {
+    typePill.textContent = "NEXT MATCH • " + nextFixture.type + (nextFixture.competition ? " • " + nextFixture.competition.toUpperCase() : "");
+    typePill.style.background = isNextAway ? "#4338ca" : "var(--safc-red)";
   }
+  if (dateElem) dateElem.textContent = nextFixture.dateDisplay;
+  if (titleElem) {
+    titleElem.textContent = isNextAway
+      ? nextFixture.opponent + " vs Sunderland"
+      : "Sunderland vs " + nextFixture.opponent;
+  }
+  var venueDisplay = (nextFixture.venue || "Stadium of Light") + (nextFixture.city ? ", " + nextFixture.city : "");
+  if (venueElem) venueElem.textContent = venueDisplay + " • " + (nextFixture.competition || "Premier League");
 
-  // 4. Next Match Spotlight, True Bus Departure Countdown & Weather
-  var masterList = appState.masterFixtures || [];
-  var nextFixture = masterList.length > 0 ? masterList[0] : (activeMatch ? {
-    opponent: activeMatch.opponent,
-    type: "HOME",
-    competition: activeMatch.competition || "Premier League",
-    venue: activeMatch.venue || "Stadium of Light",
-    dateTime: activeMatch.dateTime || "2026-11-21T15:00:00Z",
-    dateDisplay: (activeMatch.date || "") + " • " + (activeMatch.time || "15:00"),
-    kickoffTime: activeMatch.time || "15:00",
-    coordinates: { lat: 54.9146, lon: -1.3882 }
-  } : null);
+  if (isNextAway) {
+    // AWAY MATCH: Only show countdown & payment/status tile to members allocated tickets
+    var myAwayReg = (appState.awayRegistrations || []).find(function(r) {
+      return r.fixtureId === nextFixture.id && r.allocated &&
+             (r.memberName === user.name || (r.party && r.party.some(function(p) { return p.indexOf(user.name) !== -1; })));
+    });
 
-  if (nextFixture) {
-    var typePill = document.getElementById("hud-match-type-pill");
-    var dateElem = document.getElementById("hud-next-match-date");
-    var titleElem = document.getElementById("hud-next-match-title");
-    var venueElem = document.getElementById("hud-next-match-venue");
+    if (myAwayReg) {
+      if (countdownBox) countdownBox.style.display = "flex";
+      if (typeof startKickoffCountdown === "function") {
+        startKickoffCountdown(nextFixture.dateTime, "Away Travel • " + (nextFixture.venue || nextFixture.opponent));
+      }
+      if (statusCard) {
+        statusCard.style.display = "block";
+        var awayFixObj = (appState.awayFixtures || []).find(function(f) { return f.id === nextFixture.id; }) || { packagePrice: 45.00 };
+        var pCount = (myAwayReg.party && myAwayReg.party.length) ? myAwayReg.party.length : 1;
+        var totalDue = Number(awayFixObj.packagePrice || 45.00) * pCount;
 
-    if (typePill) {
-      typePill.textContent = "NEXT MATCH • " + nextFixture.type + (nextFixture.competition ? " • " + nextFixture.competition.toUpperCase() : "");
-      typePill.style.background = (nextFixture.type === "HOME") ? "var(--safc-red)" : "#4338ca";
+        if (myAwayReg.paid) {
+          statusCard.innerHTML =
+            "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+              "<div><strong style='color:var(--green);'>✓ Confirmed & Paid</strong><div style='font-size:10px; color:#94a3b8;'>Away Ticket & Coach Travel (" + pCount + " seat" + (pCount > 1 ? "s" : "") + ")</div></div>" +
+              "<span class='badge-gold' style='background:var(--green); color:#fff;'>PAID</span>" +
+            "</div>";
+        } else {
+          statusCard.innerHTML =
+            "<div style='display:flex; justify-content:space-between; align-items:center; gap:8px;'>" +
+              "<div><strong style='color:var(--safc-gold);'>🎟️ Away Ticket Allocated</strong><div style='font-size:10px; color:#94a3b8;'>" + pCount + " ticket(s) & travel • £" + totalDue.toFixed(2) + " due</div></div>" +
+              "<button class='btn btn-gold btn-sm' style='font-size:10px; padding:4px 10px; white-space:nowrap;' onclick='window.payForAwayTicketAndBus(\"" + nextFixture.id + "\")'>Pay £" + totalDue.toFixed(2) + "</button>" +
+            "</div>";
+        }
+      }
+    } else {
+      // Non-travelling member: hide countdown & travel box cleanly
+      if (countdownBox) countdownBox.style.display = "none";
+      if (statusCard) statusCard.style.display = "none";
     }
-    if (dateElem) dateElem.textContent = nextFixture.dateDisplay;
-    if (titleElem) {
-      titleElem.textContent = (nextFixture.type === "HOME")
-        ? "Sunderland vs " + nextFixture.opponent
-        : nextFixture.opponent + " vs Sunderland";
-    }
-    var venueDisplay = (nextFixture.venue || "Stadium of Light") + (nextFixture.city ? ", " + nextFixture.city : "");
-    if (venueElem) venueElem.textContent = venueDisplay + " • " + (nextFixture.competition || "Premier League");
+  } else {
+    // HOME MATCH: Show village bus countdown & coach booking status
+    if (countdownBox) countdownBox.style.display = "flex";
+    var bookedBus = (appState.bookings && Array.isArray(appState.bookings) && activeMatch)
+      ? appState.bookings.find(function(b) {
+          return String(b.matchId) === String(activeMatch.id) &&
+                 ((b.name && b.name.toLowerCase().indexOf(user.name.toLowerCase()) !== -1) ||
+                  (b.bookedBy && b.bookedBy.toLowerCase() === user.name.toLowerCase()));
+        })
+      : null;
 
-    // Resolve the member's actual village pickup stop & departure time for the countdown
+    if (statusCard) {
+      statusCard.style.display = (appState.modules && !appState.modules.travel) ? "none" : "block";
+      if (bookedBus) {
+        var stopLabel = getDynamicStopDisplay(activeMatch.id, bookedBus.busId, bookedBus.stop);
+        statusCard.innerHTML = 
+          "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+            "<div><strong style='color:var(--green);'>✓ Coach Seat Confirmed</strong><div style='font-size:10px; color:#94a3b8;'>Pickup: " + stopLabel + " • Bus #" + (bookedBus.busId || 1) + "</div></div>" +
+            "<button class='btn btn-outline btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">View Pass</button>" +
+          "</div>";
+      } else {
+        var firstBus = (activeMatch && activeMatch.buses && activeMatch.buses[0]) ? activeMatch.buses[0] : { adultFare: 12, juniorFare: 8 };
+        statusCard.innerHTML = 
+          "<div style='display:flex; justify-content:space-between; align-items:center;'>" +
+            "<div><strong>Official Branch Coach Travel</strong><div style='font-size:10px; color:#94a3b8;'>Fleet provisioned • £" + Number(firstBus.adultFare || 12).toFixed(2) + " Adult / £" + Number(firstBus.juniorFare || 8).toFixed(2) + " Junior</div></div>" +
+            "<button class='btn btn-red btn-sm' style='font-size:10px; padding:4px 10px;' onclick=\"switchTab('view-travel')\">Book Seat</button>" +
+          "</div>";
+      }
+    }
+
     var countdownTargetIso = nextFixture.dateTime;
     var stopDisplayLabel = "Kickoff @ " + (nextFixture.kickoffTime || "15:00");
-
     if (activeMatch && activeMatch.buses && activeMatch.buses.length > 0) {
       var targetBus = bookedBus
         ? (activeMatch.buses.find(function(b) { return Number(b.busId || 1) === Number(bookedBus.busId || 1); }) || activeMatch.buses[0])
         : activeMatch.buses[0];
       var busStops = (targetBus && targetBus.stops && targetBus.stops.length > 0) ? targetBus.stops : DEFAULT_STOPS;
       var chosenStopObj = busStops[0];
-
       if (bookedBus && bookedBus.stop) {
         var cleanBooked = bookedBus.stop.split("(")[0].trim().toLowerCase();
         var foundSt = busStops.find(function(s) { return s.name.trim().toLowerCase() === cleanBooked; });
         if (foundSt) chosenStopObj = foundSt;
       }
-
       if (chosenStopObj && chosenStopObj.time && nextFixture.dateTime) {
         var datePrefix = nextFixture.dateTime.substring(0, 10);
         var depCandidate = new Date(datePrefix + "T" + chosenStopObj.time.trim() + ":00");
-        if (!isNaN(depCandidate.getTime())) {
-          countdownTargetIso = depCandidate.toISOString();
-        }
+        if (!isNaN(depCandidate.getTime())) countdownTargetIso = depCandidate.toISOString();
         stopDisplayLabel = "🚏 " + chosenStopObj.name + " (" + chosenStopObj.time + ")";
       }
     }
+    if (typeof startKickoffCountdown === "function") startKickoffCountdown(countdownTargetIso, stopDisplayLabel);
+  }
 
-    if (typeof startKickoffCountdown === "function") {
-      startKickoffCountdown(countdownTargetIso, stopDisplayLabel);
-    }
-    if (typeof fetchLiveMatchWeather === "function") {
-      if (nextFixture.coordinates) {
-        fetchLiveMatchWeather(venueDisplay, nextFixture.coordinates, nextFixture.dateTime);
-      } else {
-        resolveDynamicVenueCoords(nextFixture.venue, nextFixture.city, nextFixture.country, nextFixture.opponent).then(function(coords) {
-          nextFixture.coordinates = coords;
-          fetchLiveMatchWeather(venueDisplay, coords, nextFixture.dateTime);
-        });
-      }
+  if (typeof fetchLiveMatchWeather === "function") {
+    if (nextFixture.coordinates) {
+      fetchLiveMatchWeather(venueDisplay, nextFixture.coordinates, nextFixture.dateTime);
+    } else {
+      resolveDynamicVenueCoords(nextFixture.venue, nextFixture.city, nextFixture.country, nextFixture.opponent).then(function(coords) {
+        nextFixture.coordinates = coords;
+        fetchLiveMatchWeather(venueDisplay, coords, nextFixture.dateTime);
+      });
     }
   }
+}
 
   // 5. Action Required / Notifications Box (#hud-actions-box)
   var actionsBox = document.getElementById("hud-actions-box");
@@ -5156,14 +5265,29 @@ function renderMemberAwayView() {
     "</div>" +
     "<div class='text-xs text-muted mt-1'>Branch Ticket Quota: <strong>" + fixture.allocation + " Tickets</strong></div>";
 
-  if (myReg) {
-    html += 
-      "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin:10px 0; font-size:11px;'>" +
-        "<div>Status: " + (myReg.allocated ? "<strong style='color:var(--green);'>✓ TICKET ALLOCATED BY COMMITTEE</strong>" : "<strong style='color:var(--safc-gold);'>⏳ Interest Registered (Awaiting Allocation)</strong>") + "</div>" +
-        "<div style='color:#cbd5e1; margin-top:4px;'>Applicants (" + (myReg.party ? myReg.party.length : 1) + "): <strong>" + (myReg.party ? myReg.party.join(", ") : myReg.memberName) + "</strong></div>" +
-      "</div>" +
-      "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Expression of Interest</button>";
-  } else {
+    if (myReg) {
+      var partyCount = (myReg.party && myReg.party.length) ? myReg.party.length : 1;
+      var pkgTotal = Number(fixture.packagePrice || 45.00) * partyCount;
+      html += 
+        "<div style='background:#1e293b; padding:8px 10px; border-radius:6px; margin:10px 0; font-size:11px;'>" +
+          "<div>Status: " + (myReg.paid
+            ? "<strong style='color:var(--green);'>✓ CONFIRMED & PAID</strong>"
+            : (myReg.allocated ? "<strong style='color:var(--safc-gold);'>🎟️ TICKET ALLOCATED — PAYMENT DUE</strong>" : "<strong style='color:var(--safc-gold);'>⏳ Interest Registered (Awaiting Allocation)</strong>")) + "</div>" +
+          "<div style='color:#cbd5e1; margin-top:4px;'>Applicants (" + partyCount + "): <strong>" + (myReg.party ? myReg.party.join(", ") : myReg.memberName) + "</strong></div>" +
+        "</div>";
+  
+      if (myReg.allocated && !myReg.paid) {
+        html += "<button class='btn btn-gold btn-sm' style='width:100%; margin-bottom:6px;' onclick='window.payForAwayTicketAndBus(\"" + fixture.id + "\")'>💳 Pay for Ticket & Bus (£" + pkgTotal.toFixed(2) + ")</button>";
+      }
+      if (!myReg.paid && fixture.status !== "Closed") {
+        html += "<button class='btn btn-outline btn-sm' style='width:100%; color:#ef4444; border-color:#ef4444;' onclick='window.withdrawAwayInterest(\"" + fixture.id + "\")'>Withdraw Expression of Interest</button>";
+      }
+    } else if (fixture.status === "Closed") {
+      html += 
+        "<div style='background:#0f172a; border:1px dashed #475569; padding:12px; border-radius:8px; text-align:center; margin-top:10px; font-size:11px; color:#94a3b8;'>" +
+          "🔒 <strong>Expressions of Interest Closed</strong><br>Applications for this away fixture are no longer being accepted." +
+        "</div>";
+    } else {
     var myFriends = (appState.friendsAndFamily || []).filter(function(f) { return f.owner === cur && f.status === "approved"; });
     var leadCat = isMemberUnder18(lead) ? "Child" : (lead.category || "Adult");
 
