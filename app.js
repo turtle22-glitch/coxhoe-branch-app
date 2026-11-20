@@ -1602,6 +1602,7 @@ window.setUserSession = function(name, role, memberNo) {
   window.applyAppModules();
   window.applyClubIdentity();
   window.refreshAllViews();
+  window.registerDeviceForBackgroundPush();
 };
 
 window.handleLogin = async function() {
@@ -3233,6 +3234,15 @@ window.toggleAwayFixtureStatus = function(fixtureId) {
   if (!fix) return;
   fix.status = (fix.status === "Closed") ? "Open" : "Closed";
   saveState();
+  var isNowClosed = (fix.status === "Closed");
+window.sendBackgroundPushNotification({
+  title: isNowClosed ? "🔒 Away Interest Closed: " + fix.opponent : "🎟️ Away Interest Open: " + fix.opponent,
+  body: isNowClosed
+    ? "Expressions of interest for " + fix.opponent + " (A) have now closed."
+    : "Expressions of interest are now open for " + fix.opponent + " (A) on " + fix.date + "!",
+  targetTab: "view-travel",
+  excludeMemberName: appState.currentUser ? appState.currentUser.name : null
+});
   window.renderAdminAwayFixture();
   renderMemberAwayView();
 };
@@ -3257,6 +3267,15 @@ window.toggleAwayAllocation = function(fixtureId, memberName) {
   if (reg) {
     reg.allocated = !reg.allocated;
     saveState();
+    if (reg.allocated) {
+      var fixObj = (appState.awayFixtures || []).find(function(f) { return f.id === fixtureId; });
+      window.sendBackgroundPushNotification({
+        title: "🎟️ Away Ticket Allocated!",
+        body: "You have been allocated ticket(s) for " + (fixObj ? fixObj.opponent : "Away Match") + ". Open the app to pay.",
+        targetTab: "view-hud",
+        targetMemberName: memberName
+      });
+    }
     window.renderAdminAwayFixture();
     renderMemberAwayView();
     renderHUDView();
@@ -3411,6 +3430,12 @@ window.adminPostAnnouncement = async function() {
   if (typeof window.dispatchClubNotification === "function") {
     window.dispatchClubNotification("travel", (isUrg ? "🚨 URGENT: " : "📢 ") + tVal, bVal, "view-hud");
   }
+  window.sendBackgroundPushNotification({
+    title: (isUrg ? "🚨 URGENT: " : "📢 ") + tVal,
+    body: bVal,
+    targetTab: "view-hud",
+    excludeMemberName: appState.currentUser ? appState.currentUser.name : null
+  });
   alert("✓ Announcement broadcasted to all branch members!");
 };
 
@@ -6046,6 +6071,12 @@ window.sendDirectMessage = async function() {
 
   input.value = "";
   await window.pushMasterStateToCloud();
+  window.sendBackgroundPushNotification({
+    title: "💬 Message from " + current,
+    body: text,
+    targetTab: "view-comms",
+    targetMemberName: window._activeDMRecipient
+  });
   renderDirectMessagesView();
 };
 
@@ -6826,6 +6857,69 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+var VAPID_PUBLIC_KEY = "BH5Nt8gXn_KoLNcgaAd6QxNX02vnVTUIggAuy63ZKzhkFRlIZlNa-i10CyBFqCxGuBfifxg__4WkEkeiUnYAKr8E";
+
+function urlBase64ToUint8Array(base64String) {
+  var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  var rawData = window.atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+window.registerDeviceForBackgroundPush = async function() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !sbClient) return;
+  if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.indexOf("PASTE_") === 0) return;
+  if (Notification.permission !== "granted") return;
+
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    var subJson = sub.toJSON();
+    var user = getCurrentUserRecord();
+    if (subJson && subJson.endpoint && subJson.keys) {
+      await sbClient.from("push_subscriptions").upsert([{
+        club_id: window.ACTIVE_CLUB_ID,
+        member_no: user ? user.memberNo : null,
+        member_name: user ? user.name : null,
+        endpoint: subJson.endpoint,
+        p256dh: subJson.keys.p256dh,
+        auth: subJson.keys.auth,
+        updated_at: new Date().toISOString()
+      }], { onConflict: "endpoint" });
+    }
+  } catch (e) {
+    console.warn("Background push registration error:", e);
+  }
+};
+
+window.sendBackgroundPushNotification = async function(opts) {
+  if (!sbClient || !opts) return;
+  try {
+    await sbClient.functions.invoke("send-push", {
+      body: {
+        clubId: window.ACTIVE_CLUB_ID,
+        title: opts.title || "Coxhoe Branch SAFC",
+        body: opts.body || "",
+        targetTab: opts.targetTab || "view-hud",
+        targetMemberName: opts.targetMemberName || null,
+        excludeMemberName: opts.excludeMemberName || null
+      }
+    });
+  } catch (e) {
+    console.warn("Background push invoke warning:", e);
+  }
+};
+
 // Browser Push Notification Permission Request
 window.requestBrowserPushPermission = function() {
   if (!("Notification" in window)) {
@@ -6835,6 +6929,7 @@ window.requestBrowserPushPermission = function() {
   Notification.requestPermission().then(function(permission) {
     window.syncSettingsDrawerUI();
     if (permission === "granted") {
+      window.registerDeviceForBackgroundPush();
       window.dispatchClubNotification(
         "travel",
         "Coxhoe Branch SAFC",
