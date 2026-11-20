@@ -17,15 +17,7 @@ if (window.supabase && typeof window.supabase.createClient === "function") {
 }
 
 // --- MASTER DIRECTORY & CONFIG DATA ---
-var MASTER_MEMBERS = [
-  { id: 1, name: "Dave Kelly", memberNo: "COX-012", category: "Adult", hasAppAccount: true, balance: 18.00, registeredDaysAgo: 120, messagingAllowed: true, membershipStatus: "active", membershipTier: "Adult", membershipSeason: "2026/27", validUntil: "2027-07-31" },
-  { id: 2, name: "Sarah Taylor", memberNo: "COX-034", category: "Adult", hasAppAccount: true, balance: 22.00, registeredDaysAgo: 90, messagingAllowed: true, membershipStatus: "active", membershipTier: "Adult", membershipSeason: "2026/27", validUntil: "2027-07-31" },
-  { id: 3, name: "Gary Miller", memberNo: "COX-084", category: "Adult", hasAppAccount: true, balance: 35.00, registeredDaysAgo: 45, messagingAllowed: true, membershipStatus: "active", membershipTier: "Adult", membershipSeason: "2026/27", validUntil: "2027-07-31" },
-  { id: 4, name: "Graham (Secretary)", memberNo: "ADMIN-01", category: "Adult", hasAppAccount: true, balance: 50.00, registeredDaysAgo: 365, messagingAllowed: true, membershipStatus: "active", membershipTier: "Life", membershipSeason: "2026/27", validUntil: "Lifetime" },
-  { id: 5, name: "Billy Thompson", memberNo: "COX-099", category: "Adult", hasAppAccount: true, balance: 25.00, registeredDaysAgo: 30, messagingAllowed: true, membershipStatus: "lapsed", membershipTier: "Adult", membershipSeason: "2025/26", validUntil: "2026-07-31" },
-  { id: 6, name: "Phoebe Miller", memberNo: "COX-085", category: "Child", hasAppAccount: true, balance: 0.00, registeredDaysAgo: 4, messagingAllowed: false, membershipStatus: "active", membershipTier: "Junior", membershipSeason: "2026/27", validUntil: "2027-07-31" },
-  { id: 7, name: "Tommy Robson", memberNo: "COX-104", category: "Child", hasAppAccount: true, balance: 0.00, registeredDaysAgo: 9, messagingAllowed: false, membershipStatus: "lapsed", membershipTier: "Junior", membershipSeason: "2025/26", validUntil: "2026-07-31" }
-];
+var MASTER_MEMBERS = [];
 
 var DEFAULT_STOPS = [
   { id: 1, name: "Cassop Dene VIew", time: "12:15" },
@@ -424,7 +416,7 @@ function detectAbuseOrProfanity(rawText) {
 
 // --- MASTER STATE CONTAINER ---
 var appState = {
-  currentUser: { name: "Gary Miller", role: "member", memberNo: "COX-084", category: "Adult" },
+  currentUser: null,
   users: JSON.parse(localStorage.getItem("coxhoe_users_v20")) || MASTER_MEMBERS,
   stops: DEFAULT_STOPS,
   homeMatches: SEASON_HOME_MATCHES,
@@ -432,18 +424,12 @@ var appState = {
   selectedBookingBusId: 1,
   masterFixtures: INITIAL_MASTER_FIXTURES,
 
-  bookings: JSON.parse(localStorage.getItem("coxhoe_bookings_v20")) || [
-    { id: 101, matchId: SEASON_HOME_MATCHES[0] ? SEASON_HOME_MATCHES[0].id : "H-402", busId: 1, name: "Gary Miller", stop: DEFAULT_STOPS[0] ? DEFAULT_STOPS[0].name : "Coxhoe Red Lion", adults: 1, juniors: 0, total: 12.00, boarded: true },
-    { id: 102, matchId: SEASON_HOME_MATCHES[0] ? SEASON_HOME_MATCHES[0].id : "H-402", busId: 1, name: "Dave Kelly", stop: DEFAULT_STOPS[0] ? DEFAULT_STOPS[0].name : "Coxhoe Red Lion", adults: 2, juniors: 0, total: 24.00, boarded: false }
-  ],
+  bookings: JSON.parse(localStorage.getItem("coxhoe_bookings_v20")) || [],
 
-  friendsAndFamily: JSON.parse(localStorage.getItem("coxhoe_friends_v20")) || [
-    { id: 1, owner: "Gary Miller", targetName: "Phoebe Miller", type: "Child", memberNo: "COX-085", relation: "Daughter", status: "approved" },
-    { id: 2, owner: "Phoebe Miller", targetName: "Gary Miller", type: "Adult", memberNo: "COX-084", relation: "Parent", status: "approved" }
-  ],
-  
+  friendsAndFamily: JSON.parse(localStorage.getItem("coxhoe_friends_v20")) || [],
+
   pendingLinkRequests: JSON.parse(localStorage.getItem("coxhoe_pending_links_v20")) || [],
-  
+
   duesConfig: JSON.parse(localStorage.getItem("coxhoe_dues_config_v20")) || {
     activeSeason: "2026/27",
     dueDate: "2026-08-31",
@@ -453,10 +439,7 @@ var appState = {
     enforceDuesGate: true
   },
 
-  announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v20")) || [
-    { id: 1, title: "European & Premier League Coach Notice", date: "2026-10-31", isUrgent: true, content: "Due to roadworks on the A1(M) near Bowburn, the bus will depart all village pickup points 15 minutes earlier than scheduled.", reactions: 14, archived: false, readBy: [] },
-    { id: 2, title: "Branch Christmas Social Night Announced", date: "2026-10-28", isUrgent: false, content: "Tickets are now on sale for the annual Christmas branch social at Coxhoe WMC on Friday 18th December.", reactions: 29, archived: false, readBy: [] }
-  ],
+  announcements: JSON.parse(localStorage.getItem("coxhoe_announcements_v20")) || [],
 
   matchdayChat: JSON.parse(localStorage.getItem("coxhoe_bus_chat_v20")) || [],
 
@@ -464,40 +447,22 @@ var appState = {
 
   moderation: JSON.parse(localStorage.getItem("coxhoe_moderation_v20")) || {
     strikes: {},
-    mutedMembers: ["Billy Thompson"],
+    mutedMembers: [],
     revokedMembers: [],
     incidents: []
   },
 
-  helpdeskTickets: JSON.parse(localStorage.getItem("coxhoe_helpdesk_v20")) || [
-    {
-      id: "TICK-401",
-      member: "Dave Kelly",
-      topic: "Travel",
-      status: "open",
-      escalatedToGraham: true,
-      created: "2026-10-31 14:00",
-      messages: [{ id: "m1", sender: "Dave Kelly", time: "14:00", text: "Can I pick up at Bowburn instead of Red Lion next week?" }],
-      internalNotes: [{ id: "n1", author: "Sarah Taylor", time: "14:05", text: "Escalated to Graham: can we add Bowburn stop for Dave?" }]
-    }
-  ],
+  helpdeskTickets: JSON.parse(localStorage.getItem("coxhoe_helpdesk_v20")) || [],
 
-  readTracker: JSON.parse(localStorage.getItem("coxhoe_read_tracker_v20")) || {
-    "Gary Miller": { busChatCount: 0, readMsgIds: ["m1"], readNoteIds: [] },
-    "Graham (Secretary)": { busChatCount: 0, readMsgIds: ["m1"], readNoteIds: [] }
-  },
+  readTracker: JSON.parse(localStorage.getItem("coxhoe_read_tracker_v20")) || {},
 
   awayFixtures: SEASON_AWAY_FIXTURES,
-  awayRegistrations: JSON.parse(localStorage.getItem("coxhoe_away_regs_v20")) || [
-    { fixtureId: SEASON_AWAY_FIXTURES[0] ? SEASON_AWAY_FIXTURES[0].id : "A-401", memberName: "Gary Miller", party: ["Gary Miller (Adult)", "Phoebe Miller (Child)"], allocated: true }
-  ],
+  awayRegistrations: JSON.parse(localStorage.getItem("coxhoe_away_regs_v20")) || [],
 
-  masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v20")) || [
-    { txnId: "TXN-1001", timestamp: "2026-10-25 10:00:00", actor: "Gary Miller", role: "Member", target: "Branch", category: "SUBS_DUES", desc: "Annual Membership Subs 2026/27 (Adult)", debit: 10.00, credit: 0, branchImpact: 10.00, balanceAfter: 35.00 }
-  ],
+  masterAuditTrail: JSON.parse(localStorage.getItem("coxhoe_audit_v20")) || [],
 
   footballCard: JSON.parse(localStorage.getItem("coxhoe_football_card_v20")) || DEFAULT_40_TEAMS.map(function(t, idx) {
-    return { id: idx + 1, team: t, price: 2.00, claimedBy: (idx === 0 ? "Gary Miller" : (idx === 6 ? "Graham Croft" : null)) };
+    return { id: idx + 1, team: t, price: 2.00, claimedBy: null };
   }),
 
   activeCardMeta: JSON.parse(localStorage.getItem("coxhoe_card_meta_v20")) || {
@@ -1620,6 +1585,18 @@ window.handleLogin = async function() {
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.textContent = "Verifying Credentials...";
+  }
+
+  if (sbClient && sbClient.auth && val.indexOf("@") !== -1 && enteredPass) {
+    var authRes = await sbClient.auth.signInWithPassword({
+      email: val.toLowerCase(),
+      password: enteredPass
+    });
+    if (authRes.error) {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Sign In to Portal ➔"; }
+      alert("❌ Sign-in failed: " + authRes.error.message);
+      return;
+    }
   }
 
   await window.pullLatestCloudStateNow();
