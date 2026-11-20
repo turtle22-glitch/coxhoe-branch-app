@@ -6857,7 +6857,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-var VAPID_PUBLIC_KEY = "BH5Nt8gXn_KoLNcgaAd6QxNX02vnVTUIggAuy63ZKzhkFRlIZlNa-i10CyBFqCxGuBfifxg__4WkEkeiUnYAKr8E";
+var VAPID_PUBLIC_KEY = "BBGs2aXdyRK4J1BS9nzmb8S4x9wufMwV35YcyH4DbXN-rPL4wLovnh8X_uPN7LgWkPmhF7k-5ZhYv_UXzsLY9aI";
 
 function urlBase64ToUint8Array(base64String) {
   var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
